@@ -1,0 +1,22 @@
+{
+    "tool": "BRISQUE",
+    "tool_version": {
+        "opencv": "4.11.0",
+        "python": "3.13.2"
+    },
+    "image": {
+        "original_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/03_grayscale.jpg",
+        "file_name": "03_grayscale.jpg",
+        "processed_shape": [
+            540,
+            728
+        ],
+        "dtype": "uint8"
+    },
+    "brisque_parameters_used": {
+        "model_file": "brisque_model_live.yml",
+        "range_file": "brisque_range_live.yml"
+    },
+    "quality_score": 0.0,
+    "score_interpretation": "Lower score indicates better quality."
+}

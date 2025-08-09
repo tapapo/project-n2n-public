@@ -1,0 +1,45 @@
+{
+    "alignment_tool": "Homography_RANSAC",
+    "tool_version": {
+        "opencv": "4.13.0-dev",
+        "python": "3.11.0"
+    },
+    "input_images": {
+        "image1_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/CatA_grayscale.jpg",
+        "image2_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/CatB_grayscale.jpg"
+    },
+    "homography_parameters_used": {
+        "ransac_reproj_threshold": 5.0,
+        "max_iterations": 2000,
+        "confidence_level": 0.995
+    },
+    "matching_statistics_input": {
+        "total_good_matches_before_ransac": 4
+    },
+    "homography_results": {
+        "homography_matrix": [
+            [
+                6.0114654597507755,
+                -8.064437564070966,
+                1854.0972900383147
+            ],
+            [
+                0.8791796409737314,
+                -1.179427773429883,
+                271.16259765670986
+            ],
+            [
+                0.003242259989293318,
+                -0.004349522329490707,
+                1.0
+            ]
+        ],
+        "num_inliers": 4,
+        "inlier_mask": [
+            1,
+            1,
+            1,
+            1
+        ]
+    }
+}

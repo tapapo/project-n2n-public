@@ -1,0 +1,82 @@
+{
+    "alignment_tool": "Affine_RANSAC",
+    "tool_version": {
+        "opencv": "4.13.0-dev",
+        "python": "3.11.0"
+    },
+    "input_images": {
+        "image1_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/BallA_grayscale.jpg",
+        "image2_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/BallB_grayscale.jpg"
+    },
+    "affine_parameters_used": {
+        "ransac_reproj_threshold": 5.0,
+        "max_iterations": 2000,
+        "confidence_level": 0.995
+    },
+    "matching_statistics_input": {
+        "total_good_matches_before_ransac": 46
+    },
+    "affine_results": {
+        "affine_matrix": [
+            [
+                -0.09588117878595064,
+                1.445894156314127,
+                77.63757493852931
+            ],
+            [
+                0.061138538426809094,
+                0.7517211295001424,
+                59.024768065225274
+            ]
+        ],
+        "num_inliers": 6,
+        "inlier_mask": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0
+        ]
+    }
+}

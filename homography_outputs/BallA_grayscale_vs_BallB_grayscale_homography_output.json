@@ -1,0 +1,87 @@
+{
+    "alignment_tool": "Homography_RANSAC",
+    "tool_version": {
+        "opencv": "4.13.0-dev",
+        "python": "3.11.0"
+    },
+    "input_images": {
+        "image1_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/BallA_grayscale.jpg",
+        "image2_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/BallB_grayscale.jpg"
+    },
+    "homography_parameters_used": {
+        "ransac_reproj_threshold": 5.0,
+        "max_iterations": 2000,
+        "confidence_level": 0.995
+    },
+    "matching_statistics_input": {
+        "total_good_matches_before_ransac": 46
+    },
+    "homography_results": {
+        "homography_matrix": [
+            [
+                0.9315149510419887,
+                -3.285695954790826,
+                770.7595500181634
+            ],
+            [
+                0.5335176516584765,
+                -1.9529666858869759,
+                464.1606598587057
+            ],
+            [
+                0.0012280780163870496,
+                -0.0043273366424796,
+                0.9999999999999999
+            ]
+        ],
+        "num_inliers": 8,
+        "inlier_mask": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            0,
+            0,
+            1,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+        ]
+    }
+}
