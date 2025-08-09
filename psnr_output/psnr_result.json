@@ -1,0 +1,35 @@
+{
+    "tool": "PSNR",
+    "tool_version": {
+        "opencv": "4.13.0-dev",
+        "python": "3.11.0"
+    },
+    "images": {
+        "original_image": {
+            "path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/CatA.jpg",
+            "file_name": "CatA.jpg",
+            "shape": [
+                587,
+                960,
+                3
+            ],
+            "dtype": "uint8"
+        },
+        "processed_image": {
+            "path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/CatA_grayscale.jpg",
+            "file_name": "CatA_grayscale.jpg",
+            "shape": [
+                587,
+                960
+            ],
+            "dtype": "uint8"
+        }
+    },
+    "psnr_parameters_used": {
+        "data_range": 255,
+        "color_mode_used_for_psnr": "Grayscale"
+    },
+    "quality_score": 48.676,
+    "score_interpretation": "Higher score indicates better quality (lower noise/distortion).",
+    "message": "PSNR calculation successful."
+}

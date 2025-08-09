@@ -1,0 +1,61 @@
+{
+    "matching_tool": "BFMatcher",
+    "tool_version": {
+        "opencv": "4.13.0-dev",
+        "python": "3.11.0"
+    },
+    "bfmatcher_parameters_used": {
+        "norm_type": "L2",
+        "cross_check": false,
+        "knn_k_value": 2,
+        "lowes_ratio_threshold": 0.75
+    },
+    "input_features_details": {
+        "image1": {
+            "original_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/catA_grayscale.jpg",
+            "file_name": "catA_grayscale.jpg",
+            "feature_tool": "SIFT",
+            "num_keypoints": 1264,
+            "descriptor_shape": [
+                1264,
+                128
+            ]
+        },
+        "image2": {
+            "original_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/catB_grayscale.jpg",
+            "file_name": "catB_grayscale.jpg",
+            "feature_tool": "SIFT",
+            "num_keypoints": 16971,
+            "descriptor_shape": [
+                16971,
+                128
+            ]
+        }
+    },
+    "matching_statistics": {
+        "num_raw_matches": 1264,
+        "num_good_matches": 4
+    },
+    "matches": [
+        {
+            "queryIdx": 1128,
+            "trainIdx": 15599,
+            "distance": 70.0
+        },
+        {
+            "queryIdx": 342,
+            "trainIdx": 15599,
+            "distance": 72.9794
+        },
+        {
+            "queryIdx": 717,
+            "trainIdx": 15599,
+            "distance": 85.3639
+        },
+        {
+            "queryIdx": 224,
+            "trainIdx": 815,
+            "distance": 174.3502
+        }
+    ]
+}

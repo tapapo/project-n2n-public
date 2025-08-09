@@ -1,0 +1,145 @@
+{
+    "matching_tool": "FLANNBasedMatcher",
+    "tool_version": {
+        "opencv": "4.13.0-dev",
+        "python": "3.11.0"
+    },
+    "flann_parameters_used": {
+        "index_algorithm": "LSH",
+        "search_checks": 50,
+        "knn_k_value": 2,
+        "lowes_ratio_threshold": 0.75,
+        "kd_tree_trees": null,
+        "lsh_table_number": 6,
+        "lsh_key_size": 12,
+        "lsh_multi_probe_level": 1
+    },
+    "input_features_details": {
+        "image1": {
+            "original_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/BallA.jpg",
+            "file_name": "BallA.jpg",
+            "feature_tool": "ORB",
+            "num_keypoints": 512,
+            "descriptor_shape": [
+                512,
+                32
+            ]
+        },
+        "image2": {
+            "original_path": "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/BallB.jpg",
+            "file_name": "BallB.jpg",
+            "feature_tool": "ORB",
+            "num_keypoints": 508,
+            "descriptor_shape": [
+                508,
+                32
+            ]
+        }
+    },
+    "matching_statistics": {
+        "num_raw_matches": 512,
+        "num_good_matches": 20
+    },
+    "matches": [
+        {
+            "queryIdx": 225,
+            "trainIdx": 295,
+            "distance": 30.0
+        },
+        {
+            "queryIdx": 471,
+            "trainIdx": 21,
+            "distance": 34.0
+        },
+        {
+            "queryIdx": 237,
+            "trainIdx": 506,
+            "distance": 35.0
+        },
+        {
+            "queryIdx": 169,
+            "trainIdx": 434,
+            "distance": 37.0
+        },
+        {
+            "queryIdx": 151,
+            "trainIdx": 434,
+            "distance": 38.0
+        },
+        {
+            "queryIdx": 90,
+            "trainIdx": 346,
+            "distance": 39.0
+        },
+        {
+            "queryIdx": 277,
+            "trainIdx": 432,
+            "distance": 41.0
+        },
+        {
+            "queryIdx": 288,
+            "trainIdx": 506,
+            "distance": 41.0
+        },
+        {
+            "queryIdx": 2,
+            "trainIdx": 504,
+            "distance": 42.0
+        },
+        {
+            "queryIdx": 511,
+            "trainIdx": 303,
+            "distance": 45.0
+        },
+        {
+            "queryIdx": 211,
+            "trainIdx": 340,
+            "distance": 47.0
+        },
+        {
+            "queryIdx": 284,
+            "trainIdx": 90,
+            "distance": 49.0
+        },
+        {
+            "queryIdx": 3,
+            "trainIdx": 393,
+            "distance": 50.0
+        },
+        {
+            "queryIdx": 120,
+            "trainIdx": 430,
+            "distance": 50.0
+        },
+        {
+            "queryIdx": 338,
+            "trainIdx": 80,
+            "distance": 51.0
+        },
+        {
+            "queryIdx": 156,
+            "trainIdx": 459,
+            "distance": 52.0
+        },
+        {
+            "queryIdx": 457,
+            "trainIdx": 209,
+            "distance": 53.0
+        },
+        {
+            "queryIdx": 130,
+            "trainIdx": 178,
+            "distance": 56.0
+        },
+        {
+            "queryIdx": 370,
+            "trainIdx": 374,
+            "distance": 57.0
+        },
+        {
+            "queryIdx": 296,
+            "trainIdx": 38,
+            "distance": 74.0
+        }
+    ]
+}
