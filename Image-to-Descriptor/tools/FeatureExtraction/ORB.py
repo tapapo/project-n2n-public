@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt 
 import json
 import os
 import sys
@@ -50,7 +50,7 @@ def serialize_orb_output_to_json(image_path, processed_gray_img, keypoints, desc
         "keypoints": orb_data
     }, indent=4)
 
-image_path = "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/BallB.jpg"
+image_path = "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/a4.jpeg"
 output_dir = "/Users/pop/Desktop/project_n2n/orb_output"
 os.makedirs(output_dir, exist_ok=True)
 image_file = os.path.basename(image_path)

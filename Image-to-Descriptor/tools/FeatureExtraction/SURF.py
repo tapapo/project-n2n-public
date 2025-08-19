@@ -46,7 +46,7 @@ def serialize_surf_output_to_json(image_path, processed_gray_img, keypoints, des
         "keypoints": surf_data
     }, indent=4)
 
-image_path = "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/CatA.jpg"
+image_path = "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/catA.jpg"
 output_dir = "/Users/pop/Desktop/project_n2n/surf_outputs"
 os.makedirs(output_dir, exist_ok=True)
 image_file = os.path.basename(image_path)
@@ -63,7 +63,7 @@ except Exception as e:
 
 try:
     surf = cv2.xfeatures2d.SURF_create(
-        hessianThreshold=400,
+        hessianThreshold=200,
         nOctaves=4,
         nOctaveLayers=3,
         extended=False,
