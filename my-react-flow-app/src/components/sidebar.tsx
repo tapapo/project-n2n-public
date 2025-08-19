@@ -10,6 +10,13 @@ const Sidebar = () => {
 
   const jobs = [
     // ... (โค้ด jobs เดิม)
+
+    {
+      name: 'Input',
+      algorithms: [
+        { type: 'image-input', label: 'Image Input', color: 'bg-teal-600' },
+      ],
+    },
     {
       name: 'Enhancement',
       algorithms: [
@@ -37,7 +44,7 @@ const Sidebar = () => {
     {
       name: 'Quality Assessment',
       algorithms: [
-        { type: 'brisqe', label: 'BRISQUE', color: 'bg-blue-500' },
+        { type: 'brisque', label: 'BRISQUE', color: 'bg-blue-500' },
         { type: 'psnr', label: 'PSNR', color: 'bg-blue-500' },
         { type: 'ssim', label: 'SSIM', color: 'bg-blue-500' },
       ],
@@ -54,7 +61,7 @@ const Sidebar = () => {
       name: 'Matching',
       algorithms: [
         { type: 'bfmatcher', label: 'BFMatcher', color: 'bg-orange-500' },
-        { type: 'flann-matcher', label: 'FlannMatcher', color: 'bg-orange-500' },
+        { type: 'flannmatcher', label: 'FLANN Matcher', color: 'bg-orange-500' },
       ],
     },
     {
@@ -85,7 +92,7 @@ const Sidebar = () => {
     <aside className="border-r border-gray-700 p-4 w-72 bg-gray-800 h-full shadow-xl flex flex-col">
       {/* หัวข้อจะอยู่ข้างบนและไม่ Scroll */}
       <div className="text-xl font-bold mb-4 text-teal-400 flex-shrink-0">Image Processing Job</div>
-      
+
       {/* รายการ Job จะเป็นส่วนที่ Scroll ได้ */}
       <div className="flex flex-col gap-2 overflow-y-auto flex-grow">
         {jobs.map((job) => (
@@ -107,7 +114,7 @@ const Sidebar = () => {
                 />
               </svg>
             </div>
-            
+
             {openJobs[job.name] && (
               <div className="mt-2 space-y-2">
                 {job.algorithms.map((alg) => (

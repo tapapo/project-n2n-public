@@ -69,8 +69,8 @@ def load_descriptor_data_from_json(json_path):
 
 # --- Configuration (Hardcoded Parameters) ---
 # PATHs ไปยังไฟล์ JSON ของคุณ
-json_path_img1 = "/Users/pop/Desktop/project_n2n/sift_outputs/BallA_sift_output.json" # เปลี่ยน Path ให้ถูกต้อง
-json_path_img2 = "/Users/pop/Desktop/project_n2n/sift_outputs/BallB_sift_output.json" # เปลี่ยน Path ให้ถูกต้อง
+json_path_img1 = "/Users/pop/Desktop/project_n2n/sift_outputs/a1_sift_output.json" # เปลี่ยน Path ให้ถูกต้อง
+json_path_img2 = "/Users/pop/Desktop/project_n2n/sift_outputs/a4_sift_output.json" # เปลี่ยน Path ให้ถูกต้อง
 output_json_dir = "/Users/pop/Desktop/project_n2n/flann_outputs" # โฟลเดอร์สำหรับ output JSON
 
 # FLANN Specific Parameters - Index (ปรับเปลี่ยนได้ตามความต้องการ)

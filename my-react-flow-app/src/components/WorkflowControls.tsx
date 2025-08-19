@@ -1,32 +1,19 @@
-import { useState } from 'react';
+import React from 'react';
 
 interface WorkflowControlsProps {
-  // หากต้องการให้ App Component ควบคุมสถานะ isRunning
-  // คุณสามารถรับ prop นี้และ function setState ได้
-  // ตัวอย่างนี้เราจะให้ Component นี้จัดการ State เอง
+  isRunning: boolean;
+  onStart: () => void;
+  onStop: () => void;
 }
 
-const WorkflowControls = () => {
-  const [isRunning, setIsRunning] = useState(false);
-
-  const handleStart = () => {
-    console.log('Workflow Started!');
-    setIsRunning(true);
-  };
-
-  const handleStop = () => {
-    console.log('Workflow Stopped!');
-    setIsRunning(false);
-  };
-
+const WorkflowControls: React.FC<WorkflowControlsProps> = ({ isRunning, onStart, onStop }) => {
   return (
     <div className="bg-gray-800 p-3 border-b-2 border-gray-700 flex justify-between items-center px-6">
       <div className="flex items-center space-x-3">
-        <div 
-          className={`w-3 h-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} 
-        />
+        <div className={`w-3 h-3 rounded-full ${isRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
         <span className="text-sm font-semibold text-gray-200">
-          Status: <span className={`${isRunning ? 'text-green-400' : 'text-red-400'} font-bold`}>
+          Status:{' '}
+          <span className={`${isRunning ? 'text-green-400' : 'text-red-400'} font-bold`}>
             {isRunning ? 'Running' : 'Stopped'}
           </span>
         </span>
@@ -34,7 +21,7 @@ const WorkflowControls = () => {
 
       <div className="flex space-x-2">
         <button
-          onClick={handleStart}
+          onClick={onStart}
           disabled={isRunning}
           className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-bold transition-all duration-200 shadow-md
             ${isRunning ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white transform hover:scale-105'}
@@ -45,9 +32,9 @@ const WorkflowControls = () => {
           </svg>
           <span>Start</span>
         </button>
-        
+
         <button
-          onClick={handleStop}
+          onClick={onStop}
           disabled={!isRunning}
           className={`flex items-center space-x-2 px-4 py-2 rounded-lg font-bold transition-all duration-200 shadow-md
             ${!isRunning ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-red-600 hover:bg-red-700 text-white transform hover:scale-105'}

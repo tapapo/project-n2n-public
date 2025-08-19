@@ -46,7 +46,7 @@ def serialize_sift_output_to_json(image_path, processed_gray_img, keypoints, des
         "keypoints": sift_data
     }, indent=4)
 
-image_path = "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/BallB.jpg" 
+image_path = "/Users/pop/Desktop/project_n2n/Image-to-Descriptor/image/a4.jpeg" 
 output_dir = "/Users/pop/Desktop/project_n2n/sift_outputs"
 os.makedirs(output_dir, exist_ok=True)
 
@@ -66,8 +66,8 @@ sift = cv2.SIFT_create(
     nfeatures=0,
     nOctaveLayers=3,
     contrastThreshold=0.04,
-    edgeThreshold=10,
-    sigma=1.6
+    edgeThreshold=3,
+    sigma=2.0
 )
 
 print("\n[INFO] Running SIFT...")
