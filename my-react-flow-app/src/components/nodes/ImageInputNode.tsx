@@ -1,3 +1,4 @@
+// src/components/nodes/ImageInputNode.tsx
 import { memo, useRef, useState } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from 'reactflow';
 import type { CustomNodeData } from '../../types';
@@ -22,6 +23,14 @@ const ImageInputNode = memo(({ id, data }: Props) => {
 
   const onPick = () => fileRef.current?.click();
 
+  const readImageSize = (url: string) =>
+    new Promise<{ width: number; height: number }>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+      img.onerror = reject;
+      img.src = url;
+    });
+
   const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (!files.length) return;
@@ -33,6 +42,15 @@ const ImageInputNode = memo(({ id, data }: Props) => {
       const f = resp.files[0];
       setLocalName(f.name);
 
+      // ให้แน่ใจว่าเป็น string เสมอ (abs อาจคืน undefined ในบางโปรเจกต์)
+      const absUrl: string = (abs(f.url) || f.url) as string;
+
+      // ✅ อ่านขนาดรูปจริง
+      let dims = { width: 0, height: 0 };
+      try {
+        dims = await readImageSize(absUrl);
+      } catch {}
+
       setNodes((nds) =>
         nds.map((n) =>
           n.id === id
@@ -43,13 +61,14 @@ const ImageInputNode = memo(({ id, data }: Props) => {
                   payload: {
                     ...(n.data?.payload || {}),
                     name: f.name,
-                    path: f.path,          // path บนเครื่อง/เซิร์ฟเวอร์ (ใช้เป็น input ให้ SIFT)
-                    url: abs(f.url),       // absolute url สำหรับ preview
-                    // เพื่อความสะดวก: ทำให้ CustomNode แสดงรูป input ด้วยคีย์มาตรฐานเดียวกัน
-                    result_image_url: abs(f.url),
+                    path: f.path,
+                    url: absUrl,
+                    result_image_url: absUrl, // ให้พรีวิวได้
+                    width: dims.width,
+                    height: dims.height,
                   },
                   status: 'success',
-                  description: 'Image uploaded',
+                  description: `Image uploaded (${dims.width}×${dims.height})`,
                 },
               }
             : n
@@ -64,18 +83,17 @@ const ImageInputNode = memo(({ id, data }: Props) => {
       );
     } finally {
       setUploading(false);
-      if (fileRef.current) fileRef.current.value = ''; // reset เพื่อเลือกไฟล์ชื่อเดิมได้
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
   const resultUrl: string | undefined =
     (data?.payload && (data.payload.result_image_url as string)) ||
-    (data?.payload && (data.payload.url as string)) || // เผื่อแสดง input preview
+    (data?.payload && (data.payload.url as string)) ||
     undefined;
 
   return (
     <div className="bg-gray-800 border-2 border-teal-500 rounded-xl shadow-2xl w-72 text-gray-200">
-      {/* only output (image) */}
       <Handle
         type="source"
         position={Position.Right}
@@ -100,18 +118,16 @@ const ImageInputNode = memo(({ id, data }: Props) => {
           {uploading ? 'Uploading...' : 'Choose Image'}
         </button>
 
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          onChange={onChange}
-          className="hidden"
-        />
+        <input ref={fileRef} type="file" accept="image/*" onChange={onChange} className="hidden" />
 
         {localName && (
           <div className="text-xs text-gray-400 break-all">
             Uploaded: <span className="text-gray-200">{localName}</span>
           </div>
+        )}
+
+        {data?.payload?.width && data?.payload?.height && (
+          <div className="text-xs text-gray-400">{data.payload.width}×{data.payload.height}px</div>
         )}
 
         {resultUrl && (
@@ -128,7 +144,6 @@ const ImageInputNode = memo(({ id, data }: Props) => {
         {error && <div className="text-xs text-red-400">{error}</div>}
       </div>
 
-      {/* Status */}
       <div className="border-t-2 border-gray-700 p-2 text-sm">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>
