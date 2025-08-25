@@ -1,5 +1,5 @@
 // src/types.ts
-export type NodeStatus = 'idle' | 'running' | 'success' | 'fault';
+export type NodeStatus = 'start' | 'running' | 'success' | 'fault';
 
 export interface PortDef { id: string; label?: string }
 
@@ -10,6 +10,5 @@ export interface CustomNodeData {
   status?: NodeStatus;
   inputs?: PortDef[];
   outputs?: PortDef[];
-  // payload สำหรับ node เฉพาะ (เช่น image-input จะเก็บ path/preview)
   payload?: Record<string, any>;
 }
