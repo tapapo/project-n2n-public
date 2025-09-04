@@ -5,7 +5,6 @@ export const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000"
 
 export const abs = (url?: string) => {
   if (!url) return undefined;
-  // อย่าเติม BASE ให้กับ blob:/data:
   if (/^(https?:|blob:|data:)/i.test(url)) return url;
   return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
 };

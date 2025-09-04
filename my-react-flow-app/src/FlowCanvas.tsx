@@ -888,7 +888,7 @@ const FlowCanvas = ({ isRunning, onPipelineDone }: FlowCanvasProps) => {
       fitView={false}
       nodeTypes={nodeTypes}
       defaultEdgeOptions={defaultEdgeOptions}
-      connectionLineType={ConnectionLineType.SmoothStep}  // ตอนลากก็เส้น smoothstep
+      connectionLineType={ConnectionLineType.SmoothStep}
       connectOnClick={false}
       isValidConnection={() => true}
       deleteKeyCode={['Backspace', 'Delete']}

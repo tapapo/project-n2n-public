@@ -27,8 +27,8 @@ type FLANNParams = {
   draw_mode: 'good' | 'inliers';
   max_draw?: number | null;
   index_params:
-    | { algorithm: number | 'KDTREE' | 'KD_TREE' | 'LSH' | 'AUTO'; trees?: number; table_number?: number; key_size?: number; multi_probe_level?: number }
-    | 'AUTO';
+  | { algorithm: number | 'KDTREE' | 'KD_TREE' | 'LSH' | 'AUTO'; trees?: number; table_number?: number; key_size?: number; multi_probe_level?: number }
+  | 'AUTO';
   search_params: { checks?: number } | 'AUTO';
 };
 
@@ -71,12 +71,14 @@ function extractInputMeta(respJson: any) {
   return { metaA, metaB };
 }
 function humanIndex(used: any): string | undefined {
-  if (!used) return;
-  const ip = used.index_params || {};
+  if (!used || !used.index_params) return;
+  const ip = used.index_params;
+  if (typeof ip !== 'object' || !Object.keys(ip).length) return; // ⬅️ ไม่มีอะไร ไม่ต้องแสดง
+
   const algo = (ip.algorithm ?? '').toString().toUpperCase();
   if (algo === '1' || algo.includes('KD')) {
     const t = ip.trees ?? 5;
-    return `KD‑Tree (trees=${t})`;
+    return `KD-Tree (trees=${t})`;
   }
   if (algo === '6' || algo === 'LSH') {
     const tb = ip.table_number ?? 6;
@@ -84,13 +86,15 @@ function humanIndex(used: any): string | undefined {
     const mp = ip.multi_probe_level ?? 1;
     return `LSH (table=${tb}, key=${ks}, multi=${mp})`;
   }
-  return JSON.stringify(ip);
+  return; // ⬅️ ไม่รู้จัก ก็ไม่ต้องแสดง
 }
+
 function humanSearch(used: any): string | undefined {
-  if (!used) return;
-  const sp = used.search_params || {};
+  if (!used || !used.search_params) return;
+  const sp = used.search_params;
+  if (typeof sp !== 'object' || !Object.keys(sp).length) return; // ⬅️ ไม่มีอะไร ไม่ต้องแสดง
   if (typeof sp.checks === 'number') return `checks=${sp.checks}`;
-  return JSON.stringify(sp);
+  return;
 }
 
 const FLANNMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
@@ -137,22 +141,26 @@ const FLANNMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
 
   const caption =
     respJson?.matching_statistics?.summary ??
-    (inliers != null && goodCount != null ? `${inliers} inliers / ${goodCount} good matches` : 'No matches yet');
+    (inliers != null && goodCount != null
+      ? `${inliers} inliers / ${goodCount} good matches`
+      : visUrl
+        ? 'Matches preview'
+        : 'Connect two feature nodes and run');;
 
   const { metaA, metaB } = extractInputMeta(respJson || {});
-  const used = respJson?.flann_parameters_used || data?.flann_parameters_used || {};
+  const used = respJson?.flann_parameters_used;
   const usedIndexPretty = humanIndex(used);
   const usedSearchPretty = humanSearch(used);
 
   return (
-    <div className="bg-gray-800 border-2 border-teal-500 rounded-xl shadow-2xl w-88 max-w-sm text-gray-200">
+    <div className="bg-gray-800 border-2 border-orange-500 rounded-xl shadow-2xl w-88 max-w-sm text-gray-200 overflow-visible">
       {/* ports */}
       <Handle type="target" position={Position.Left} id="file1" style={{ ...handleStyle, top: '35%', transform: 'translateY(-50%)' }} />
       <Handle type="target" position={Position.Left} id="file2" style={{ ...handleStyle, top: '65%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} style={{ ...handleStyle, top: '50%', transform: 'translateY(-50%)' }} />
 
       {/* header */}
-      <div className="bg-gray-700 text-teal-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
+      <div className="bg-gray-700 text-orange-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
         <div className="font-bold">FLANN Matcher</div>
 
         <div className="flex items-center gap-2">
@@ -163,24 +171,35 @@ const FLANNMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
             disabled={isBusy}
             className={[
               'px-2 py-1 rounded text-xs font-semibold transition-colors',
-              isBusy ? 'bg-gray-600 text-gray-300 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700 text-white',
+              isBusy ? 'bg-gray-600 text-gray-300 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 text-white',
             ].join(' ')}
           >
             ▶ Run
           </button>
 
           {/* Settings: วงกลมพื้นขาว ขอบเทา */}
-          <button
-            title="Settings"
-            aria-label="Open FLANN settings"
-            onClick={() => setOpen(true)}
-            className="h-5 w-5 rounded-full bg-white flex items-center justify-center
-                       shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80
-                       transition focus-visible:outline-none focus-visible:ring-2
-                       focus-visible:ring-teal-500/70"
-          >
-            <SettingsSlidersIcon />
-          </button>
+          <span className="relative inline-flex items-center group">
+            <button
+              aria-label="Open FLANN settings"
+              onClick={() => setOpen(true)}
+              className="h-5 w-5 rounded-full bg-white flex items-center justify-center
+               shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80
+               transition focus-visible:outline-none focus-visible:ring-2
+               focus-visible:ring-orange-500/70"
+            >
+              <SettingsSlidersIcon />
+            </button>
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+               whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white
+               opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150
+               group-hover:opacity-100"
+            >
+              Settings
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+            </span>
+          </span>
         </div>
       </div>
 
@@ -222,10 +241,10 @@ const FLANNMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
 
       {/* status */}
       <div className="border-t-2 border-gray-700 p-2 text-sm">
-        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start','bg-red-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running','bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success','bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault','bg-yellow-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
       {/* settings modal */}
@@ -287,8 +306,8 @@ const FLANNMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
                     form.index_params === 'AUTO'
                       ? 'AUTO'
                       : (typeof (form.index_params as any).algorithm === 'string'
-                          ? (form.index_params as any).algorithm.toUpperCase()
-                          : String((form.index_params as any).algorithm))
+                        ? (form.index_params as any).algorithm.toUpperCase()
+                        : String((form.index_params as any).algorithm))
                   }
                   onChange={(e) => {
                     const v = e.target.value;
@@ -309,19 +328,19 @@ const FLANNMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
 
               {form.index_params !== 'AUTO' && (form.index_params as any).algorithm &&
                 String((form.index_params as any).algorithm).toUpperCase().includes('KD') && (
-                <label>
-                  trees
-                  <input
-                    type="number" min={1}
-                    className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700"
-                    value={(form.index_params as any).trees ?? 5}
-                    onChange={(e) => setForm(s => ({
-                      ...s,
-                      index_params: { ...(s.index_params as any), algorithm: 'KDTREE', trees: Number(e.target.value) }
-                    }))}
-                  />
-                </label>
-              )}
+                  <label>
+                    trees
+                    <input
+                      type="number" min={1}
+                      className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700"
+                      value={(form.index_params as any).trees ?? 5}
+                      onChange={(e) => setForm(s => ({
+                        ...s,
+                        index_params: { ...(s.index_params as any), algorithm: 'KDTREE', trees: Number(e.target.value) }
+                      }))}
+                    />
+                  </label>
+                )}
 
               {form.index_params !== 'AUTO' && String((form.index_params as any).algorithm).toUpperCase() === 'LSH' && (
                 <>
@@ -406,7 +425,7 @@ const FLANNMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
 
           <div className="flex justify-end gap-2 pt-3">
             <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 text-gray-200 hover:bg-gray-600">Close</button>
-            <button onClick={onSave} className="px-3 py-1 rounded bg-teal-600 text-white hover:bg-teal-700">Save</button>
+            <button onClick={onSave} className="px-3 py-1 rounded bg-orange-600 text-white hover:bg-orange-700">Save</button>
           </div>
         </div>
       </Modal>

@@ -28,7 +28,7 @@ const BrisqueNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
   }, [data, id, isBusy]);
 
   return (
-    <div className="bg-gray-800 border-2 border-teal-500 rounded-xl shadow-2xl w-72 text-gray-200">
+    <div className="bg-gray-800 border-2 border-blue-500 rounded-xl shadow-2xl w-72 text-gray-200">
       <Handle
         type="target"
         position={Position.Left}
@@ -41,7 +41,7 @@ const BrisqueNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
       />
 
       {/* Header */}
-      <div className="bg-gray-700 text-teal-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
+      <div className="bg-gray-700 text-blue-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
         <div className="font-bold">BRISQUE</div>
 
         {/* Run */}
@@ -53,7 +53,7 @@ const BrisqueNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
             'px-2 py-1 rounded text-xs font-semibold transition-colors',
             isBusy
               ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
-              : 'bg-teal-600 hover:bg-teal-700 text-white',
+              : 'bg-blue-600 hover:bg-blue-700 text-white',
           ].join(' ')}
         >
           ▶ Run
