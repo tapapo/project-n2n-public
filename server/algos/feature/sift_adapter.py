@@ -1,15 +1,22 @@
+# server/algos/feature/sift_adapter.py
+
 import os, sys, json, uuid
 import numpy as np
 import cv2
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Union
+
 if TYPE_CHECKING:
     import cv2
 
+# โฟลเดอร์เริ่มต้น (fallback) ถ้าไม่ส่ง out_dir มา
 BASE_DIR = "/Users/pop/Desktop/project_n2n/outputs/features"
 
-def ensure_dir(path: str):
+# ---------------- Utils ----------------
+def ensure_dir(path: Union[str, os.PathLike]) -> None:
+    """สร้างโฟลเดอร์ถ้าไม่มี (รองรับ str/PathLike)"""
+    path = os.fspath(path)
     if not os.path.exists(path):
-        os.makedirs(path)
+        os.makedirs(path, exist_ok=True)
 
 def _kp_dict(kp, desc_row):
     return {
@@ -23,11 +30,19 @@ def _kp_dict(kp, desc_row):
         "descriptor": desc_row.tolist() if desc_row is not None else None
     }
 
-def run(image_path: str, out_dir: str = None, **params):
-    # --- กำหนดโฟลเดอร์ให้แน่นอน ---
-    algo_dir = os.path.join(BASE_DIR, "sift_outputs")
+# ---------------- Main API ----------------
+def run(
+    image_path: Union[str, os.PathLike],
+    out_dir: Optional[Union[str, os.PathLike]] = None,
+    **params
+):
+    # --- normalize paths (รองรับ PathLike) ---
+    image_path = os.fspath(image_path)
+    base_dir = os.fspath(out_dir) if out_dir is not None else BASE_DIR
+    algo_dir = os.path.join(base_dir, "sift_outputs")
     ensure_dir(algo_dir)
 
+    # --- Read image ---
     img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
@@ -42,11 +57,16 @@ def run(image_path: str, out_dir: str = None, **params):
     )
     kps, desc = sift.detectAndCompute(img, None)
     if desc is None:
-        desc = np.empty((0,128), np.float32)
+        desc = np.empty((0, 128), np.float32)
 
     kplist = [_kp_dict(k, desc[i] if i < len(desc) else None) for i, k in enumerate(kps or [])]
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if (img.ndim==3 and img.shape[2] in (3,4)) else img
+    # --- Grayscale for metadata (ไม่เปลี่ยนแหล่งวาด vis) ---
+    if img.ndim == 3 and img.shape[2] in (3, 4):
+        # ถ้า 3 ช่อง: BGR->GRAY, ถ้า 4 ช่อง: BGRA->GRAY
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.shape[2] == 3 else cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
+    else:
+        gray = img
 
     payload = {
         "tool": "SIFT",
@@ -80,10 +100,16 @@ def run(image_path: str, out_dir: str = None, **params):
     with open(json_path, "w") as f:
         json.dump(payload, f, indent=4)
 
-    # --- Save Visualization ---
+    # --- Save Visualization (วาดบนภาพต้นฉบับที่เหมาะสม) ---
+    if img.ndim == 2:
+        vis_src = img
+    elif img.ndim == 3 and img.shape[2] == 4:
+        vis_src = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+    else:
+        vis_src = img
+
     vis = cv2.drawKeypoints(
-        img if img.ndim==2 else (cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) if (img.ndim==3 and img.shape[2]==4) else img),
-        kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
+        vis_src, kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
     )
     vis_path = os.path.join(algo_dir, stem + "_vis.jpg")
     cv2.imwrite(vis_path, vis)

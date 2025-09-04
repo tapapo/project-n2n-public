@@ -21,7 +21,7 @@ from .algos.quality.ssim_adapter import compute_ssim
 from .algos.matching.bfmatcher_adapter import run as bf_run
 from .algos.matching.flannmatcher_adapter import run as flann_run
 
-# >>> NEW
+# cache helpers
 from .cache_utils import (
     make_cache_key, feature_paths, metric_json_path, ensure_dir
 )
@@ -34,6 +34,22 @@ OUT = os.path.join(ROOT, "outputs")
 UPLOAD_DIR = os.path.join(OUT, "uploads")
 RESULT_DIR = OUT
 ensure_dirs(UPLOAD_DIR, RESULT_DIR)
+
+# -------------------------------
+# Helpers
+# -------------------------------
+def _read_json(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def _as_count(x) -> int:
+    """รองรับทั้ง list ของ matches หรือจำนวน (int/float/str)"""
+    if isinstance(x, list):
+        return len(x)
+    try:
+        return int(x)
+    except Exception:
+        return 0
 
 # -------------------------------
 # FastAPI setup
@@ -74,9 +90,6 @@ class FeatureReq(BaseModel):
 
 def _feature_cached(tool_name: str, image_path: str, params: Optional[dict]):
     key = make_cache_key(tool_name, files=[image_path], params=params or {})
-    # ไฟล์ออกของฟีเจอร์เราให้ไปอยู่ results/<tool>_outputs เพื่อแยกกับของเดิม
-    # แต่จะเสิร์ฟผ่าน /static ได้เหมือนเดิม
-    # ชื่อโฟลเดอร์ฝั่ง feature adapters ของคุณอาจเป็น "sift_outputs", "surf_outputs", "orb_outputs"
     subdir = f"{tool_name.lower()}_outputs"
     stem = f"{tool_name.lower()}_{key}"
     json_p, vis_p = feature_paths(RESULT_DIR, subdir, stem)
@@ -93,24 +106,17 @@ def _return_feature(tool: str, json_path: str, vis_path: Optional[str]):
 @app.post("/api/feature/sift")
 def feature_sift(req: FeatureReq):
     key, subdir, json_p, vis_p = _feature_cached("SIFT", req.image_path, req.params)
-    # hit?
     if os.path.exists(json_p):
-        # ถ้าเคยมี cache แล้ว รีเทิร์นเลย
         return _return_feature("SIFT", json_p, vis_p if os.path.exists(vis_p) else None)
 
-    # miss -> run แล้วย้ายผลลัพธ์ไปชื่อ cache
     j, v = sift_run(req.image_path, RESULT_DIR, **(req.params or {}))
     ensure_dir(os.path.dirname(json_p))
     try:
         if os.path.exists(j):
             os.replace(j, json_p)
-        else:
-            # บาง adapter อาจเขียนลง RESULT_DIR โดยตรงอยู่แล้ว
-            pass
         if v and os.path.exists(v):
             os.replace(v, vis_p)
     except Exception:
-        # ถ้าย้ายไม่ได้ก็ปล่อยไว้ แต่รีเทิร์น path จริง
         return _return_feature("SIFT", j, v)
     return _return_feature("SIFT", json_p, vis_p)
 
@@ -167,7 +173,6 @@ def quality_brisque(req: QualityReq):
         }
 
     j, _ = brisque_run(req.image_path, RESULT_DIR, **(req.params or {}))
-    # ย้ายมาเป็นชื่อ cache
     try:
         if os.path.exists(j):
             os.replace(j, out_json)
@@ -184,7 +189,6 @@ def quality_brisque(req: QualityReq):
 
 @app.post("/api/quality/psnr")
 async def quality_psnr(original: UploadFile = File(...), processed: UploadFile = File(...)):
-    # ทำ key จาก path temp + ขนาด/mtime ตอนเซฟลง temp (แยกไฟล์เดียวกัน = key เดิม)
     tmpdir = tempfile.mkdtemp()
     try:
         orig_path = os.path.join(tmpdir, original.filename or "a.bin")
@@ -237,7 +241,6 @@ async def quality_ssim(original: UploadFile = File(...), processed: UploadFile =
         with open(proc_path, "wb") as f:
             f.write(await processed.read())
 
-        # ใส่พารามิเตอร์ที่ compute_ssim ใช้เป็น default เพื่อให้ cache แม่น
         default_ssim_params = {
             'data_range': 255, 'win_size': 11, 'gaussian_weights': True,
             'sigma': 1.5, 'use_sample_covariance': True, 'K1': 0.01, 'K2': 0.03,
@@ -284,89 +287,86 @@ class BFReq(BaseModel):
     json_b: str
     norm_type: Optional[str] = None      # 'L2' | 'L1' | 'HAMMING' | 'HAMMING2' | None (AUTO)
     cross_check: Optional[bool] = None   # None = default ตามชนิด descriptor
-    lowe_ratio: Optional[float] = 0.75
+    lowe_ratio: Optional[float] = None   # ← ให้ None เพื่อ AUTO จริง (ORB=0.8, อื่นๆ=0.75)
     ransac_thresh: Optional[float] = 5.0
     draw_mode: Optional[str] = "good"    # 'good' | 'inliers'
 
-def _read_json(path: str) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
 @app.post("/api/match/bf")
 def match_bf(req: BFReq):
-    # สร้าง key จาก descriptors + params
+    # ใช้ "auto" เมื่อ lowe_ratio เป็น None เพื่อแยก cache-key
     params_for_key = {
         "norm_type": req.norm_type,
         "cross_check": req.cross_check,
-        "lowe_ratio": req.lowe_ratio if req.lowe_ratio is not None else 0.75,
+        "lowe_ratio": req.lowe_ratio if req.lowe_ratio is not None else "auto",
         "ransac_thresh": req.ransac_thresh if req.ransac_thresh is not None else 5.0,
         "draw_mode": req.draw_mode or "good",
     }
     key = make_cache_key("BF", files=[req.json_a, req.json_b], params=params_for_key)
     stem = f"bf_{key}"
-    # เก็บไว้รวมที่ results/features/bfmatcher_outputs
     json_p, vis_p = feature_paths(OUT, "bfmatcher_outputs", stem)
 
+    # cache hit
     if os.path.exists(json_p):
         data = _read_json(json_p)
         inliers = int(data.get("inliers", 0))
-        good_matches = data.get("good_matches", data.get("matching_statistics", {}).get("num_good_matches", 0))
-        good_count = len(good_matches) if isinstance(good_matches, list) else int(good_matches)
+        good_cnt = _as_count(
+            data.get("good_matches", data.get("matching_statistics", {}).get("num_good_matches", 0))
+        )
         return {
             "tool": "BFMatcher",
             "description": data.get("matching_statistics", {}).get("summary")
-                           or f"{inliers} inliers / {good_count} matches",
+                           or f"{inliers} inliers / {good_cnt} matches",
             "matching_statistics": data.get("matching_statistics", {}),
             "bfmatcher_parameters_used": data.get("bfmatcher_parameters_used", {}),
             "input_features_details": data.get("input_features_details", {}),
             "inputs": data.get("inputs", {}),
             "inliers": inliers,
-            "good_matches": good_count,
+            "good_matches": good_cnt,
             "vis_url": static_url(vis_p, OUT) if os.path.exists(vis_p) else static_url(data.get("vis_url"), OUT),
             "json_path": json_p,
             "json_url": static_url(json_p, OUT),
         }
 
-    # miss -> run
+    # run
     try:
         result = bf_run(
             req.json_a,
             req.json_b,
             OUT,
-            lowe_ratio=params_for_key["lowe_ratio"],
+            lowe_ratio=req.lowe_ratio,  # ← ส่ง None ได้ เพื่อให้ adapter auto
             ransac_thresh=params_for_key["ransac_thresh"],
-            norm_override=req.norm_type,          # ← AUTO = None
+            norm_override=req.norm_type,
             cross_check=req.cross_check,
             draw_mode=params_for_key["draw_mode"],
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # ย้ายไฟล์ผลลัพธ์มาเป็นชื่อ cache (ถ้ามี)
+    # normalize to cache names
     try:
         if result.get("json_path") and os.path.exists(result["json_path"]):
             os.replace(result["json_path"], json_p)
         if result.get("vis_url") and os.path.exists(result["vis_url"]):
             os.replace(result["vis_url"], vis_p)
     except Exception:
-        # ถ้าย้ายไม่ได้ ปล่อยใช้พาธเก่า
         json_p = result.get("json_path", json_p)
         vis_p = result.get("vis_url", vis_p)
 
     inliers = int(result.get("inliers", 0))
-    good_matches = result.get("good_matches", result.get("matching_statistics", {}).get("num_good_matches", 0))
-    good_count = len(good_matches) if isinstance(good_matches, list) else int(good_matches)
+    good_cnt = _as_count(
+        result.get("good_matches", result.get("matching_statistics", {}).get("num_good_matches", 0))
+    )
 
     return {
         "tool": "BFMatcher",
         "description": result.get("matching_statistics", {}).get("summary")
-                       or f"{inliers} inliers / {good_count} matches",
+                       or f"{inliers} inliers / {good_cnt} matches",
         "matching_statistics": result.get("matching_statistics", {}),
         "bfmatcher_parameters_used": result.get("bfmatcher_parameters_used", {}),
         "input_features_details": result.get("input_features_details", {}),
         "inputs": result.get("inputs", {}),
         "inliers": inliers,
-        "good_matches": good_count,
+        "good_matches": good_cnt,
         "vis_url": static_url(vis_p, OUT) if os.path.exists(vis_p) else static_url(result.get("vis_url"), OUT),
         "json_path": json_p,
         "json_url": static_url(json_p, OUT),
@@ -405,10 +405,13 @@ def match_flann(req: FLANNReq):
     stem = f"flann_{key}"
     json_p, vis_p = feature_paths(OUT, "flannmatcher_outputs", stem)
 
+    # cache hit
     if os.path.exists(json_p):
         data = _read_json(json_p)
         inliers = int(data.get("inliers", 0))
-        good_cnt = int(data.get("good_matches", data.get("matching_statistics", {}).get("num_good_matches", 0)))
+        good_cnt = _as_count(
+            data.get("good_matches", data.get("matching_statistics", {}).get("num_good_matches", 0))
+        )
         return {
             "tool": "FLANNBasedMatcher",
             "description": data.get("matching_statistics", {}).get("summary"),
@@ -423,6 +426,7 @@ def match_flann(req: FLANNReq):
             "json_url": static_url(json_p, OUT),
         }
 
+    # run
     try:
         result = flann_run(
             req.json_a, req.json_b, OUT,
@@ -440,7 +444,7 @@ def match_flann(req: FLANNReq):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # normalize to cache names
+    # normalize → cache filenames
     try:
         if result.get("json_path") and os.path.exists(result["json_path"]):
             os.replace(result["json_path"], json_p)
@@ -451,7 +455,9 @@ def match_flann(req: FLANNReq):
         vis_p = result.get("vis_url", vis_p)
 
     inliers = int(result.get("inliers", 0))
-    good_cnt = int(result.get("good_matches", result.get("matching_statistics", {}).get("num_good_matches", 0)))
+    good_cnt = _as_count(
+        result.get("good_matches", result.get("matching_statistics", {}).get("num_good_matches", 0))
+    )
 
     return {
         "tool": "FLANNBasedMatcher",

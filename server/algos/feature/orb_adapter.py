@@ -16,7 +16,7 @@ def _kp_dict(kp, desc_row):
         "descriptor": desc_row.tolist() if desc_row is not None else None
     }
 
-def run(image_path: str, out_root: str, **params):
+def run(image_path: str, out_root: str = ".", **params):
     img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
@@ -71,21 +71,22 @@ def run(image_path: str, out_root: str, **params):
     unique_id = uuid.uuid4().hex[:8]
     stem = f"{base}_orb_{unique_id}"
 
-    # --- จัดเก็บใน outputs/features/orb_outputs ---
-    algo_dir = os.path.join("outputs", "features", "orb_outputs")
+    # --- เคารพ out_root + สร้างโครงสร้างเดียวกับตัวอื่น ๆ ---
+    out_root_abs = os.path.abspath(out_root or ".")
+    algo_dir = os.path.join(out_root_abs, "features", "orb_outputs")
     os.makedirs(algo_dir, exist_ok=True)
 
-    # --- Save JSON ---
+    # --- Save JSON (absolute path) ---
     json_path = os.path.join(algo_dir, stem + ".json")
-    with open(json_path, "w") as f:
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=4)
+    json_path = os.path.abspath(json_path)
 
-    # --- Save Visualization ---
-    vis = cv2.drawKeypoints(
-        img if img.ndim==2 else (cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) if (img.ndim==3 and img.shape[2]==4) else img),
-        kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
-    )
+    # --- Save Visualization (absolute path) ---
+    bgr = img if img.ndim==2 else (cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) if (img.ndim==3 and img.shape[2]==4) else img)
+    vis = cv2.drawKeypoints(bgr, kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
     vis_path = os.path.join(algo_dir, stem + "_vis.jpg")
     cv2.imwrite(vis_path, vis)
+    vis_path = os.path.abspath(vis_path)
 
     return json_path, vis_path

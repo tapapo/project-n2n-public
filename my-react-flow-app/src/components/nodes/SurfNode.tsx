@@ -113,12 +113,12 @@ const SurfNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
   const caption = (data?.description as string) || (resultUrl ? 'Result preview' : undefined);
 
   return (
-    <div className="bg-gray-800 border-2 border-teal-500 rounded-xl shadow-2xl w-72 text-gray-200">
+    <div className="bg-gray-800 border-2 border-green-500 rounded-xl shadow-2xl w-72 text-gray-200">
       <Handle type="target" position={Position.Left} style={{ ...handleStyle, top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} style={{ ...handleStyle, top: '50%', transform: 'translateY(-50%)' }} />
 
       {/* Header */}
-      <div className="bg-gray-700 text-teal-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
+      <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
         <div className="font-bold">SURF</div>
 
         <div className="flex items-center gap-2">
@@ -129,24 +129,36 @@ const SurfNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
             disabled={isBusy}
             className={[
               'px-2 py-1 rounded text-xs font-semibold transition-colors',
-              isBusy ? 'bg-gray-600 text-gray-300 cursor-not-allowed' : 'bg-teal-600 hover:bg-teal-700 text-white',
+              isBusy ? 'bg-gray-600 text-gray-300 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white',
             ].join(' ')}
           >
             ▶ Run
           </button>
 
           {/* Settings วงกลมขาว + ขอบเทา */}
-          <button
-            title="Settings"
-            aria-label="Open SURF settings"
-            onClick={handleOpen}
-            className="h-5 w-5 rounded-full bg-white flex items-center justify-center
-                       shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80
-                       transition focus-visible:outline-none focus-visible:ring-2
-                       focus-visible:ring-teal-500/70"
-          >
-            <SettingsSlidersIcon className="h-3.5 w-3.5" />
-          </button>
+         <span className="relative inline-flex items-center group">
+            <button
+              aria-label="Open SURF settings"
+              onClick={handleOpen}
+              className="h-5 w-5 rounded-full bg-white flex items-center justify-center
+                         shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80
+                         transition focus-visible:outline-none focus-visible:ring-2
+                         focus-visible:ring-green-500/70"
+            >
+              <SettingsSlidersIcon className="h-3.5 w-3.5" />
+            </button>
+            {/* Tooltip bubble */}
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                         whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white
+                         opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150
+                         group-hover:opacity-100"
+            >
+              Settings
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+            </span>
+          </span>
         </div>
       </div>
 
@@ -226,7 +238,7 @@ const SurfNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
           <label className="flex items-center gap-2 text-xs text-gray-300 col-span-2">
             <input
               type="checkbox"
-              className="accent-teal-500"
+              className="accent-green-500"
               checked={!!form.extended}
               onChange={(e) => setForm((s: any) => ({ ...s, extended: e.target.checked }))}
             />
@@ -235,7 +247,7 @@ const SurfNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
           <label className="flex items-center gap-2 text-xs text-gray-300 col-span-2">
             <input
               type="checkbox"
-              className="accent-teal-500"
+              className="accent-green-500"
               checked={!!form.upright}
               onChange={(e) => setForm((s: any) => ({ ...s, upright: e.target.checked }))}
             />
@@ -252,7 +264,7 @@ const SurfNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
           </button>
           <button
             onClick={saveParams}
-            className="px-3 py-1 rounded bg-teal-600 text-white hover:bg-teal-700"
+            className="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700"
           >
             Save
           </button>
