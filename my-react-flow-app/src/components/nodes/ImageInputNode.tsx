@@ -1,4 +1,3 @@
-// src/components/nodes/ImageInputNode.tsx
 import { memo, useRef, useState } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from 'reactflow';
 import type { CustomNodeData } from '../../types';
@@ -42,15 +41,18 @@ const ImageInputNode = memo(({ id, data }: Props) => {
       const f = resp.files[0];
       setLocalName(f.name);
 
-      // ให้แน่ใจว่าเป็น string เสมอ (abs อาจคืน undefined ในบางโปรเจกต์)
+      // ทำให้แน่ใจว่าเป็น absolute URL เสมอ
       const absUrl: string = (abs(f.url) || f.url) as string;
 
-      // ✅ อ่านขนาดรูปจริง
+      // อ่านขนาดรูป
       let dims = { width: 0, height: 0 };
       try {
         dims = await readImageSize(absUrl);
-      } catch {}
+      } catch {
+        // ignore
+      }
 
+      // อัปเดต Node State
       setNodes((nds) =>
         nds.map((n) =>
           n.id === id
@@ -63,11 +65,10 @@ const ImageInputNode = memo(({ id, data }: Props) => {
                     name: f.name,
                     path: f.path,
                     url: absUrl,
-                    result_image_url: absUrl, // ให้พรีวิวได้
+                    result_image_url: absUrl, // ใช้พรีวิวในโหนดอื่น
                     width: dims.width,
                     height: dims.height,
                   },
-                  status: 'success',
                   description: `Image uploaded (${dims.width}×${dims.height})`,
                 },
               }
@@ -76,11 +77,6 @@ const ImageInputNode = memo(({ id, data }: Props) => {
       );
     } catch (err: any) {
       setError(err?.message || 'Upload failed');
-      setNodes((nds) =>
-        nds.map((n) =>
-          n.id === id ? { ...n, data: { ...n.data, status: 'fault', description: 'Upload failed' } } : n
-        )
-      );
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -94,6 +90,7 @@ const ImageInputNode = memo(({ id, data }: Props) => {
 
   return (
     <div className="bg-gray-800 border-2 border-teal-500 rounded-xl shadow-2xl w-72 text-gray-200">
+      {/* Output Handle */}
       <Handle
         type="source"
         position={Position.Right}
@@ -101,10 +98,12 @@ const ImageInputNode = memo(({ id, data }: Props) => {
         style={{ ...handleStyle, top: '50%', transform: 'translateY(-50%)' }}
       />
 
+      {/* Header */}
       <div className="bg-gray-700 text-center font-bold p-2 text-teal-400 rounded-t-xl">
         {data?.label || 'Image Input'}
       </div>
 
+      {/* Content */}
       <div className="p-4 space-y-3">
         <div className="text-sm text-gray-300">Select an image to upload:</div>
 
@@ -120,16 +119,21 @@ const ImageInputNode = memo(({ id, data }: Props) => {
 
         <input ref={fileRef} type="file" accept="image/*" onChange={onChange} className="hidden" />
 
+        {/* แสดงชื่อไฟล์ */}
         {localName && (
           <div className="text-xs text-gray-400 break-all">
             Uploaded: <span className="text-gray-200">{localName}</span>
           </div>
         )}
 
+        {/* แสดงขนาดรูป */}
         {data?.payload?.width && data?.payload?.height && (
-          <div className="text-xs text-gray-400">{data.payload.width}×{data.payload.height}px</div>
+          <div className="text-xs text-gray-400">
+            {data.payload.width}×{data.payload.height}px
+          </div>
         )}
 
+        {/* แสดงพรีวิว */}
         {resultUrl && (
           <a href={resultUrl} target="_blank" rel="noreferrer">
             <img
@@ -141,22 +145,8 @@ const ImageInputNode = memo(({ id, data }: Props) => {
           </a>
         )}
 
+        {/* แสดง error ถ้ามี */}
         {error && <div className="text-xs text-red-400">{error}</div>}
-      </div>
-
-      <div className="border-t-2 border-gray-700 p-2 text-sm">
-        <div className="flex justify-between items-center py-1">
-          <span className="text-red-400">start</span>
-          <div className="h-4 w-4 bg-gray-600 rounded-full" />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-green-400">success</span>
-          <div className={`h-4 w-4 rounded-full ${data?.status === 'success' ? 'bg-green-500' : 'bg-gray-600'}`} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          <div className={`h-4 w-4 rounded-full ${data?.status === 'fault' ? 'bg-yellow-500' : 'bg-gray-600'}`} />
-        </div>
       </div>
     </div>
   );

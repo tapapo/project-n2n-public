@@ -114,7 +114,7 @@ def run(
     max_draw: Optional[int] = None,         # None=50, 0=all, N>0=top-N
 ) -> Dict[str, Any]:
 
-    # --- load ---
+    # --- load descriptors ---
     kp1, des1, tool1, img1_path, extra1 = load_descriptor_data(json_a)
     kp2, des2, tool2, img2_path, extra2 = load_descriptor_data(json_b)
 
@@ -128,30 +128,23 @@ def run(
         index_selected_reason = "auto_by_tool"
     else:
         if requested == "KD_TREE" and tool1 == "ORB":
-            raise ValueError("Incompatible index: KD_TREE requires float descriptors (SIFT/SURF); ORB must use LSH.")
+            raise ValueError("KD_TREE requires float descriptors (SIFT/SURF); ORB must use LSH.")
         elif requested == "LSH" and tool1 in ("SIFT", "SURF"):
-            raise ValueError("Incompatible index: LSH is for ORB (binary); SIFT/SURF must use KD_TREE.")
+            raise ValueError("LSH is for ORB; SIFT/SURF must use KD_TREE.")
         elif requested in ("KD_TREE", "LSH"):
             index_selected = requested
             index_selected_reason = "override_respected"
         else:
             raise ValueError(f"Invalid index_mode: {requested}. Use AUTO, KD_TREE or LSH.")
 
-    # --- enforce dtype for FLANN ---
+    # --- dtype setup ---
     if index_selected == "KD_TREE":
-        # FLANN KD-Tree ต้องเป็น float32
-        if des1.dtype != np.float32:
-            des1 = des1.astype(np.float32, copy=False)
-        if des2.dtype != np.float32:
-            des2 = des2.astype(np.float32, copy=False)
+        des1 = des1.astype(np.float32, copy=False)
+        des2 = des2.astype(np.float32, copy=False)
         index_params = dict(algorithm=1, trees=int(kd_trees))
     else:
-        # FLANN LSH ต้องเป็น uint8
-        if des1.dtype != np.uint8:
-            des1 = des1.astype(np.uint8, copy=False)
-        if des2.dtype != np.uint8:
-            des2 = des2.astype(np.uint8, copy=False)
-        # clamp เบา ๆ ให้เป็นค่าบวก
+        des1 = des1.astype(np.uint8, copy=False)
+        des2 = des2.astype(np.uint8, copy=False)
         t = max(1, int(lsh_table_number))
         k = max(1, int(lsh_key_size))
         m = max(0, int(lsh_multi_probe_level))
@@ -165,32 +158,24 @@ def run(
     search_checks = max(1, int(search_checks))
     search_params = dict(checks=search_checks)
 
-    # --- lowe ratio: auto by tool (เมื่อไม่ได้ส่งมาเอง) + validate เฉพาะตอนใช้จริง ---
-    if lowe_ratio is None:
-        eff_ratio = 0.8 if tool1 == "ORB" else 0.75
-    else:
-        eff_ratio = float(lowe_ratio)
+    # --- lowe ratio setup ---
+    eff_ratio = 0.8 if (lowe_ratio is None and tool1 == "ORB") else (0.75 if lowe_ratio is None else float(lowe_ratio))
     if not (0.0 < eff_ratio < 1.0):
         raise ValueError("lowe_ratio must be in (0,1)")
 
     if ransac_thresh <= 0:
         raise ValueError("ransac_thresh must be > 0")
 
-    # --- draw_mode clamp ---
+    # --- draw mode ---
     mode_in = (draw_mode or "good").lower()
     if mode_in not in ("good", "inliers"):
         mode_in = "good"
 
-    # --- flann matcher ---
+    # --- flann matching ---
     flann = cv2.FlannBasedMatcher(index_params, search_params)
-
-    # --- match ---
     raw_matches: List[Any] = []
     good_matches: List[cv2.DMatch] = []
 
-    # ปรับเงื่อนไขให้สอดคล้องกับ k=2:
-    # - query (des1) ต้องมีอย่างน้อย 1 แถว
-    # - train (des2) ต้องมีอย่างน้อย 2 แถว
     if des1.shape[0] >= 1 and des2.shape[0] >= 2:
         knn = flann.knnMatch(des1, des2, k=2)
         raw_matches = knn
@@ -202,10 +187,11 @@ def run(
                 good_matches.append(m)
         good_matches.sort(key=lambda x: x.distance)
 
-    # --- ransac / inliers ---
+    # --- ransac / inliers + matched_points ---
     inliers = 0
     inlier_mask = None
     homography_reason = None
+    matched_points = []  # ✅ เก็บจุดจับคู่ทั้งหมด
     if len(good_matches) >= 4:
         pts_a = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
         pts_b = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
@@ -213,12 +199,24 @@ def run(
         if mask is not None:
             inliers = int(mask.sum())
             inlier_mask = mask.ravel().tolist()
+            for i, m in enumerate(good_matches):
+                pt1 = [float(kp1[m.queryIdx].pt[0]), float(kp1[m.queryIdx].pt[1])]
+                pt2 = [float(kp2[m.trainIdx].pt[0]), float(kp2[m.trainIdx].pt[1])]
+                inlier_flag = bool(inlier_mask[i]) if i < len(inlier_mask) else False
+                matched_points.append({
+                    "queryIdx": m.queryIdx,
+                    "trainIdx": m.trainIdx,
+                    "pt1": pt1,
+                    "pt2": pt2,
+                    "distance": round(float(m.distance), 4),
+                    "inlier": inlier_flag
+                })
         else:
             homography_reason = "findHomography_failed"
     else:
         homography_reason = "not_enough_good_matches"
 
-    # --- vis + sizes ---
+    # --- visualization ---
     vis_path = None
     img1 = cv2.imread(img1_path)
     img2 = cv2.imread(img2_path)
@@ -230,14 +228,7 @@ def run(
         if mode_in == "inliers" and inlier_mask is not None:
             draw_list = [m for m, keep in zip(good_matches, inlier_mask) if keep]
 
-        # None=50, 0=all, N>0=top-N
-        if max_draw is None:
-            limit = 50
-        elif int(max_draw) <= 0:
-            limit = len(draw_list)
-        else:
-            limit = int(max_draw)
-
+        limit = 50 if max_draw is None else (len(draw_list) if max_draw <= 0 else int(max_draw))
         draw_list = draw_list[:limit]
 
         if len(draw_list) > 0:
@@ -250,7 +241,7 @@ def run(
             vis_path = os.path.join(vis_dir, f"flann_vis_{uuid.uuid4().hex[:8]}.jpg")
             cv2.imwrite(vis_path, vis)
 
-    # --- json out ---
+    # --- json output ---
     out_dir = os.path.join(out_root, "features", "flannmatcher_outputs")
     os.makedirs(out_dir, exist_ok=True)
     out_json = os.path.join(out_dir, f"flannmatcher_{tool1.lower()}_{uuid.uuid4().hex[:8]}.json")
@@ -274,7 +265,6 @@ def run(
             "lowes_ratio_threshold": float(eff_ratio),
             "ransac_thresh": float(ransac_thresh),
             "draw_mode": mode_in,
-            "max_draw": None if max_draw is None else int(max_draw),
         },
         "input_features_details": {
             "image1": {
@@ -306,10 +296,12 @@ def run(
         "inliers": inliers,
         "inlier_mask": inlier_mask,
         "good_matches": matches_output_data,
+        "matched_points": matched_points,  # ✅ เพิ่มส่วนสำคัญ
         "vis_url": vis_path,
     }
 
     with open(out_json, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
+
     result["json_path"] = out_json
     return result

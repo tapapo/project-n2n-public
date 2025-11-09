@@ -1,5 +1,5 @@
 // src/types.ts
-export type NodeStatus = 'start' | 'running' | 'success' | 'fault';
+export type NodeStatus = 'idle' | 'start' | 'running' | 'success' | 'fault';
 
 export interface PortDef { id: string; label?: string }
 

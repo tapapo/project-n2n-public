@@ -13,26 +13,6 @@ const Sidebar = () => {
     { name: 'Input', algorithms: [
       { type: 'image-input', label: 'Image Input', color: 'bg-teal-600' },
     ]},
-    { name: 'Enhancement', algorithms: [
-      { type: 'enhancement-1', label: 'Enhancement 1', color: 'bg-indigo-500' },
-      { type: 'enhancement-2', label: 'Enhancement 2', color: 'bg-indigo-500' },
-      { type: 'enhancement-3', label: 'Enhancement 3', color: 'bg-indigo-500' },
-    ]},
-    { name: 'Restoration', algorithms: [
-      { type: 'restoration-1', label: 'Restoration 1', color: 'bg-red-500' },
-      { type: 'restoration-2', label: 'Restoration 2', color: 'bg-red-500' },
-      { type: 'restoration-3', label: 'Restoration 3', color: 'bg-red-500' },
-    ]},
-    { name: 'Segmentation', algorithms: [
-      { type: 'segmentation-1', label: 'Segmentation 1', color: 'bg-yellow-500' },
-      { type: 'segmentation-2', label: 'Segmentation 2', color: 'bg-yellow-500' },
-      { type: 'segmentation-3', label: 'Segmentation 3', color: 'bg-yellow-500' },
-    ]},
-    { name: 'Quality Assessment', algorithms: [
-      { type: 'brisque', label: 'BRISQUE', color: 'bg-blue-500' },
-      { type: 'psnr', label: 'PSNR', color: 'bg-blue-500' },
-      { type: 'ssim', label: 'SSIM', color: 'bg-blue-500' },
-    ]},
     { name: 'Feature Extraction', algorithms: [
       { type: 'sift', label: 'SIFT', color: 'bg-green-500' },
       { type: 'surf', label: 'SURF', color: 'bg-green-500' },
@@ -43,14 +23,19 @@ const Sidebar = () => {
       { type: 'flannmatcher', label: 'FLANN Matcher', color: 'bg-orange-500' },
     ]},
     { name: 'Object Alignment', algorithms: [
-      { type: 'ObjectAlignment-1', label: 'ObjectAlignment 1', color: 'bg-purple-500' },
-      { type: 'ObjectAlignment-2', label: 'ObjectAlignment 2', color: 'bg-purple-500' },
-      { type: 'ObjectAlignment-3', label: 'ObjectAlignment 3', color: 'bg-purple-500' },
+      { type: 'homography-align', label: 'Homography Align', color: 'bg-purple-500' },
+      { type: 'affine-align', label: 'Affine Align', color: 'bg-purple-500' },
     ]},
+    { name: 'Quality Assessment', algorithms: [
+      { type: 'brisque', label: 'BRISQUE', color: 'bg-blue-500' },
+      { type: 'psnr', label: 'PSNR', color: 'bg-blue-500' },
+      { type: 'ssim', label: 'SSIM', color: 'bg-blue-500' },
+    ]},
+    // ✅ เพิ่มหมวด Classification (เฉพาะ Otsu ที่ทำไว้แล้ว)
     { name: 'Classification', algorithms: [
-      { type: 'classification-1', label: 'Classification 1', color: 'bg-pink-500' },
-      { type: 'classification-2', label: 'Classification 2', color: 'bg-pink-500' },
-      { type: 'classification-3', label: 'Classification 3', color: 'bg-pink-500' },
+      { type: 'otsu', label: "Otsu's Thresholding", color: 'bg-pink-500' },
+      // ถ้าจะเพิ่มภายหลัง เช่น adaptive-threshold / superpixel ให้แน่ใจว่ามี nodeTypes ด้วยก่อนเปิดใช้งาน
+      // { type: 'adaptive-threshold', label: 'Adaptive Threshold', color: 'bg-pink-500' },
     ]},
   ]), []);
 
@@ -90,12 +75,10 @@ const Sidebar = () => {
           onClick={() => setCollapsed(s => !s)}
           className="h-7 w-7 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-200 flex items-center justify-center transition"
         >
-          {/* ไอคอนลูกศร */}
           <svg
             className={`w-4 h-4 transform transition-transform ${collapsed ? '' : 'rotate-180'}`}
             viewBox="0 0 20 20"
             fill="currentColor"
-            aria-hidden
           >
             <path
               fillRule="evenodd"
@@ -106,7 +89,7 @@ const Sidebar = () => {
         </button>
       </div>
 
-      {/* ปุ่มกางหมด/พับหมด (แสดงเฉพาะตอนขยาย) */}
+      {/* ปุ่มกางหมด/พับหมด */}
       {!collapsed && (
         <div className="px-3 pb-2 flex gap-2">
           <button
@@ -124,9 +107,9 @@ const Sidebar = () => {
         </div>
       )}
 
-      {/* รายการ (ซ่อนเมื่อยุบ) */}
+      {/* รายการ nodes */}
       {!collapsed ? (
-        <div className="flex flex-col gap-2 overflow-y-auto flex-grow px-2 pb-3">
+        <div className="flex flex-col gap-2 overflow-y-auto flex-grow px-2 pb-3 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
           {jobs.map((job) => (
             <div key={job.name} className="mt-1">
               <div
@@ -166,7 +149,7 @@ const Sidebar = () => {
           ))}
         </div>
       ) : (
-        /* โหมดยุบ: แสดงไอคอนรายการแบบจุดแนวตั้งให้รู้ว่าเป็นเมนู */
+        /* โหมดยุบ */
         <div className="flex-grow flex flex-col items-center gap-3 py-3 text-gray-400">
           <div className="w-5 h-1.5 bg-gray-700 rounded" />
           <div className="w-5 h-1.5 bg-gray-700 rounded" />

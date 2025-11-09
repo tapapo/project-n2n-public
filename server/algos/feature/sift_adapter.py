@@ -13,7 +13,6 @@ BASE_DIR = "/Users/pop/Desktop/project_n2n/outputs/features"
 
 # ---------------- Utils ----------------
 def ensure_dir(path: Union[str, os.PathLike]) -> None:
-    """สร้างโฟลเดอร์ถ้าไม่มี (รองรับ str/PathLike)"""
     path = os.fspath(path)
     if not os.path.exists(path):
         os.makedirs(path, exist_ok=True)
@@ -52,7 +51,7 @@ def run(
         nfeatures=int(params.get("nfeatures", 0)),
         nOctaveLayers=int(params.get("nOctaveLayers", 3)),
         contrastThreshold=float(params.get("contrastThreshold", 0.04)),
-        edgeThreshold=float(params.get("edgeThreshold", 3)),
+        edgeThreshold=float(params.get("edgeThreshold", 10)),
         sigma=float(params.get("sigma", 1.6)),
     )
     kps, desc = sift.detectAndCompute(img, None)

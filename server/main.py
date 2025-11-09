@@ -1,10 +1,9 @@
 # server/main.py
-
 import json
 import os
 import shutil
 import tempfile
-from typing import Optional
+from typing import Optional, Tuple
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +19,9 @@ from .algos.quality.psnr_adapter import run as psnr_run
 from .algos.quality.ssim_adapter import compute_ssim
 from .algos.matching.bfmatcher_adapter import run as bf_run
 from .algos.matching.flannmatcher_adapter import run as flann_run
+from .algos.ObjectAlignment.homography_alignment_adapter import run as homography_run
+from .algos.ObjectAlignment.AffineTransformEstimation import run as affine_run
+from .algos.Classification.otsu_adapter import run as otsu_run  # ✅ Otsu adapter
 
 # cache helpers
 from .cache_utils import (
@@ -29,8 +31,8 @@ from .cache_utils import (
 # -------------------------------
 # Config paths
 # -------------------------------
-ROOT = os.path.dirname(os.path.dirname(__file__))
-OUT = os.path.join(ROOT, "outputs")
+# ✅ ตั้ง OUT จาก ENV โดยมี default เป็น path ปลายทางที่ต้องการ
+OUT = os.getenv("N2N_OUT", "/Users/pop/Desktop/project_n2n/outputs")
 UPLOAD_DIR = os.path.join(OUT, "uploads")
 RESULT_DIR = OUT
 ensure_dirs(UPLOAD_DIR, RESULT_DIR)
@@ -61,13 +63,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# ✅ mount static จาก OUT (จะเสิร์ฟ /static/...)
 app.mount("/static", StaticFiles(directory=OUT), name="static")
 
 
 @app.get("/health")
 def health():
     return {"ok": True}
-
 
 # -------------------------------
 # Upload
@@ -79,7 +81,6 @@ async def api_upload(files: list[UploadFile] = File(...)):
         path = await save_upload(f, UPLOAD_DIR)
         saved.append({"name": f.filename, "path": path, "url": static_url(path, OUT)})
     return {"files": saved}
-
 
 # -------------------------------
 # Feature (SIFT / ORB / SURF)
@@ -149,7 +150,6 @@ def feature_surf(req: FeatureReq):
     except Exception:
         return _return_feature("SURF", j, v)
     return _return_feature("SURF", json_p, vis_p)
-
 
 # -------------------------------
 # Quality (BRISQUE / PSNR / SSIM)
@@ -278,22 +278,20 @@ async def quality_ssim(original: UploadFile = File(...), processed: UploadFile =
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-
 # -------------------------------
 # Matching (BFMatcher / FLANN)
 # -------------------------------
 class BFReq(BaseModel):
     json_a: str
     json_b: str
-    norm_type: Optional[str] = None      # 'L2' | 'L1' | 'HAMMING' | 'HAMMING2' | None (AUTO)
-    cross_check: Optional[bool] = None   # None = default ตามชนิด descriptor
-    lowe_ratio: Optional[float] = None   # ← ให้ None เพื่อ AUTO จริง (ORB=0.8, อื่นๆ=0.75)
+    norm_type: Optional[str] = None
+    cross_check: Optional[bool] = None
+    lowe_ratio: Optional[float] = None
     ransac_thresh: Optional[float] = 5.0
-    draw_mode: Optional[str] = "good"    # 'good' | 'inliers'
+    draw_mode: Optional[str] = "good"
 
 @app.post("/api/match/bf")
 def match_bf(req: BFReq):
-    # ใช้ "auto" เมื่อ lowe_ratio เป็น None เพื่อแยก cache-key
     params_for_key = {
         "norm_type": req.norm_type,
         "cross_check": req.cross_check,
@@ -305,7 +303,6 @@ def match_bf(req: BFReq):
     stem = f"bf_{key}"
     json_p, vis_p = feature_paths(OUT, "bfmatcher_outputs", stem)
 
-    # cache hit
     if os.path.exists(json_p):
         data = _read_json(json_p)
         inliers = int(data.get("inliers", 0))
@@ -327,13 +324,12 @@ def match_bf(req: BFReq):
             "json_url": static_url(json_p, OUT),
         }
 
-    # run
     try:
         result = bf_run(
             req.json_a,
             req.json_b,
             OUT,
-            lowe_ratio=req.lowe_ratio,  # ← ส่ง None ได้ เพื่อให้ adapter auto
+            lowe_ratio=req.lowe_ratio,
             ransac_thresh=params_for_key["ransac_thresh"],
             norm_override=req.norm_type,
             cross_check=req.cross_check,
@@ -342,7 +338,6 @@ def match_bf(req: BFReq):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # normalize to cache names
     try:
         if result.get("json_path") and os.path.exists(result["json_path"]):
             os.replace(result["json_path"], json_p)
@@ -372,13 +367,12 @@ def match_bf(req: BFReq):
         "json_url": static_url(json_p, OUT),
     }
 
-
 class FLANNReq(BaseModel):
     json_a: str
     json_b: str
     lowe_ratio: Optional[float] = 0.75
     ransac_thresh: Optional[float] = 5.0
-    index_mode: Optional[str] = "AUTO"   # 'AUTO' | 'KD_TREE' | 'LSH'
+    index_mode: Optional[str] = "AUTO"
     kd_trees: Optional[int] = 5
     search_checks: Optional[int] = 50
     lsh_table_number: Optional[int] = 6
@@ -405,7 +399,6 @@ def match_flann(req: FLANNReq):
     stem = f"flann_{key}"
     json_p, vis_p = feature_paths(OUT, "flannmatcher_outputs", stem)
 
-    # cache hit
     if os.path.exists(json_p):
         data = _read_json(json_p)
         inliers = int(data.get("inliers", 0))
@@ -426,7 +419,6 @@ def match_flann(req: FLANNReq):
             "json_url": static_url(json_p, OUT),
         }
 
-    # run
     try:
         result = flann_run(
             req.json_a, req.json_b, OUT,
@@ -444,7 +436,6 @@ def match_flann(req: FLANNReq):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # normalize → cache filenames
     try:
         if result.get("json_path") and os.path.exists(result["json_path"]):
             os.replace(result["json_path"], json_p)
@@ -472,3 +463,178 @@ def match_flann(req: FLANNReq):
         "json_path": json_p,
         "json_url": static_url(json_p, OUT),
     }
+
+# -------------------------------
+# Alignment
+# -------------------------------
+class HomographyReq(BaseModel):
+    match_json: str
+    warp_mode: Optional[str] = "image2_to_image1"
+    blend: Optional[bool] = False
+
+@app.post("/api/alignment/homography")
+def alignment_homography(req: HomographyReq):
+    try:
+        result = homography_run(
+            req.match_json,
+            out_root=OUT,
+            warp_mode=req.warp_mode,
+            blend=req.blend,
+        )
+        aligned_path = result.get("output", {}).get("aligned_image")
+        if aligned_path:
+            result["output"]["aligned_url"] = static_url(aligned_path, OUT)
+        if result.get("json_path"):
+            result["json_url"] = static_url(result["json_path"], OUT)
+        if aligned_path:
+            result["output"]["aligned_path"] = aligned_path
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+class AffineReq(BaseModel):
+    match_json: str
+    model: Optional[str] = "affine"
+    warp_mode: Optional[str] = "image2_to_image1"
+    blend: Optional[bool] = False
+    ransac_thresh: Optional[float] = 3.0
+    confidence: Optional[float] = 0.99
+    refine_iters: Optional[int] = 10
+
+@app.post("/api/alignment/affine")
+def alignment_affine(req: AffineReq):
+    try:
+        result = affine_run(
+            match_json_path=req.match_json,
+            out_root=OUT,
+            model=req.model,
+            warp_mode=req.warp_mode,
+            blend=req.blend,
+            ransac_thresh=req.ransac_thresh,
+            confidence=req.confidence,
+            refine_iters=req.refine_iters,
+        )
+        if result.get("output", {}).get("aligned_image"):
+            result["output"]["aligned_url"] = static_url(result["output"]["aligned_image"], OUT)
+        if result.get("json_path"):
+            result["json_url"] = static_url(result["json_path"], OUT)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# -------------------------------
+# Classification (Otsu) with cache
+# -------------------------------
+class OtsuReq(BaseModel):
+    image_path: str
+    gaussian_blur: Optional[bool] = True
+    blur_ksize: Optional[int] = 5
+    invert: Optional[bool] = False
+    morph_open: Optional[bool] = False
+    morph_close: Optional[bool] = False
+    morph_kernel: Optional[bool | int] = 3   # รองรับ false/true ผิดพลาด โดยจะ cast ด้านล่าง
+    show_histogram: Optional[bool] = False
+
+def _otsu_paths(root: str, stem: str) -> Tuple[str, str, str, str]:
+    """
+    คืน path แบบ deterministic:
+    <root>/features/classification/otsu_outputs/{stem}.json
+    <root>/features/classification/otsu_outputs/{stem}.png
+    <root>/features/classification/otsu_outputs/{stem}_hist.png
+    """
+    out_dir = os.path.join(root, "features", "classification", "otsu_outputs")
+    ensure_dir(out_dir)
+    json_p = os.path.join(out_dir, f"{stem}.json")
+    bin_p  = os.path.join(out_dir, f"{stem}.png")
+    hist_p = os.path.join(out_dir, f"{stem}_hist.png")
+    return out_dir, json_p, bin_p, hist_p
+
+def _read_threshold_and_hist(json_path: str):
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            j = json.load(f)
+        thr = j.get("threshold_value")
+        hist_path = (j.get("output") or {}).get("histogram_path")
+        return thr, hist_path
+    except Exception:
+        return None, None
+
+@app.post("/api/classify/otsu")
+def classify_otsu(req: OtsuReq):
+    # sanitize morph_kernel (เผื่อมีค่า bool มาจาก front)
+    mk = req.morph_kernel
+    if isinstance(mk, bool):
+        mk = 3
+    try:
+        mk = int(mk)
+    except Exception:
+        mk = 3
+
+    params_for_key = {
+        "gaussian_blur": req.gaussian_blur,
+        "blur_ksize": req.blur_ksize,
+        "invert": req.invert,
+        "morph_open": req.morph_open,
+        "morph_close": req.morph_close,
+        "morph_kernel": mk,
+        "show_histogram": req.show_histogram,
+    }
+    key = make_cache_key("OTSU", files=[req.image_path], params=params_for_key)
+    stem = f"otsu_{key}"
+    out_dir, json_p, bin_p, hist_p = _otsu_paths(RESULT_DIR, stem)
+
+    # ✅ ถ้ามีผลลัพธ์เดิมแล้ว → return cache
+    if os.path.exists(json_p) and os.path.exists(bin_p):
+        threshold, hist_path = _read_threshold_and_hist(json_p)
+        return {
+            "tool": "OtsuThreshold",
+            "json_path": json_p,
+            "json_url": static_url(json_p, OUT),
+            "binary_url": static_url(bin_p, OUT),
+            "threshold": threshold,
+            "histogram_url": static_url(hist_path, OUT) if hist_path and os.path.exists(hist_path) else None,
+            "cache": True,
+        }
+
+    # ❗ยังไม่มี: รัน adapter (จะเขียนไฟล์แบบสุ่มในโฟลเดอร์เดียวกัน) แล้วเราย้ายเป็นชื่อ deterministic
+    try:
+        j_tmp, bin_tmp = otsu_run(
+            image_path=req.image_path,
+            out_root=RESULT_DIR,
+            gaussian_blur=req.gaussian_blur,
+            blur_ksize=req.blur_ksize,
+            invert=req.invert,
+            morph_open=req.morph_open,
+            morph_close=req.morph_close,
+            morph_kernel=mk,
+            show_histogram=req.show_histogram,
+        )
+
+        # ย้ายชื่อไฟล์ให้ deterministic
+        try:
+            if j_tmp and os.path.exists(j_tmp):
+                os.replace(j_tmp, json_p)
+            if bin_tmp and os.path.exists(bin_tmp):
+                os.replace(bin_tmp, bin_p)
+        except Exception:
+            json_p = j_tmp or json_p
+            bin_p  = bin_tmp or bin_p
+
+        threshold, hist_path = _read_threshold_and_hist(json_p)
+
+        return {
+            "tool": "OtsuThreshold",
+            "json_path": json_p,
+            "json_url": static_url(json_p, OUT),
+            "binary_url": static_url(bin_p, OUT) if os.path.exists(bin_p) else None,
+            "threshold": threshold,
+            "histogram_url": static_url(hist_path, OUT) if hist_path and os.path.exists(hist_path) else None,
+            "cache": False,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+# ✅ alias ให้ path เดิมยังใช้ได้
+@app.post("/api/classification/otsu")
+def classification_otsu(req: OtsuReq):
+    return classify_otsu(req)
