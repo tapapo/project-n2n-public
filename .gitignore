@@ -1,2 +1,6 @@
-sift_outputs/*.json
-sift_outputs/*.json
+.venv/
+build-opencv/
+__pycache__/
+my-react-flow-app/node_modules/
+outputs/
+Image-to-Descriptor/image/
