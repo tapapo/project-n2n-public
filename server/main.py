@@ -9,6 +9,8 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from pathlib import Path
+from urllib.parse import urlparse
 
 from .utils_io import save_upload, static_url, ensure_dirs
 from .algos.feature.sift_adapter import run as sift_run
@@ -31,7 +33,6 @@ from .cache_utils import (
 # -------------------------------
 # Config paths
 # -------------------------------
-# ✅ ตั้ง OUT จาก ENV โดยมี default เป็น path ปลายทางที่ต้องการ
 OUT = os.getenv("N2N_OUT", "/Users/pop/Desktop/project_n2n/outputs")
 UPLOAD_DIR = os.path.join(OUT, "uploads")
 RESULT_DIR = OUT
@@ -52,6 +53,30 @@ def _as_count(x) -> int:
         return int(x)
     except Exception:
         return 0
+
+# แปลง URL (/static/... หรือ http(s)://.../static/...) -> พาธไฟล์โลคัลใน OUT
+def resolve_image_path(p: str) -> str:
+    if not p:
+        return p
+    # ถ้าเป็น URL เต็ม
+    if p.startswith("http://") or p.startswith("https://"):
+        parsed = urlparse(p)
+        path_part = parsed.path or ""
+    else:
+        path_part = p
+
+    # กรณีเป็นเส้นทางภายใต้ /static/ ให้แมปกลับไป OUT
+    if path_part.startswith("/static/"):
+        rel = path_part[len("/static/"):]  # ตัด prefix /static/
+        return str(Path(OUT, rel))
+
+    # ถ้าพบ /uploads/ ให้ดึงชื่อไฟล์แล้วชี้ไปโฟลเดอร์ UPLOAD_DIR
+    if "/uploads/" in path_part:
+        name = Path(path_part).name
+        return str(Path(UPLOAD_DIR, name))
+
+    # ไม่ใช่ URL/ไม่ใช่เส้นทาง static: ถือว่าเป็นพาธไฟล์อยู่แล้ว
+    return p
 
 # -------------------------------
 # FastAPI setup
@@ -106,11 +131,12 @@ def _return_feature(tool: str, json_path: str, vis_path: Optional[str]):
 
 @app.post("/api/feature/sift")
 def feature_sift(req: FeatureReq):
-    key, subdir, json_p, vis_p = _feature_cached("SIFT", req.image_path, req.params)
+    img_path = resolve_image_path(req.image_path)
+    key, subdir, json_p, vis_p = _feature_cached("SIFT", img_path, req.params)
     if os.path.exists(json_p):
         return _return_feature("SIFT", json_p, vis_p if os.path.exists(vis_p) else None)
 
-    j, v = sift_run(req.image_path, RESULT_DIR, **(req.params or {}))
+    j, v = sift_run(img_path, RESULT_DIR, **(req.params or {}))
     ensure_dir(os.path.dirname(json_p))
     try:
         if os.path.exists(j):
@@ -123,11 +149,12 @@ def feature_sift(req: FeatureReq):
 
 @app.post("/api/feature/orb")
 def feature_orb(req: FeatureReq):
-    key, subdir, json_p, vis_p = _feature_cached("ORB", req.image_path, req.params)
+    img_path = resolve_image_path(req.image_path)
+    key, subdir, json_p, vis_p = _feature_cached("ORB", img_path, req.params)
     if os.path.exists(json_p):
         return _return_feature("ORB", json_p, vis_p if os.path.exists(vis_p) else None)
 
-    j, v = orb_run(req.image_path, RESULT_DIR, **(req.params or {}))
+    j, v = orb_run(img_path, RESULT_DIR, **(req.params or {}))
     ensure_dir(os.path.dirname(json_p))
     try:
         if os.path.exists(j): os.replace(j, json_p)
@@ -138,11 +165,12 @@ def feature_orb(req: FeatureReq):
 
 @app.post("/api/feature/surf")
 def feature_surf(req: FeatureReq):
-    key, subdir, json_p, vis_p = _feature_cached("SURF", req.image_path, req.params)
+    img_path = resolve_image_path(req.image_path)
+    key, subdir, json_p, vis_p = _feature_cached("SURF", img_path, req.params)
     if os.path.exists(json_p):
         return _return_feature("SURF", json_p, vis_p if os.path.exists(vis_p) else None)
 
-    j, v = surf_run(req.image_path, RESULT_DIR, **(req.params or {}))
+    j, v = surf_run(img_path, RESULT_DIR, **(req.params or {}))
     ensure_dir(os.path.dirname(json_p))
     try:
         if os.path.exists(j): os.replace(j, json_p)
@@ -154,14 +182,38 @@ def feature_surf(req: FeatureReq):
 # -------------------------------
 # Quality (BRISQUE / PSNR / SSIM)
 # -------------------------------
+from typing import Optional
+import hashlib
+import tempfile
+import shutil
+import os
+import json
+from fastapi import UploadFile, File, HTTPException
+from pydantic import BaseModel
+
 class QualityReq(BaseModel):
     image_path: str
     params: Optional[dict] = None
 
+def _sha1_of_file(path: str) -> str:
+    """คืนค่า SHA1 ของ 'เนื้อไฟล์' เพื่อให้คีย์คงที่ (ไม่ขึ้นกับ path ชั่วคราว)"""
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
 @app.post("/api/quality/brisque")
 def quality_brisque(req: QualityReq):
-    key = make_cache_key("BRISQUE", files=[req.image_path], params=req.params or {})
+    # แปลง path/url ให้เป็นไฟล์บนดิสก์ก่อน (ฟังก์ชันนี้คุณมีอยู่แล้ว)
+    img_path = resolve_image_path(req.image_path)
+
+    # คีย์ = แฮชเนื้อไฟล์ + params (เรียงคีย์)
+    h = _sha1_of_file(img_path)
+    key = make_cache_key("BRISQUE", files=[h], params=req.params or {})
+
     out_json = metric_json_path(RESULT_DIR, "brisque_outputs", f"brisque_{key}")
+    # ✅ ถ้ามีอยู่แล้ว: อ่าน cache เลย
     if os.path.exists(out_json):
         with open(out_json, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -169,28 +221,35 @@ def quality_brisque(req: QualityReq):
             "tool": "BRISQUE",
             "score": data["quality_score"],
             "json_path": out_json,
-            "json_url": static_url(out_json, OUT),
+            "json_url": static_url(out_json, RESULT_DIR),
+            "cache": True,
         }
 
-    j, _ = brisque_run(req.image_path, RESULT_DIR, **(req.params or {}))
+    # ❌ ยังไม่มี: รัน แล้วค่อยย้ายชื่อให้ deterministic
+    j, _ = brisque_run(img_path, RESULT_DIR, **(req.params or {}))
     try:
         if os.path.exists(j):
             os.replace(j, out_json)
+        else:
+            out_json = j
     except Exception:
         out_json = j
+
     with open(out_json, "r", encoding="utf-8") as f:
         data = json.load(f)
     return {
         "tool": "BRISQUE",
         "score": data["quality_score"],
         "json_path": out_json,
-        "json_url": static_url(out_json, OUT),
+        "json_url": static_url(out_json, RESULT_DIR),
+        "cache": False,
     }
 
 @app.post("/api/quality/psnr")
 async def quality_psnr(original: UploadFile = File(...), processed: UploadFile = File(...)):
     tmpdir = tempfile.mkdtemp()
     try:
+        # 1) เซฟไฟล์อัปโหลดไป temp (ไม่ใช้ path temp ทำคีย์)
         orig_path = os.path.join(tmpdir, original.filename or "a.bin")
         proc_path = os.path.join(tmpdir, processed.filename or "b.bin")
         with open(orig_path, "wb") as f:
@@ -198,8 +257,13 @@ async def quality_psnr(original: UploadFile = File(...), processed: UploadFile =
         with open(proc_path, "wb") as f:
             shutil.copyfileobj(processed.file, f)
 
-        key = make_cache_key("PSNR", files=[orig_path, proc_path], params=None)
-        out_json = metric_json_path(OUT, "psnr_outputs", f"psnr_{key}")
+        # 2) คีย์จากแฮชเนื้อไฟล์ + params ที่คงที่
+        h1, h2 = _sha1_of_file(orig_path), _sha1_of_file(proc_path)
+        psnr_params = {"use_luma": True}
+        key = make_cache_key("PSNR", files=[h1, h2], params=psnr_params)
+
+        out_json = metric_json_path(RESULT_DIR, "psnr_outputs", f"psnr_{key}")
+        # ✅ cache hit
         if os.path.exists(out_json):
             with open(out_json, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -207,11 +271,13 @@ async def quality_psnr(original: UploadFile = File(...), processed: UploadFile =
                 "tool": "PSNR",
                 "quality_score": data["quality_score"],
                 "json_path": out_json,
-                "json_url": static_url(out_json, OUT),
+                "json_url": static_url(out_json, RESULT_DIR),
                 "score_interpretation": data.get("score_interpretation"),
+                "cache": True,
             }
 
-        j, data = psnr_run(orig_path, proc_path, out_root=OUT)
+        # ❌ run แล้วย้ายชื่อให้ deterministic
+        j, data = psnr_run(orig_path, proc_path, out_root=RESULT_DIR, use_luma=True)
         try:
             if os.path.exists(j):
                 os.replace(j, out_json)
@@ -224,8 +290,9 @@ async def quality_psnr(original: UploadFile = File(...), processed: UploadFile =
             "tool": "PSNR",
             "quality_score": data["quality_score"],
             "json_path": out_json,
-            "json_url": static_url(out_json, OUT),
+            "json_url": static_url(out_json, RESULT_DIR),
             "score_interpretation": data.get("score_interpretation"),
+            "cache": False,
         }
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -234,6 +301,7 @@ async def quality_psnr(original: UploadFile = File(...), processed: UploadFile =
 async def quality_ssim(original: UploadFile = File(...), processed: UploadFile = File(...)):
     tmpdir = tempfile.mkdtemp()
     try:
+        # 1) เซฟไฟล์อัปโหลดไป temp
         orig_path = os.path.join(tmpdir, original.filename or "a.bin")
         proc_path = os.path.join(tmpdir, processed.filename or "b.bin")
         with open(orig_path, "wb") as f:
@@ -241,13 +309,25 @@ async def quality_ssim(original: UploadFile = File(...), processed: UploadFile =
         with open(proc_path, "wb") as f:
             f.write(await processed.read())
 
+        # 2) พารามิเตอร์ที่ "นิ่ง" (อย่าใส่อะไรที่ adapter จะเปลี่ยนอัตโนมัติ)
         default_ssim_params = {
-            'data_range': 255, 'win_size': 11, 'gaussian_weights': True,
-            'sigma': 1.5, 'use_sample_covariance': True, 'K1': 0.01, 'K2': 0.03,
-            'calculate_on_color': False,
+            "data_range": 255,
+            "win_size": 11,
+            "gaussian_weights": True,
+            "sigma": 1.5,
+            "use_sample_covariance": True,
+            "K1": 0.01,
+            "K2": 0.03,
+            "calculate_on_color": False,
+            # ไม่ใส่ channel_axis / auto-deduced fields ลงใน key
         }
-        key = make_cache_key("SSIM", files=[orig_path, proc_path], params=default_ssim_params)
-        out_json = metric_json_path(OUT, "ssim_outputs", f"ssim_{key}")
+
+        # 3) คีย์จากแฮชเนื้อไฟล์ + params
+        h1, h2 = _sha1_of_file(orig_path), _sha1_of_file(proc_path)
+        key = make_cache_key("SSIM", files=[h1, h2], params=default_ssim_params)
+
+        out_json = metric_json_path(RESULT_DIR, "ssim_outputs", f"ssim_{key}")
+        # ✅ cache hit
         if os.path.exists(out_json):
             with open(out_json, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -255,11 +335,17 @@ async def quality_ssim(original: UploadFile = File(...), processed: UploadFile =
                 "tool": "SSIM",
                 "score": float(data["score"]),
                 "json_path": out_json,
-                "json_url": static_url(out_json, OUT),
+                "json_url": static_url(out_json, RESULT_DIR),
                 "message": "Higher is better (1.0 = identical)",
+                "cache": True,
             }
 
-        result = compute_ssim(orig_path, proc_path, out_root=OUT)
+        # ❌ run แล้วย้ายชื่อให้ deterministic
+        result = compute_ssim(
+            orig_path, proc_path,
+            out_root=RESULT_DIR,
+            **default_ssim_params
+        )
         try:
             if os.path.exists(result["json_path"]):
                 os.replace(result["json_path"], out_json)
@@ -272,8 +358,9 @@ async def quality_ssim(original: UploadFile = File(...), processed: UploadFile =
             "tool": "SSIM",
             "score": float(result["score"]),
             "json_path": out_json,
-            "json_url": static_url(out_json, OUT),
+            "json_url": static_url(out_json, RESULT_DIR),
             "message": "Higher is better (1.0 = identical)",
+            "cache": False,
         }
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -542,7 +629,7 @@ def _otsu_paths(root: str, stem: str) -> Tuple[str, str, str, str]:
     <root>/features/classification/otsu_outputs/{stem}.png
     <root>/features/classification/otsu_outputs/{stem}_hist.png
     """
-    out_dir = os.path.join(root, "features", "classification", "otsu_outputs")
+    out_dir = os.path.join(root, "features", "otsu_outputs")
     ensure_dir(out_dir)
     json_p = os.path.join(out_dir, f"{stem}.json")
     bin_p  = os.path.join(out_dir, f"{stem}.png")
@@ -570,6 +657,8 @@ def classify_otsu(req: OtsuReq):
     except Exception:
         mk = 3
 
+    img_path = resolve_image_path(req.image_path)
+
     params_for_key = {
         "gaussian_blur": req.gaussian_blur,
         "blur_ksize": req.blur_ksize,
@@ -579,7 +668,7 @@ def classify_otsu(req: OtsuReq):
         "morph_kernel": mk,
         "show_histogram": req.show_histogram,
     }
-    key = make_cache_key("OTSU", files=[req.image_path], params=params_for_key)
+    key = make_cache_key("OTSU", files=[img_path], params=params_for_key)
     stem = f"otsu_{key}"
     out_dir, json_p, bin_p, hist_p = _otsu_paths(RESULT_DIR, stem)
 
@@ -599,7 +688,7 @@ def classify_otsu(req: OtsuReq):
     # ❗ยังไม่มี: รัน adapter (จะเขียนไฟล์แบบสุ่มในโฟลเดอร์เดียวกัน) แล้วเราย้ายเป็นชื่อ deterministic
     try:
         j_tmp, bin_tmp = otsu_run(
-            image_path=req.image_path,
+            image_path=img_path,
             out_root=RESULT_DIR,
             gaussian_blur=req.gaussian_blur,
             blur_ksize=req.blur_ksize,
