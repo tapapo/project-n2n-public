@@ -1,0 +1,177 @@
+Compilation failed:
+    source file: '/Users/pop/Desktop/project_n2n/opencv/cmake/checks/cpu_neon_bf16.cpp'
+    check option: ''
+===== BUILD LOG =====
+Change Dir: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp'
+
+Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_8d805
+[1/2] /usr/bin/c++   -O3 -DNDEBUG -std=c++11 -arch arm64 -fPIE -MD -MT CMakeFiles/cmTC_8d805.dir/cpu_neon_bf16.cpp.o -MF CMakeFiles/cmTC_8d805.dir/cpu_neon_bf16.cpp.o.d -o CMakeFiles/cmTC_8d805.dir/cpu_neon_bf16.cpp.o -c /Users/pop/Desktop/project_n2n/opencv/cmake/checks/cpu_neon_bf16.cpp
+FAILED: [code=1] CMakeFiles/cmTC_8d805.dir/cpu_neon_bf16.cpp.o 
+/usr/bin/c++   -O3 -DNDEBUG -std=c++11 -arch arm64 -fPIE -MD -MT CMakeFiles/cmTC_8d805.dir/cpu_neon_bf16.cpp.o -MF CMakeFiles/cmTC_8d805.dir/cpu_neon_bf16.cpp.o.d -o CMakeFiles/cmTC_8d805.dir/cpu_neon_bf16.cpp.o -c /Users/pop/Desktop/project_n2n/opencv/cmake/checks/cpu_neon_bf16.cpp
+/Users/pop/Desktop/project_n2n/opencv/cmake/checks/cpu_neon_bf16.cpp:14:26: error: always_inline function 'vcvt_bf16_f32' requires target feature 'bf16', but would be inlined into function 'vld1q_as_bf16' that is compiled without support for 'bf16'
+    return vcombine_bf16(vcvt_bf16_f32(s0), vcvt_bf16_f32(s1));
+                         ^
+/Users/pop/Desktop/project_n2n/opencv/cmake/checks/cpu_neon_bf16.cpp:14:45: error: always_inline function 'vcvt_bf16_f32' requires target feature 'bf16', but would be inlined into function 'vld1q_as_bf16' that is compiled without support for 'bf16'
+    return vcombine_bf16(vcvt_bf16_f32(s0), vcvt_bf16_f32(s1));
+                                            ^
+/Users/pop/Desktop/project_n2n/opencv/cmake/checks/cpu_neon_bf16.cpp:14:12: error: always_inline function 'vcombine_bf16' requires target feature 'bf16', but would be inlined into function 'vld1q_as_bf16' that is compiled without support for 'bf16'
+    return vcombine_bf16(vcvt_bf16_f32(s0), vcvt_bf16_f32(s1));
+           ^
+3 errors generated.
+ninja: build stopped: subcommand failed.
+
+
+===== END =====
+
+Compilation failed:
+    source file: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx'
+    check option: ''
+===== BUILD LOG =====
+Change Dir: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp'
+
+Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_8a946
+[1/2] /usr/bin/c++   -O3 -DNDEBUG -std=c++11 -arch arm64 -fPIE -MD -MT CMakeFiles/cmTC_8a946.dir/src.cxx.o -MF CMakeFiles/cmTC_8a946.dir/src.cxx.o.d -o CMakeFiles/cmTC_8a946.dir/src.cxx.o -c /Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx
+[2/2] : && /usr/bin/c++ -O3 -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names  -Wl,--as-needed CMakeFiles/cmTC_8a946.dir/src.cxx.o -o cmTC_8a946   && :
+FAILED: [code=1] cmTC_8a946 
+: && /usr/bin/c++ -O3 -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names  -Wl,--as-needed CMakeFiles/cmTC_8a946.dir/src.cxx.o -o cmTC_8a946   && :
+ld: unknown options: --as-needed 
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+ninja: build stopped: subcommand failed.
+
+
+===== END =====
+
+Compilation failed:
+    source file: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx'
+    check option: ''
+===== BUILD LOG =====
+Change Dir: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp'
+
+Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_b55d0
+[1/2] /usr/bin/c++   -O3 -DNDEBUG -std=c++11 -arch arm64 -fPIE -MD -MT CMakeFiles/cmTC_b55d0.dir/src.cxx.o -MF CMakeFiles/cmTC_b55d0.dir/src.cxx.o.d -o CMakeFiles/cmTC_b55d0.dir/src.cxx.o -c /Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx
+[2/2] : && /usr/bin/c++ -O3 -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names  -Wl,--no-undefined CMakeFiles/cmTC_b55d0.dir/src.cxx.o -o cmTC_b55d0   && :
+FAILED: [code=1] cmTC_b55d0 
+: && /usr/bin/c++ -O3 -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names  -Wl,--no-undefined CMakeFiles/cmTC_b55d0.dir/src.cxx.o -o cmTC_b55d0   && :
+ld: unknown options: --no-undefined 
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+ninja: build stopped: subcommand failed.
+
+
+===== END =====
+
+Build output check failed:
+    Regex: 'unknown .*option'
+    Output line: 'warning: unknown warning option '-Wno-maybe-uninitialized', did you mean '-Wno-uninitialized'? [-Wunknown-warning-option]'
+Compilation failed:
+    source file: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.c'
+    check option: ' -Wno-maybe-uninitialized'
+===== BUILD LOG =====
+Change Dir: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp'
+
+Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_a6c3d
+[1/2] /usr/bin/cc   -fsigned-char -W -Wall -Wreturn-type -Wnon-virtual-dtor -Waddress -Wsequence-point -Wformat -Wformat-security -Wstrict-prototypes -Winit-self -Wpointer-arith -Wsign-promo -Wuninitialized -Wno-delete-non-virtual-dtor -Wno-unnamed-type-template-args -Wno-comment -fdiagnostics-show-option -Qunused-arguments -Wno-semicolon-before-method-body -ffunction-sections -fdata-sections  -fvisibility=hidden -fvisibility-inlines-hidden -Wno-unused-but-set-variable -Wno-missing-prototypes -Wno-missing-declarations -Wno-undef -Wno-unused -Wno-sign-compare -Wno-cast-align -Wno-shadow  -O3 -DNDEBUG  -DNDEBUG -arch arm64 -fPIE    -Wno-maybe-uninitialized -MD -MT CMakeFiles/cmTC_a6c3d.dir/src.c.o -MF CMakeFiles/cmTC_a6c3d.dir/src.c.o.d -o CMakeFiles/cmTC_a6c3d.dir/src.c.o -c /Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.c
+warning: unknown warning option '-Wno-maybe-uninitialized'; did you mean '-Wno-uninitialized'? [-Wunknown-warning-option]
+/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.c:1:8: warning: unknown pragma ignored [-Wunknown-pragmas]
+#pragma
+       ^
+2 warnings generated.
+[2/2] : && /usr/bin/cc -fsigned-char -W -Wall -Wreturn-type -Wnon-virtual-dtor -Waddress -Wsequence-point -Wformat -Wformat-security -Wstrict-prototypes -Winit-self -Wpointer-arith -Wsign-promo -Wuninitialized -Wno-delete-non-virtual-dtor -Wno-unnamed-type-template-args -Wno-comment -fdiagnostics-show-option -Qunused-arguments -Wno-semicolon-before-method-body -ffunction-sections -fdata-sections  -fvisibility=hidden -fvisibility-inlines-hidden -Wno-unused-but-set-variable -Wno-missing-prototypes -Wno-missing-declarations -Wno-undef -Wno-unused -Wno-sign-compare -Wno-cast-align -Wno-shadow  -O3 -DNDEBUG  -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names   -Wl,-dead_strip CMakeFiles/cmTC_a6c3d.dir/src.c.o -o cmTC_a6c3d   && :
+
+
+===== END =====
+
+
+LAPACK(LAPACK/Apple) check FAILED:
+    LAPACK_INCLUDE_DIR: ''
+    LAPACK_LIBRARIES: ''
+    LAPACK_LINK_LIBRARIES: '/usr/local/lib'
+    Output:
+Change Dir: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp'
+
+Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_2d6a2
+[1/2] /usr/bin/c++  -I/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp -I/Users/pop/Desktop/project_n2n/build-opencv -fsigned-char -W -Wall -Wreturn-type -Wnon-virtual-dtor -Waddress -Wsequence-point -Wformat -Wformat-security -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wundef -Winit-self -Wpointer-arith -Wshadow -Wsign-promo -Wuninitialized -Wno-delete-non-virtual-dtor -Wno-unnamed-type-template-args -Wno-comment -fdiagnostics-show-option -Qunused-arguments -Wno-semicolon-before-method-body -ffunction-sections -fdata-sections  -fvisibility=hidden -fvisibility-inlines-hidden  -O3 -DNDEBUG  -DNDEBUG -std=c++11 -arch arm64 -fPIE -MD -MT CMakeFiles/cmTC_2d6a2.dir/lapack_check.cpp.o -MF CMakeFiles/cmTC_2d6a2.dir/lapack_check.cpp.o.d -o CMakeFiles/cmTC_2d6a2.dir/lapack_check.cpp.o -c /Users/pop/Desktop/project_n2n/opencv/cmake/checks/lapack_check.cpp
+/Users/pop/Desktop/project_n2n/opencv/cmake/checks/lapack_check.cpp:4:33: warning: 'sgesv_' is deprecated: first deprecated in macOS 13.3 - The CLAPACK interface is deprecated.  Please compile with -DACCELERATE_NEW_LAPACK to access the new lapack headers. [-Wdeprecated-declarations]
+static char* check_fn1 = (char*)sgesv_;
+                                ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/vecLib.framework/Headers/clapack.h:5618:5: note: 'sgesv_' has been explicitly marked deprecated here
+int sgesv_(__CLPK_integer *__n, __CLPK_integer *__nrhs, __CLPK_real *__a,
+    ^
+/Users/pop/Desktop/project_n2n/opencv/cmake/checks/lapack_check.cpp:5:33: warning: 'sposv_' is deprecated: first deprecated in macOS 13.3 - The CLAPACK interface is deprecated.  Please compile with -DACCELERATE_NEW_LAPACK to access the new lapack headers. [-Wdeprecated-declarations]
+static char* check_fn2 = (char*)sposv_;
+                                ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/vecLib.framework/Headers/clapack.h:7076:5: note: 'sposv_' has been explicitly marked deprecated here
+int sposv_(char *__uplo, __CLPK_integer *__n, __CLPK_integer *__nrhs,
+    ^
+/Users/pop/Desktop/project_n2n/opencv/cmake/checks/lapack_check.cpp:6:33: warning: 'spotrf_' is deprecated: first deprecated in macOS 13.3 - The CLAPACK interface is deprecated.  Please compile with -DACCELERATE_NEW_LAPACK to access the new lapack headers. [-Wdeprecated-declarations]
+static char* check_fn3 = (char*)spotrf_;
+                                ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/vecLib.framework/Headers/clapack.h:7097:5: note: 'spotrf_' has been explicitly marked deprecated here
+int spotrf_(char *__uplo, __CLPK_integer *__n, __CLPK_real *__a,
+    ^
+/Users/pop/Desktop/project_n2n/opencv/cmake/checks/lapack_check.cpp:7:33: warning: 'sgesdd_' is deprecated: first deprecated in macOS 13.3 - The CLAPACK interface is deprecated.  Please compile with -DACCELERATE_NEW_LAPACK to access the new lapack headers. [-Wdeprecated-declarations]
+static char* check_fn4 = (char*)sgesdd_;
+                                ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks/vecLib.framework/Headers/clapack.h:5610:5: note: 'sgesdd_' has been explicitly marked deprecated here
+int sgesdd_(char *__jobz, __CLPK_integer *__m, __CLPK_integer *__n,
+    ^
+4 warnings generated.
+[2/2] : && /usr/bin/c++ -fsigned-char -W -Wall -Wreturn-type -Wnon-virtual-dtor -Waddress -Wsequence-point -Wformat -Wformat-security -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wundef -Winit-self -Wpointer-arith -Wshadow -Wsign-promo -Wuninitialized -Wno-delete-non-virtual-dtor -Wno-unnamed-type-template-args -Wno-comment -fdiagnostics-show-option -Qunused-arguments -Wno-semicolon-before-method-body -ffunction-sections -fdata-sections  -fvisibility=hidden -fvisibility-inlines-hidden  -O3 -DNDEBUG  -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names   -Wl,-dead_strip CMakeFiles/cmTC_2d6a2.dir/lapack_check.cpp.o -o cmTC_2d6a2 -L/usr/local/lib  && :
+FAILED: [code=1] cmTC_2d6a2 
+: && /usr/bin/c++ -fsigned-char -W -Wall -Wreturn-type -Wnon-virtual-dtor -Waddress -Wsequence-point -Wformat -Wformat-security -Wmissing-declarations -Wmissing-prototypes -Wstrict-prototypes -Wundef -Winit-self -Wpointer-arith -Wshadow -Wsign-promo -Wuninitialized -Wno-delete-non-virtual-dtor -Wno-unnamed-type-template-args -Wno-comment -fdiagnostics-show-option -Qunused-arguments -Wno-semicolon-before-method-body -ffunction-sections -fdata-sections  -fvisibility=hidden -fvisibility-inlines-hidden  -O3 -DNDEBUG  -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names   -Wl,-dead_strip CMakeFiles/cmTC_2d6a2.dir/lapack_check.cpp.o -o cmTC_2d6a2 -L/usr/local/lib  && :
+Undefined symbols for architecture arm64:
+  "_sgesdd_", referenced from:
+      _main in lapack_check.cpp.o
+  "_sgesv_", referenced from:
+      _main in lapack_check.cpp.o
+  "_sposv_", referenced from:
+      _main in lapack_check.cpp.o
+  "_spotrf_", referenced from:
+      _main in lapack_check.cpp.o
+ld: symbol(s) not found for architecture arm64
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+ninja: build stopped: subcommand failed.
+
+
+
+Build output check failed:
+    Regex: 'unknown .*option'
+    Output line: 'warning: unknown warning option '-Wno-stringop-overflow', did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]'
+Compilation failed:
+    source file: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx'
+    check option: ' -Wno-stringop-overflow'
+===== BUILD LOG =====
+Change Dir: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp'
+
+Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_36376
+[1/2] /usr/bin/c++   -fsigned-char -W -Wall -Wreturn-type -Wnon-virtual-dtor -Waddress -Wsequence-point -Wformat -Wformat-security -Wstrict-prototypes -Winit-self -Wpointer-arith -Wuninitialized -Wno-delete-non-virtual-dtor -Wno-unnamed-type-template-args -Wno-comment -fdiagnostics-show-option -Qunused-arguments -Wno-semicolon-before-method-body -ffunction-sections -fdata-sections  -fvisibility=hidden -fvisibility-inlines-hidden -Wno-deprecated -Wno-missing-prototypes -Wno-missing-declarations -Wno-shadow -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-sign-compare -Wno-sign-promo -Wno-undef -Wno-tautological-undefined-compare -Wno-ignored-qualifiers -Wno-extra -Wno-unused-function -Wno-unused-const-variable -Wno-shorten-64-to-32 -Wno-invalid-offsetof -Wno-enum-compare-switch -Wno-suggest-override -Wno-inconsistent-missing-override -Wno-implicit-fallthrough -Wno-array-bounds  -O3 -DNDEBUG  -DNDEBUG -std=c++11 -arch arm64 -fPIE    -Wno-stringop-overflow -MD -MT CMakeFiles/cmTC_36376.dir/src.cxx.o -MF CMakeFiles/cmTC_36376.dir/src.cxx.o.d -o CMakeFiles/cmTC_36376.dir/src.cxx.o -c /Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx
+warning: unknown warning option '-Wno-stringop-overflow'; did you mean '-Wno-shift-overflow'? [-Wunknown-warning-option]
+/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx:1:8: warning: unknown pragma ignored [-Wunknown-pragmas]
+#pragma
+       ^
+2 warnings generated.
+[2/2] : && /usr/bin/c++ -fsigned-char -W -Wall -Wreturn-type -Wnon-virtual-dtor -Waddress -Wsequence-point -Wformat -Wformat-security -Wstrict-prototypes -Winit-self -Wpointer-arith -Wuninitialized -Wno-delete-non-virtual-dtor -Wno-unnamed-type-template-args -Wno-comment -fdiagnostics-show-option -Qunused-arguments -Wno-semicolon-before-method-body -ffunction-sections -fdata-sections  -fvisibility=hidden -fvisibility-inlines-hidden -Wno-deprecated -Wno-missing-prototypes -Wno-missing-declarations -Wno-shadow -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-sign-compare -Wno-sign-promo -Wno-undef -Wno-tautological-undefined-compare -Wno-ignored-qualifiers -Wno-extra -Wno-unused-function -Wno-unused-const-variable -Wno-shorten-64-to-32 -Wno-invalid-offsetof -Wno-enum-compare-switch -Wno-suggest-override -Wno-inconsistent-missing-override -Wno-implicit-fallthrough -Wno-array-bounds  -O3 -DNDEBUG  -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names   -Wl,-dead_strip CMakeFiles/cmTC_36376.dir/src.cxx.o -o cmTC_36376   && :
+
+
+===== END =====
+
+Build output check failed:
+    Regex: 'unknown .*option'
+    Output line: 'warning: unknown warning option '-Wno-stringop-overread' [-Wunknown-warning-option]'
+Compilation failed:
+    source file: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx'
+    check option: ' -Wno-stringop-overread'
+===== BUILD LOG =====
+Change Dir: '/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp'
+
+Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_c41b9
+[1/2] /usr/bin/c++   -fsigned-char -W -Wall -Wreturn-type -Wnon-virtual-dtor -Waddress -Wsequence-point -Wformat -Wformat-security -Wstrict-prototypes -Winit-self -Wpointer-arith -Wuninitialized -Wno-delete-non-virtual-dtor -Wno-unnamed-type-template-args -Wno-comment -fdiagnostics-show-option -Qunused-arguments -Wno-semicolon-before-method-body -ffunction-sections -fdata-sections  -fvisibility=hidden -fvisibility-inlines-hidden -Wno-deprecated -Wno-missing-prototypes -Wno-missing-declarations -Wno-shadow -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-sign-compare -Wno-sign-promo -Wno-undef -Wno-tautological-undefined-compare -Wno-ignored-qualifiers -Wno-extra -Wno-unused-function -Wno-unused-const-variable -Wno-shorten-64-to-32 -Wno-invalid-offsetof -Wno-enum-compare-switch -Wno-suggest-override -Wno-inconsistent-missing-override -Wno-implicit-fallthrough -Wno-array-bounds  -O3 -DNDEBUG  -DNDEBUG -std=c++11 -arch arm64 -fPIE    -Wno-stringop-overread -MD -MT CMakeFiles/cmTC_c41b9.dir/src.cxx.o -MF CMakeFiles/cmTC_c41b9.dir/src.cxx.o.d -o CMakeFiles/cmTC_c41b9.dir/src.cxx.o -c /Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx
+warning: unknown warning option '-Wno-stringop-overread' [-Wunknown-warning-option]
+/Users/pop/Desktop/project_n2n/build-opencv/CMakeFiles/CMakeTmp/src.cxx:1:8: warning: unknown pragma ignored [-Wunknown-pragmas]
+#pragma
+       ^
+2 warnings generated.
+[2/2] : && /usr/bin/c++ -fsigned-char -W -Wall -Wreturn-type -Wnon-virtual-dtor -Waddress -Wsequence-point -Wformat -Wformat-security -Wstrict-prototypes -Winit-self -Wpointer-arith -Wuninitialized -Wno-delete-non-virtual-dtor -Wno-unnamed-type-template-args -Wno-comment -fdiagnostics-show-option -Qunused-arguments -Wno-semicolon-before-method-body -ffunction-sections -fdata-sections  -fvisibility=hidden -fvisibility-inlines-hidden -Wno-deprecated -Wno-missing-prototypes -Wno-missing-declarations -Wno-shadow -Wno-unused-parameter -Wno-unused-local-typedefs -Wno-sign-compare -Wno-sign-promo -Wno-undef -Wno-tautological-undefined-compare -Wno-ignored-qualifiers -Wno-extra -Wno-unused-function -Wno-unused-const-variable -Wno-shorten-64-to-32 -Wno-invalid-offsetof -Wno-enum-compare-switch -Wno-suggest-override -Wno-inconsistent-missing-override -Wno-implicit-fallthrough -Wno-array-bounds  -O3 -DNDEBUG  -DNDEBUG -arch arm64 -Wl,-search_paths_first -Wl,-headerpad_max_install_names   -Wl,-dead_strip CMakeFiles/cmTC_c41b9.dir/src.cxx.o -o cmTC_c41b9   && :
+
+
+===== END =====
+

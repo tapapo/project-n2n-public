@@ -1,6 +1,32 @@
 .venv/
 build-opencv/
 __pycache__/
+*.pyc
 my-react-flow-app/node_modules/
 outputs/
 Image-to-Descriptor/image/
+# Python
+__pycache__/
+*.pyc
+
+# Virtual env
+.venv/
+
+# Build / cache ที่ไม่อยากขึ้น repo
+build-opencv/
+outputs/
+Image-to-Descriptor/image/
+# Python cache
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+
+# Virtual env
+.venv/
+
+# runtime outputs (ถ้าไม่อยาก push)
+outputs/
+Image-to-Descriptor/image/
+build-opencv/
