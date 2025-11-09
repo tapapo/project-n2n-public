@@ -36,7 +36,6 @@ const DEFAULT_PARAMS: FLANNParams = {
   lowe_ratio: 0.75,
   ransac_thresh: 5.0,
   draw_mode: 'good',
-  max_draw: 50,
   index_params: 'AUTO',
   search_params: 'AUTO',
 };
@@ -280,18 +279,7 @@ const FLANNMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
                 <option value="inliers">Inliers only</option>
               </select>
             </label>
-            <label>
-              Max draw (0 = all)
-              <input
-                type="number" min={0}
-                className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700"
-                value={form.max_draw ?? 0}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  setForm(s => ({ ...s, max_draw: isNaN(v) ? 0 : v }));
-                }}
-              />
-            </label>
+            
           </div>
 
           {/* Index params */}

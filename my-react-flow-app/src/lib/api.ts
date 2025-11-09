@@ -11,6 +11,7 @@ export const abs = (url?: string) => {
 
 export const absStrict = (url: string) =>
   /^(https?:|blob:|data:)/i.test(url) ? url : `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+
 // ---------- Upload ----------
 export async function uploadImages(
   files: File[],
@@ -215,4 +216,70 @@ export async function runFlannmatcher(
   });
   if (!res.ok) throw new Error(await res.text().catch(() => "FLANN matcher failed"));
   return res.json();
+}
+
+// ---------- Alignment ----------
+export async function runHomographyAlignment(
+  match_json: string,
+  params?: { warp_mode?: 'image2_to_image1' | 'image1_to_image2'; blend?: boolean },
+  signal?: AbortSignal
+) {
+  const resp = await fetch(`${API_BASE}/api/alignment/homography`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      match_json,
+      warp_mode: params?.warp_mode ?? 'image2_to_image1',
+      blend: params?.blend ?? false,
+    }),
+    signal,
+  });
+  if (!resp.ok) throw new Error(await resp.text().catch(() => 'Homography alignment failed'));
+  return await resp.json();
+}
+
+export async function runAffineAlignment(
+  match_json: string,
+  params?: { warp_mode?: 'image2_to_image1' | 'image1_to_image2'; blend?: boolean },
+  signal?: AbortSignal
+) {
+  const resp = await fetch(`${API_BASE}/api/alignment/affine`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      match_json,
+      warp_mode: params?.warp_mode ?? 'image2_to_image1',
+      blend: params?.blend ?? false,
+    }),
+    signal,
+  });
+  if (!resp.ok) throw new Error(await resp.text().catch(() => 'Affine alignment failed'));
+  return await resp.json();
+}
+
+// ---------- Classification (Otsu) ----------
+export async function runOtsuClassification(
+  image_path: string,
+  params?: {
+    gaussian_blur?: boolean;
+    blur_ksize?: number;   // odd >= 3
+    invert?: boolean;
+    morph_open?: boolean;
+    morph_close?: boolean;
+    morph_kernel?: number;
+    show_histogram?: boolean;
+  },
+  signal?: AbortSignal
+) {
+  // ใช้เส้นทางหลักใหม่ที่ backend เปิดไว้ (/api/classify/otsu)
+  // แต่ถ้าอยากคง compatibility กับของเก่า ก็ใช้ path นี้เป็นหลักไปเลย
+  const resp = await fetch(`${API_BASE}/api/classify/otsu`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // ✅ แผ่พารามิเตอร์ไว้ชั้นบน ไม่ส่งเป็น params:{...}
+    body: JSON.stringify({ image_path, ...(params || {}) }),
+    signal,
+  });
+  if (!resp.ok) throw new Error(await resp.text().catch(() => 'Otsu classification failed'));
+  return await resp.json();
 }

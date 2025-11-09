@@ -10,6 +10,7 @@ const statusDot = (active: boolean, color: string) =>
 
 const DEFAULT_SIFT = {
   nfeatures: 500,
+  nOctaveLayers: 3,       // ✅ เพิ่ม default
   contrastThreshold: 0.04,
   edgeThreshold: 10,
   sigma: 1.6,
@@ -70,10 +71,20 @@ const SiftNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
   const saveParams = useCallback(() => {
+    // ✅ sanitize ค่าอินพุตสำคัญก่อนเซฟ
+    const clean = {
+      ...form,
+      nOctaveLayers: Math.max(1, parseInt(String(form.nOctaveLayers || 3), 10)),
+      nfeatures: Math.max(0, parseInt(String(form.nfeatures || 0), 10)),
+      contrastThreshold: Math.max(0, Number(form.contrastThreshold ?? 0.04)),
+      edgeThreshold: Math.max(0, parseInt(String(form.edgeThreshold ?? 10), 10)),
+      sigma: Math.max(0, Number(form.sigma ?? 1.6)),
+    };
+
     rf.setNodes((nds) =>
       nds.map((n) =>
         n.id === id
-          ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } }
+          ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...clean } } } }
           : n
       )
     );
@@ -176,28 +187,51 @@ const SiftNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
       <Modal open={open} title="SIFT Settings" onClose={handleClose}>
         <div className="grid grid-cols-2 gap-3">
           <label className="text-xs text-gray-300">nfeatures
-            <input type="number" min={0}
+            <input
+              type="number" min={0}
               className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
               value={form.nfeatures}
-              onChange={(e) => setForm((s: any) => ({ ...s, nfeatures: Number(e.target.value) }))} />
+              onChange={(e) => setForm((s: any) => ({ ...s, nfeatures: Number(e.target.value) }))}
+            />
           </label>
+
+          <label className="text-xs text-gray-300">nOctaveLayers
+            <input
+              type="number" step={1} min={1} max={8}
+              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              value={form.nOctaveLayers}
+              onChange={(e) => {
+                const v = Math.max(1, parseInt(e.target.value || '1', 10));
+                setForm((s: any) => ({ ...s, nOctaveLayers: v }));
+              }}
+            />
+          </label>
+
           <label className="text-xs text-gray-300">contrastThreshold
-            <input type="number" step="0.001" min={0}
+            <input
+              type="number" step="0.001" min={0}
               className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
               value={form.contrastThreshold}
-              onChange={(e) => setForm((s: any) => ({ ...s, contrastThreshold: Number(e.target.value) }))} />
+              onChange={(e) => setForm((s: any) => ({ ...s, contrastThreshold: Number(e.target.value) }))}
+            />
           </label>
+
           <label className="text-xs text-gray-300">edgeThreshold
-            <input type="number" min={0}
+            <input
+              type="number" min={0}
               className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
               value={form.edgeThreshold}
-              onChange={(e) => setForm((s: any) => ({ ...s, edgeThreshold: Number(e.target.value) }))} />
+              onChange={(e) => setForm((s: any) => ({ ...s, edgeThreshold: Number(e.target.value) }))}
+            />
           </label>
+
           <label className="text-xs text-gray-300">sigma
-            <input type="number" step="0.1" min={0}
+            <input
+              type="number" step="0.1" min={0}
               className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
               value={form.sigma}
-              onChange={(e) => setForm((s: any) => ({ ...s, sigma: Number(e.target.value) }))} />
+              onChange={(e) => setForm((s: any) => ({ ...s, sigma: Number(e.target.value) }))}
+            />
           </label>
         </div>
 
@@ -211,3 +245,4 @@ const SiftNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
 });
 
 export default SiftNode;
+
