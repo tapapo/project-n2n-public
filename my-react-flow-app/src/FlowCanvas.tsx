@@ -29,14 +29,15 @@ import BFMatcherNode from './components/nodes/BFMatcherNode';
 import FLANNMatcherNode from './components/nodes/FLANNMatcherNode';
 import HomographyAlignNode from './components/nodes/HomographyAlignNode';
 import AffineAlignNode from './components/nodes/AffineAlignNode';
-import OtsuNode from './components/nodes/OtsuNode';              // ✅ เพิ่ม Otsu node
+import OtsuNode from './components/nodes/OtsuNode';
+import SnakeNode from './components/nodes/SnakeNode';            // ✅ เพิ่ม Snake node
 
 import type { CustomNodeData } from './types';
 import { runFeature } from './lib/runners/features';
 import { runQuality } from './lib/runners/quality';
 import { runMatcher } from './lib/runners/matching';
 import { runAlignment } from './lib/runners/alignment';
-import { runOtsu } from './lib/runners/classification';          // ✅ เพิ่ม runner Otsu
+import { runOtsu, runSnakeRunner as runSnakeRunner } from './lib/runners/classification'; // ✅ เพิ่ม runner Snake
 import { markStartThenRunning } from './lib/runners/utils';
 
 // ---------- Props ----------
@@ -58,7 +59,8 @@ const nodeTypes: NodeTypes = {
   flannmatcher: FLANNMatcherNode,
   'homography-align': HomographyAlignNode,
   'affine-align': AffineAlignNode,
-  otsu: OtsuNode,                                            // ✅ ประกาศ type 'otsu'
+  otsu: OtsuNode,
+  snake: SnakeNode,                                           // ✅ ประกาศ type 'snake'
 };
 
 // ---------- Constants ----------
@@ -172,8 +174,11 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
         case 'affine-align':
           return runAlignment(node, setNodes as any, nodesRef.current as any, edgesRef.current as any);
 
-        case 'otsu':                                          // ✅ เพิ่ม case Otsu
+        case 'otsu':
           return runOtsu(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any);
+
+        case 'snake':                                         // ✅ เพิ่ม case Snake
+          return runSnakeRunner(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any);
 
         default:
           console.warn(`⚠️ No runner found for node type: ${node.type}`);
@@ -237,7 +242,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
       connectionLineType={ConnectionLineType.SmoothStep}
       fitView
       minZoom={0.01}
-      maxZoom={Infinity} // ✅ ไม่ลิมิตตามที่ต้องการ
+      maxZoom={Infinity}
     >
       <MiniMap />
       <Controls />

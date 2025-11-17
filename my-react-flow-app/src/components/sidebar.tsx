@@ -31,11 +31,13 @@ const Sidebar = () => {
       { type: 'psnr', label: 'PSNR', color: 'bg-blue-500' },
       { type: 'ssim', label: 'SSIM', color: 'bg-blue-500' },
     ]},
-    // ✅ เพิ่มหมวด Classification (เฉพาะ Otsu ที่ทำไว้แล้ว)
+    // ✅ Classification (คลาสสิก IP): Otsu + Snake
     { name: 'Classification', algorithms: [
       { type: 'otsu', label: "Otsu's Thresholding", color: 'bg-pink-500' },
-      // ถ้าจะเพิ่มภายหลัง เช่น adaptive-threshold / superpixel ให้แน่ใจว่ามี nodeTypes ด้วยก่อนเปิดใช้งาน
+      { type: 'snake', label: 'Snake (Active Contour)', color: 'bg-pink-500' }, // ✨ เพิ่ม Snake ที่นี่
+      // ภายหลังถ้าจะเพิ่ม: adaptive-threshold, superpixel ฯลฯ
       // { type: 'adaptive-threshold', label: 'Adaptive Threshold', color: 'bg-pink-500' },
+      // { type: 'slic', label: 'Superpixel (SLIC)', color: 'bg-pink-500' },
     ]},
   ]), []);
 

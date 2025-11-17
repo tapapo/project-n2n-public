@@ -1,52 +1,55 @@
 # server/main.py
-import json
 import os
+import json
 import shutil
 import tempfile
-from typing import Optional, Tuple
+from pathlib import Path
+from urllib.parse import urlparse
+from typing import Optional, Tuple, List
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from pathlib import Path
-from urllib.parse import urlparse
 
 from .utils_io import save_upload, static_url, ensure_dirs
+from .cache_utils import make_cache_key, feature_paths, metric_json_path, ensure_dir
+
+# ---- Adapters ----
 from .algos.feature.sift_adapter import run as sift_run
 from .algos.feature.orb_adapter import run as orb_run
 from .algos.feature.surf_adapter import run as surf_run
+
 from .algos.quality.brisque_adapter import run as brisque_run
 from .algos.quality.psnr_adapter import run as psnr_run
 from .algos.quality.ssim_adapter import compute_ssim
+
 from .algos.matching.bfmatcher_adapter import run as bf_run
 from .algos.matching.flannmatcher_adapter import run as flann_run
+
 from .algos.ObjectAlignment.homography_alignment_adapter import run as homography_run
 from .algos.ObjectAlignment.AffineTransformEstimation import run as affine_run
-from .algos.Classification.otsu_adapter import run as otsu_run  # ✅ Otsu adapter
 
-# cache helpers
-from .cache_utils import (
-    make_cache_key, feature_paths, metric_json_path, ensure_dir
-)
+from .algos.Classification.otsu_adapter import run as otsu_run
+from .algos.Classification.snake_adapter import run as snake_run
 
-# -------------------------------
+
+# -------------------------
 # Config paths
-# -------------------------------
+# -------------------------
 OUT = os.getenv("N2N_OUT", "/Users/pop/Desktop/project_n2n/outputs")
 UPLOAD_DIR = os.path.join(OUT, "uploads")
 RESULT_DIR = OUT
 ensure_dirs(UPLOAD_DIR, RESULT_DIR)
 
-# -------------------------------
+# -------------------------
 # Helpers
-# -------------------------------
+# -------------------------
 def _read_json(path: str) -> dict:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 def _as_count(x) -> int:
-    """รองรับทั้ง list ของ matches หรือจำนวน (int/float/str)"""
     if isinstance(x, list):
         return len(x)
     try:
@@ -78,9 +81,10 @@ def resolve_image_path(p: str) -> str:
     # ไม่ใช่ URL/ไม่ใช่เส้นทาง static: ถือว่าเป็นพาธไฟล์อยู่แล้ว
     return p
 
-# -------------------------------
+
+# -------------------------
 # FastAPI setup
-# -------------------------------
+# -------------------------
 app = FastAPI(title="N2N Image API (modular)")
 app.add_middleware(
     CORSMiddleware,
@@ -88,7 +92,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-# ✅ mount static จาก OUT (จะเสิร์ฟ /static/...)
 app.mount("/static", StaticFiles(directory=OUT), name="static")
 
 
@@ -96,9 +99,10 @@ app.mount("/static", StaticFiles(directory=OUT), name="static")
 def health():
     return {"ok": True}
 
-# -------------------------------
+
+# -------------------------
 # Upload
-# -------------------------------
+# -------------------------
 @app.post("/api/upload")
 async def api_upload(files: list[UploadFile] = File(...)):
     saved = []
@@ -107,9 +111,10 @@ async def api_upload(files: list[UploadFile] = File(...)):
         saved.append({"name": f.filename, "path": path, "url": static_url(path, OUT)})
     return {"files": saved}
 
-# -------------------------------
+
+# -------------------------
 # Feature (SIFT / ORB / SURF)
-# -------------------------------
+# -------------------------
 class FeatureReq(BaseModel):
     image_path: str
     params: Optional[dict] = None
@@ -139,10 +144,8 @@ def feature_sift(req: FeatureReq):
     j, v = sift_run(img_path, RESULT_DIR, **(req.params or {}))
     ensure_dir(os.path.dirname(json_p))
     try:
-        if os.path.exists(j):
-            os.replace(j, json_p)
-        if v and os.path.exists(v):
-            os.replace(v, vis_p)
+        if os.path.exists(j): os.replace(j, json_p)
+        if v and os.path.exists(v): os.replace(v, vis_p)
     except Exception:
         return _return_feature("SIFT", j, v)
     return _return_feature("SIFT", json_p, vis_p)
@@ -179,17 +182,11 @@ def feature_surf(req: FeatureReq):
         return _return_feature("SURF", j, v)
     return _return_feature("SURF", json_p, vis_p)
 
-# -------------------------------
+
+# -------------------------
 # Quality (BRISQUE / PSNR / SSIM)
-# -------------------------------
-from typing import Optional
+# -------------------------
 import hashlib
-import tempfile
-import shutil
-import os
-import json
-from fastapi import UploadFile, File, HTTPException
-from pydantic import BaseModel
 
 class QualityReq(BaseModel):
     image_path: str
@@ -205,15 +202,11 @@ def _sha1_of_file(path: str) -> str:
 
 @app.post("/api/quality/brisque")
 def quality_brisque(req: QualityReq):
-    # แปลง path/url ให้เป็นไฟล์บนดิสก์ก่อน (ฟังก์ชันนี้คุณมีอยู่แล้ว)
     img_path = resolve_image_path(req.image_path)
-
-    # คีย์ = แฮชเนื้อไฟล์ + params (เรียงคีย์)
     h = _sha1_of_file(img_path)
     key = make_cache_key("BRISQUE", files=[h], params=req.params or {})
 
     out_json = metric_json_path(RESULT_DIR, "brisque_outputs", f"brisque_{key}")
-    # ✅ ถ้ามีอยู่แล้ว: อ่าน cache เลย
     if os.path.exists(out_json):
         with open(out_json, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -225,13 +218,10 @@ def quality_brisque(req: QualityReq):
             "cache": True,
         }
 
-    # ❌ ยังไม่มี: รัน แล้วค่อยย้ายชื่อให้ deterministic
     j, _ = brisque_run(img_path, RESULT_DIR, **(req.params or {}))
     try:
-        if os.path.exists(j):
-            os.replace(j, out_json)
-        else:
-            out_json = j
+        if os.path.exists(j): os.replace(j, out_json)
+        else: out_json = j
     except Exception:
         out_json = j
 
@@ -249,7 +239,6 @@ def quality_brisque(req: QualityReq):
 async def quality_psnr(original: UploadFile = File(...), processed: UploadFile = File(...)):
     tmpdir = tempfile.mkdtemp()
     try:
-        # 1) เซฟไฟล์อัปโหลดไป temp (ไม่ใช้ path temp ทำคีย์)
         orig_path = os.path.join(tmpdir, original.filename or "a.bin")
         proc_path = os.path.join(tmpdir, processed.filename or "b.bin")
         with open(orig_path, "wb") as f:
@@ -257,13 +246,11 @@ async def quality_psnr(original: UploadFile = File(...), processed: UploadFile =
         with open(proc_path, "wb") as f:
             shutil.copyfileobj(processed.file, f)
 
-        # 2) คีย์จากแฮชเนื้อไฟล์ + params ที่คงที่
         h1, h2 = _sha1_of_file(orig_path), _sha1_of_file(proc_path)
         psnr_params = {"use_luma": True}
         key = make_cache_key("PSNR", files=[h1, h2], params=psnr_params)
 
         out_json = metric_json_path(RESULT_DIR, "psnr_outputs", f"psnr_{key}")
-        # ✅ cache hit
         if os.path.exists(out_json):
             with open(out_json, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -276,13 +263,10 @@ async def quality_psnr(original: UploadFile = File(...), processed: UploadFile =
                 "cache": True,
             }
 
-        # ❌ run แล้วย้ายชื่อให้ deterministic
         j, data = psnr_run(orig_path, proc_path, out_root=RESULT_DIR, use_luma=True)
         try:
-            if os.path.exists(j):
-                os.replace(j, out_json)
-            else:
-                out_json = j
+            if os.path.exists(j): os.replace(j, out_json)
+            else: out_json = j
         except Exception:
             out_json = j
 
@@ -301,7 +285,6 @@ async def quality_psnr(original: UploadFile = File(...), processed: UploadFile =
 async def quality_ssim(original: UploadFile = File(...), processed: UploadFile = File(...)):
     tmpdir = tempfile.mkdtemp()
     try:
-        # 1) เซฟไฟล์อัปโหลดไป temp
         orig_path = os.path.join(tmpdir, original.filename or "a.bin")
         proc_path = os.path.join(tmpdir, processed.filename or "b.bin")
         with open(orig_path, "wb") as f:
@@ -309,7 +292,6 @@ async def quality_ssim(original: UploadFile = File(...), processed: UploadFile =
         with open(proc_path, "wb") as f:
             f.write(await processed.read())
 
-        # 2) พารามิเตอร์ที่ "นิ่ง" (อย่าใส่อะไรที่ adapter จะเปลี่ยนอัตโนมัติ)
         default_ssim_params = {
             "data_range": 255,
             "win_size": 11,
@@ -319,15 +301,12 @@ async def quality_ssim(original: UploadFile = File(...), processed: UploadFile =
             "K1": 0.01,
             "K2": 0.03,
             "calculate_on_color": False,
-            # ไม่ใส่ channel_axis / auto-deduced fields ลงใน key
         }
 
-        # 3) คีย์จากแฮชเนื้อไฟล์ + params
         h1, h2 = _sha1_of_file(orig_path), _sha1_of_file(proc_path)
         key = make_cache_key("SSIM", files=[h1, h2], params=default_ssim_params)
 
         out_json = metric_json_path(RESULT_DIR, "ssim_outputs", f"ssim_{key}")
-        # ✅ cache hit
         if os.path.exists(out_json):
             with open(out_json, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -340,17 +319,14 @@ async def quality_ssim(original: UploadFile = File(...), processed: UploadFile =
                 "cache": True,
             }
 
-        # ❌ run แล้วย้ายชื่อให้ deterministic
         result = compute_ssim(
             orig_path, proc_path,
             out_root=RESULT_DIR,
             **default_ssim_params
         )
         try:
-            if os.path.exists(result["json_path"]):
-                os.replace(result["json_path"], out_json)
-            else:
-                out_json = result["json_path"]
+            if os.path.exists(result["json_path"]): os.replace(result["json_path"], out_json)
+            else: out_json = result["json_path"]
         except Exception:
             out_json = result["json_path"]
 
@@ -365,9 +341,10 @@ async def quality_ssim(original: UploadFile = File(...), processed: UploadFile =
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-# -------------------------------
+
+# -------------------------
 # Matching (BFMatcher / FLANN)
-# -------------------------------
+# -------------------------
 class BFReq(BaseModel):
     json_a: str
     json_b: str
@@ -426,13 +403,11 @@ def match_bf(req: BFReq):
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
-        if result.get("json_path") and os.path.exists(result["json_path"]):
-            os.replace(result["json_path"], json_p)
-        if result.get("vis_url") and os.path.exists(result["vis_url"]):
-            os.replace(result["vis_url"], vis_p)
+        if result.get("json_path") and os.path.exists(result["json_path"]): os.replace(result["json_path"], json_p)
+        if result.get("vis_url") and os.path.exists(result["vis_url"]):     os.replace(result["vis_url"], vis_p)
     except Exception:
         json_p = result.get("json_path", json_p)
-        vis_p = result.get("vis_url", vis_p)
+        vis_p  = result.get("vis_url", vis_p)
 
     inliers = int(result.get("inliers", 0))
     good_cnt = _as_count(
@@ -524,13 +499,11 @@ def match_flann(req: FLANNReq):
         raise HTTPException(status_code=400, detail=str(e))
 
     try:
-        if result.get("json_path") and os.path.exists(result["json_path"]):
-            os.replace(result["json_path"], json_p)
-        if result.get("vis_url") and os.path.exists(result["vis_url"]):
-            os.replace(result["vis_url"], vis_p)
+        if result.get("json_path") and os.path.exists(result["json_path"]): os.replace(result["json_path"], json_p)
+        if result.get("vis_url") and os.path.exists(result["vis_url"]):     os.replace(result["vis_url"], vis_p)
     except Exception:
         json_p = result.get("json_path", json_p)
-        vis_p = result.get("vis_url", vis_p)
+        vis_p  = result.get("vis_url", vis_p)
 
     inliers = int(result.get("inliers", 0))
     good_cnt = _as_count(
@@ -551,9 +524,10 @@ def match_flann(req: FLANNReq):
         "json_url": static_url(json_p, OUT),
     }
 
-# -------------------------------
+
+# -------------------------
 # Alignment
-# -------------------------------
+# -------------------------
 class HomographyReq(BaseModel):
     match_json: str
     warp_mode: Optional[str] = "image2_to_image1"
@@ -609,9 +583,10 @@ def alignment_affine(req: AffineReq):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# -------------------------------
-# Classification (Otsu) with cache
-# -------------------------------
+
+# -------------------------
+# Classification (Otsu)
+# -------------------------
 class OtsuReq(BaseModel):
     image_path: str
     gaussian_blur: Optional[bool] = True
@@ -622,13 +597,7 @@ class OtsuReq(BaseModel):
     morph_kernel: Optional[bool | int] = 3   # รองรับ false/true ผิดพลาด โดยจะ cast ด้านล่าง
     show_histogram: Optional[bool] = False
 
-def _otsu_paths(root: str, stem: str) -> Tuple[str, str, str, str]:
-    """
-    คืน path แบบ deterministic:
-    <root>/features/classification/otsu_outputs/{stem}.json
-    <root>/features/classification/otsu_outputs/{stem}.png
-    <root>/features/classification/otsu_outputs/{stem}_hist.png
-    """
+def _otsu_paths(root: str, stem: str) -> Tuple[str, str, str]:
     out_dir = os.path.join(root, "features", "otsu_outputs")
     ensure_dir(out_dir)
     json_p = os.path.join(out_dir, f"{stem}.json")
@@ -648,7 +617,6 @@ def _read_threshold_and_hist(json_path: str):
 
 @app.post("/api/classify/otsu")
 def classify_otsu(req: OtsuReq):
-    # sanitize morph_kernel (เผื่อมีค่า bool มาจาก front)
     mk = req.morph_kernel
     if isinstance(mk, bool):
         mk = 3
@@ -658,7 +626,6 @@ def classify_otsu(req: OtsuReq):
         mk = 3
 
     img_path = resolve_image_path(req.image_path)
-
     params_for_key = {
         "gaussian_blur": req.gaussian_blur,
         "blur_ksize": req.blur_ksize,
@@ -670,9 +637,8 @@ def classify_otsu(req: OtsuReq):
     }
     key = make_cache_key("OTSU", files=[img_path], params=params_for_key)
     stem = f"otsu_{key}"
-    out_dir, json_p, bin_p, hist_p = _otsu_paths(RESULT_DIR, stem)
+    _, json_p, bin_p, _ = _otsu_paths(RESULT_DIR, stem)
 
-    # ✅ ถ้ามีผลลัพธ์เดิมแล้ว → return cache
     if os.path.exists(json_p) and os.path.exists(bin_p):
         threshold, hist_path = _read_threshold_and_hist(json_p)
         return {
@@ -685,7 +651,6 @@ def classify_otsu(req: OtsuReq):
             "cache": True,
         }
 
-    # ❗ยังไม่มี: รัน adapter (จะเขียนไฟล์แบบสุ่มในโฟลเดอร์เดียวกัน) แล้วเราย้ายเป็นชื่อ deterministic
     try:
         j_tmp, bin_tmp = otsu_run(
             image_path=img_path,
@@ -698,19 +663,14 @@ def classify_otsu(req: OtsuReq):
             morph_kernel=mk,
             show_histogram=req.show_histogram,
         )
-
-        # ย้ายชื่อไฟล์ให้ deterministic
         try:
-            if j_tmp and os.path.exists(j_tmp):
-                os.replace(j_tmp, json_p)
-            if bin_tmp and os.path.exists(bin_tmp):
-                os.replace(bin_tmp, bin_p)
+            if j_tmp and os.path.exists(j_tmp): os.replace(j_tmp, json_p)
+            if bin_tmp and os.path.exists(bin_tmp): os.replace(bin_tmp, bin_p)
         except Exception:
             json_p = j_tmp or json_p
             bin_p  = bin_tmp or bin_p
 
         threshold, hist_path = _read_threshold_and_hist(json_p)
-
         return {
             "tool": "OtsuThreshold",
             "json_path": json_p,
@@ -723,7 +683,147 @@ def classify_otsu(req: OtsuReq):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-# ✅ alias ให้ path เดิมยังใช้ได้
 @app.post("/api/classification/otsu")
 def classification_otsu(req: OtsuReq):
     return classify_otsu(req)
+
+
+# -------------------------
+# Segmentation / Snake (Active Contour)
+# -------------------------
+class SnakeReq(BaseModel):
+    image_path: str
+
+    # snake dynamics
+    alpha: float = 0.015
+    beta: float = 10.0
+    gamma: float = 0.001
+    w_line: float = 0.0
+    w_edge: float = 1.0
+    max_iterations: int = 250
+    convergence: float = 0.1
+
+    # init
+    init_mode: str = "circle"   # "circle" | "point" | "bbox"
+    init_cx: Optional[int] = None
+    init_cy: Optional[int] = None
+    init_radius: Optional[int] = None
+    init_points: int = 400
+
+    # point
+    from_point_x: Optional[float] = None
+    from_point_y: Optional[float] = None
+
+    # bbox
+    bbox_x1: Optional[float] = None
+    bbox_y1: Optional[float] = None
+    bbox_x2: Optional[float] = None
+    bbox_y2: Optional[float] = None
+
+    # preprocessing (เหลือแค่เบลอ)
+    gaussian_blur_ksize: int = 5
+
+    class Config:
+        extra = "ignore"  # กัน 422 ถ้ามีฟิลด์เกินมาจาก client เก่า ๆ
+
+
+def _snake_paths(root: str, stem: str) -> tuple[str, str, str]:
+    out_dir = os.path.join(root, "features", "snake_outputs")
+    ensure_dir(out_dir)
+    json_p    = os.path.join(out_dir, f"{stem}.json")
+    overlay_p = os.path.join(out_dir, f"{stem}_overlay.png")
+    mask_p    = os.path.join(out_dir, f"{stem}_mask.png")
+    return json_p, overlay_p, mask_p
+
+
+@app.post("/api/segmentation/snake")
+def segmentation_snake(req: SnakeReq):
+    img_path = resolve_image_path(req.image_path)
+
+    # cache key ครอบคลุมพารามิเตอร์สำคัญทั้งหมด
+    params_for_key = req.model_dump()
+    params_for_key["image_path"] = img_path  # ใช้ path ที่ resolve แล้วใน key
+    key  = make_cache_key("SNAKE", files=[img_path], params=params_for_key)
+    stem = f"snake_{key}"
+    json_p, overlay_p, mask_p = _snake_paths(RESULT_DIR, stem)
+
+    # cache hit
+    if os.path.exists(json_p) and (os.path.exists(overlay_p) or os.path.exists(mask_p)):
+        try:
+            data = _read_json(json_p)
+        except Exception:
+            data = {"tool": "SnakeActiveContour"}
+        return {
+            "tool": "SnakeActiveContour",
+            "json_path": json_p,
+            "json_url": static_url(json_p, OUT),
+            "overlay_url": static_url(overlay_p, OUT) if os.path.exists(overlay_p) else None,
+            "mask_url": static_url(mask_p, OUT) if os.path.exists(mask_p) else None,
+            "cache": True,
+            "contour_points": (data.get("output") or {}).get("contour_points_xy"),
+            "iterations": (data.get("output") or {}).get("iterations"),
+        }
+
+    # run + ตั้งชื่อ deterministic
+    try:
+        j_tmp, overlay_tmp, mask_tmp = snake_run(
+            image_path=img_path,
+            out_root=RESULT_DIR,
+
+            alpha=req.alpha,
+            beta=req.beta,
+            gamma=req.gamma,
+            w_line=req.w_line,
+            w_edge=req.w_edge,
+            max_iterations=req.max_iterations,
+            convergence=req.convergence,
+
+            init_mode=req.init_mode,
+            init_cx=req.init_cx,
+            init_cy=req.init_cy,
+            init_radius=req.init_radius,
+            init_points=req.init_points,
+
+            from_point_x=req.from_point_x,
+            from_point_y=req.from_point_y,
+
+            bbox_x1=req.bbox_x1,
+            bbox_y1=req.bbox_y1,
+            bbox_x2=req.bbox_x2,
+            bbox_y2=req.bbox_y2,
+
+            gaussian_blur_ksize=req.gaussian_blur_ksize,
+        )
+
+        try:
+            if j_tmp and os.path.exists(j_tmp):             os.replace(j_tmp, json_p)
+            if overlay_tmp and os.path.exists(overlay_tmp): os.replace(overlay_tmp, overlay_p)
+            if mask_tmp and os.path.exists(mask_tmp):       os.replace(mask_tmp, mask_p)
+        except Exception:
+            json_p    = j_tmp or json_p
+            overlay_p = overlay_tmp or overlay_p
+            mask_p    = mask_tmp or mask_p
+
+        data = _read_json(json_p)
+        return {
+            "tool": "SnakeActiveContour",
+            "json_path": json_p,
+            "json_url": static_url(json_p, OUT),
+            "overlay_url": static_url(overlay_p, OUT) if os.path.exists(overlay_p) else None,
+            "mask_url": static_url(mask_p, OUT) if os.path.exists(mask_p) else None,
+            "cache": False,
+            "contour_points": (data.get("output") or {}).get("contour_points_xy"),
+            "iterations": (data.get("output") or {}).get("iterations"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+# alias เส้นทางเดิมให้ใช้ได้เหมือนเดิม
+@app.post("/api/classify/snake")
+def classify_snake(req: SnakeReq):
+    return segmentation_snake(req)
+
+@app.post("/api/classification/snake")
+def classification_snake(req: SnakeReq):
+    return segmentation_snake(req)
