@@ -80,44 +80,6 @@ const cloneSnapshot = (snap: GraphSnapshot): GraphSnapshot => ({
   edges: snap.edges.map((e) => ({ ...e })),
 });
 
-// เปรียบเทียบ “โครงสร้างกราฟ” โดยไม่สน data/status/payload
-const structurallyEqual = (a: GraphSnapshot, b: GraphSnapshot): boolean => {
-  if (a.nodes.length !== b.nodes.length) return false;
-  if (a.edges.length !== b.edges.length) return false;
-
-  for (let i = 0; i < a.nodes.length; i += 1) {
-    const an = a.nodes[i];
-    const bn = b.nodes[i];
-    if (
-      an.id !== bn.id ||
-      an.type !== bn.type ||
-      an.position.x !== bn.position.x ||
-      an.position.y !== bn.position.y ||
-      (an.selected ?? false) !== (bn.selected ?? false)
-    ) {
-      return false;
-    }
-  }
-
-  for (let i = 0; i < a.edges.length; i += 1) {
-    const ae = a.edges[i];
-    const be = b.edges[i];
-    if (
-      ae.id !== be.id ||
-      ae.source !== be.source ||
-      ae.target !== be.target ||
-      (ae.sourceHandle ?? null) !== (be.sourceHandle ?? null) ||
-      (ae.targetHandle ?? null) !== (be.targetHandle ?? null) ||
-      (ae.type ?? null) !== (be.type ?? null) ||
-      (ae.selected ?? false) !== (be.selected ?? false)
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-};
-
 export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProps) {
   // React Flow helpers
   const { screenToFlowPosition } = useReactFlow();
@@ -170,57 +132,121 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
   const historyIndexRef = useRef<number>(-1);
   const historyInitializedRef = useRef(false);
   const isApplyingHistoryRef = useRef(false);
-  const historyDebounceRef = useRef<number | null>(null);
+  const wasDraggingRef = useRef(false);
 
-  // ฟังทุกครั้งที่ nodes/edges เปลี่ยน แล้วบันทึกเป็น history snapshot (debounced)
+  // ✅ helper: สร้าง snapshot แต่บังคับ status เป็น 'idle' เพื่อไม่ให้ history จำไฟ
+  const makeSnapshot = useCallback((): GraphSnapshot => {
+    return {
+      nodes: nodesRef.current.map((n) => ({
+        ...n,
+        data: {
+          ...(n.data || {}),
+          status: 'idle',
+        },
+      })),
+      edges: edgesRef.current.map((e) => ({ ...e })),
+    };
+  }, []);
+
+  const pushSnapshot = useCallback((snap: GraphSnapshot) => {
+    const hist = historyRef.current;
+    const idx = historyIndexRef.current;
+
+    const trimmed = hist.slice(0, idx + 1);
+    trimmed.push(cloneSnapshot(snap));
+
+    historyRef.current = trimmed;
+    historyIndexRef.current = trimmed.length - 1;
+  }, []);
+
+  // ✅ applySnapshot: ย้อนโครงสร้าง แต่ "พยายามเก็บ status ปัจจุบันของ node ไว้"
+  const applySnapshot = useCallback(
+    (snap: GraphSnapshot) => {
+      isApplyingHistoryRef.current = true;
+
+      setNodes((currentNodes) => {
+        const currentMap = new Map<string, RFNode<CustomNodeData>>(
+          currentNodes.map((n) => [n.id, n])
+        );
+
+        const mergedNodes: RFNode<CustomNodeData>[] = snap.nodes.map((snapNode) => {
+          const current = currentMap.get(snapNode.id);
+
+          const snapData = (snapNode.data || {}) as CustomNodeData;
+
+          if (!current) {
+            // node ถูก restore กลับมา → ให้ไฟ default เป็น idle
+            return {
+              ...snapNode,
+              data: {
+                ...snapData,
+                status: 'idle',
+              },
+            };
+          }
+
+          const currData = (current.data || {}) as CustomNodeData;
+
+          return {
+            ...snapNode,
+            data: {
+              ...snapData,
+              // ใช้ status ปัจจุบันของ node ตัวนี้ (ไม่ให้ undo ไปยุ่งไฟ)
+              status: currData.status,
+            },
+          };
+        });
+
+        return mergedNodes;
+      });
+
+      setEdges(snap.edges);
+
+      setTimeout(() => {
+        isApplyingHistoryRef.current = false;
+      }, 0);
+    },
+    [setNodes, setEdges]
+  );
+
+  // ฟังทุกครั้งที่ nodes/edges เปลี่ยน แล้วบันทึกเป็น history snapshot
+  // แต่ถ้าเป็น drag ให้ทั้ง gesture = 1 snapshot
   useEffect(() => {
     if (isApplyingHistoryRef.current) {
       // ถ้าเป็นการ set จาก undo/redo เอง -> ไม่ต้องสร้าง snapshot ใหม่
       return;
     }
 
-    const currentSnap: GraphSnapshot = {
-      nodes: nodesRef.current.map((n) => ({ ...n })),
-      edges: edgesRef.current.map((e) => ({ ...e })),
-    };
+    const anyDragging = nodes.some((n) => (n as any).dragging);
 
     if (!historyInitializedRef.current) {
       // initial snapshot ครั้งแรก
-      historyRef.current = [cloneSnapshot(currentSnap)];
+      const snap = makeSnapshot();
+      historyRef.current = [snap];
       historyIndexRef.current = 0;
       historyInitializedRef.current = true;
+      wasDraggingRef.current = anyDragging;
       return;
     }
 
-    // debounce เพื่อรวม drag หลาย ๆ ครั้งให้เป็น 1 step
-    if (historyDebounceRef.current !== null) {
-      window.clearTimeout(historyDebounceRef.current);
+    if (anyDragging) {
+      // กำลังลากอยู่ → ยังไม่ push, รอจนลากเสร็จ
+      wasDraggingRef.current = true;
+      return;
     }
 
-    historyDebounceRef.current = window.setTimeout(() => {
-      const snap: GraphSnapshot = {
-        nodes: nodesRef.current.map((n) => ({ ...n })),
-        edges: edgesRef.current.map((e) => ({ ...e })),
-      };
+    // ไม่มี node ไหน dragging แล้ว → เกิด action ใหม่
+    const snap = makeSnapshot();
 
-      const hist = historyRef.current;
-      const idx = historyIndexRef.current;
-      const lastSnap = hist[idx];
-
-      // 🔑 ถ้าโครงสร้างเหมือนเดิม (เปลี่ยนแค่ data/status/payload) => ไม่ต้อง push history
-      if (lastSnap && structurallyEqual(lastSnap, snap)) {
-        historyDebounceRef.current = null;
-        return;
-      }
-
-      const trimmed = hist.slice(0, idx + 1);
-      trimmed.push(cloneSnapshot(snap));
-
-      historyRef.current = trimmed;
-      historyIndexRef.current = trimmed.length - 1;
-      historyDebounceRef.current = null;
-    }, 80);
-  }, [nodes, edges]);
+    if (wasDraggingRef.current) {
+      // เพิ่งจบ drag → push snapshot 1 ครั้งสำหรับทั้ง drag
+      pushSnapshot(snap);
+      wasDraggingRef.current = false;
+    } else {
+      // การเปลี่ยนอื่น ๆ (copy/paste/delete/add edge/ฯลฯ)
+      pushSnapshot(snap);
+    }
+  }, [nodes, edges, makeSnapshot, pushSnapshot]);
 
   const undo = useCallback(() => {
     if (!historyInitializedRef.current) return;
@@ -229,22 +255,12 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     const idx = historyIndexRef.current;
     if (idx <= 0) return;
 
-    if (historyDebounceRef.current !== null) {
-      window.clearTimeout(historyDebounceRef.current);
-      historyDebounceRef.current = null;
-    }
-
     const targetIdx = idx - 1;
     const snap = hist[targetIdx];
     historyIndexRef.current = targetIdx;
 
-    isApplyingHistoryRef.current = true;
-    setNodes(snap.nodes);
-    setEdges(snap.edges);
-    setTimeout(() => {
-      isApplyingHistoryRef.current = false;
-    }, 0);
-  }, [setNodes, setEdges]);
+    applySnapshot(snap);
+  }, [applySnapshot]);
 
   const redo = useCallback(() => {
     if (!historyInitializedRef.current) return;
@@ -253,22 +269,12 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     const idx = historyIndexRef.current;
     if (idx >= hist.length - 1) return;
 
-    if (historyDebounceRef.current !== null) {
-      window.clearTimeout(historyDebounceRef.current);
-      historyDebounceRef.current = null;
-    }
-
     const targetIdx = idx + 1;
     const snap = hist[targetIdx];
     historyIndexRef.current = targetIdx;
 
-    isApplyingHistoryRef.current = true;
-    setNodes(snap.nodes);
-    setEdges(snap.edges);
-    setTimeout(() => {
-      isApplyingHistoryRef.current = false;
-    }, 0);
-  }, [setNodes, setEdges]);
+    applySnapshot(snap);
+  }, [applySnapshot]);
 
   // ---------- Node Execution ----------
   const runNodeById = useCallback(

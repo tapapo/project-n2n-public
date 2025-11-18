@@ -112,7 +112,7 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
         },
         data: {
           ...(n.data || {}),
-          status: 'idle',                // reset status ให้พร้อม run ใหม่
+          status: 'idle', // ให้พร้อม run ใหม่
           onRunNode: (id: string) => runNodeById(id),
         },
       };
@@ -143,7 +143,7 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
 
     setNodes([...clearedOldNodes, ...newNodes]);
     setEdges([...clearedOldEdges, ...newEdges]);
-    // history (undo/redo) จะถูกดูแลโดย FlowCanvas ผ่าน nodes/edges effect
+    // history (undo/redo) จะถูกจัดการที่ FlowCanvas ผ่าน effect ของ nodes/edges
   }, [getNodes, getEdges, setNodes, setEdges, getPastePosition, runNodeById]);
 
   // -------- Delete --------
@@ -167,7 +167,7 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
 
     setNodes(keptNodes);
     setEdges(keptEdges);
-    // history ก็จะถูก trigger โดย nodes/edges เปลี่ยนเหมือนกัน
+    // history ก็ถูก trigger โดย nodes/edges เปลี่ยนเหมือนกัน
   }, [getNodes, getEdges, setNodes, setEdges]);
 
   // -------- Keyboard listener --------
@@ -182,9 +182,9 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
         if (key === 'z') {
           e.preventDefault();
           if (e.shiftKey) {
-            redo();   // Ctrl+Shift+Z / Cmd+Shift+Z
+            redo(); // Ctrl+Shift+Z / Cmd+Shift+Z
           } else {
-            undo();   // Ctrl+Z / Cmd+Z
+            undo(); // Ctrl+Z / Cmd+Z
           }
           return;
         }
