@@ -30,15 +30,16 @@ import FLANNMatcherNode from './components/nodes/FLANNMatcherNode';
 import HomographyAlignNode from './components/nodes/HomographyAlignNode';
 import AffineAlignNode from './components/nodes/AffineAlignNode';
 import OtsuNode from './components/nodes/OtsuNode';
-import SnakeNode from './components/nodes/SnakeNode';            // ✅ เพิ่ม Snake node
+import SnakeNode from './components/nodes/SnakeNode';
 
 import type { CustomNodeData } from './types';
 import { runFeature } from './lib/runners/features';
 import { runQuality } from './lib/runners/quality';
 import { runMatcher } from './lib/runners/matching';
 import { runAlignment } from './lib/runners/alignment';
-import { runOtsu, runSnakeRunner as runSnakeRunner } from './lib/runners/classification'; // ✅ เพิ่ม runner Snake
+import { runOtsu, runSnakeRunner } from './lib/runners/classification';
 import { markStartThenRunning } from './lib/runners/utils';
+import { useFlowHotkeys } from './hooks/useFlowHotkeys';
 
 // ---------- Props ----------
 interface FlowCanvasProps {
@@ -60,7 +61,7 @@ const nodeTypes: NodeTypes = {
   'homography-align': HomographyAlignNode,
   'affine-align': AffineAlignNode,
   otsu: OtsuNode,
-  snake: SnakeNode,                                           // ✅ ประกาศ type 'snake'
+  snake: SnakeNode,
 };
 
 // ---------- Constants ----------
@@ -68,7 +69,62 @@ const STORAGE_KEY_NODES = 'n2n_nodes';
 const STORAGE_KEY_EDGES = 'n2n_edges';
 const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
+// ---------- History Types ----------
+type GraphSnapshot = {
+  nodes: RFNode<CustomNodeData>[];
+  edges: Edge[];
+};
+
+const cloneSnapshot = (snap: GraphSnapshot): GraphSnapshot => ({
+  nodes: snap.nodes.map((n) => ({ ...n })),
+  edges: snap.edges.map((e) => ({ ...e })),
+});
+
+// เปรียบเทียบ “โครงสร้างกราฟ” โดยไม่สน data/status/payload
+const structurallyEqual = (a: GraphSnapshot, b: GraphSnapshot): boolean => {
+  if (a.nodes.length !== b.nodes.length) return false;
+  if (a.edges.length !== b.edges.length) return false;
+
+  for (let i = 0; i < a.nodes.length; i += 1) {
+    const an = a.nodes[i];
+    const bn = b.nodes[i];
+    if (
+      an.id !== bn.id ||
+      an.type !== bn.type ||
+      an.position.x !== bn.position.x ||
+      an.position.y !== bn.position.y ||
+      (an.selected ?? false) !== (bn.selected ?? false)
+    ) {
+      return false;
+    }
+  }
+
+  for (let i = 0; i < a.edges.length; i += 1) {
+    const ae = a.edges[i];
+    const be = b.edges[i];
+    if (
+      ae.id !== be.id ||
+      ae.source !== be.source ||
+      ae.target !== be.target ||
+      (ae.sourceHandle ?? null) !== (be.sourceHandle ?? null) ||
+      (ae.targetHandle ?? null) !== (be.targetHandle ?? null) ||
+      (ae.type ?? null) !== (be.type ?? null) ||
+      (ae.selected ?? false) !== (be.selected ?? false)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
 export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProps) {
+  // React Flow helpers
+  const { screenToFlowPosition } = useReactFlow();
+
+  // ใช้จำ "ตำแหน่งเมาส์ล่าสุดบน canvas" สำหรับ paste
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
+
   // ---------- Load / Save State ----------
   const initialNodes = useMemo(() => {
     try {
@@ -94,8 +150,12 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
   // ---------- Keep current states in refs ----------
   const nodesRef = useRef(nodes);
   const edgesRef = useRef(edges);
-  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
-  useEffect(() => { edgesRef.current = edges; }, [edges]);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
 
   // ---------- Persist to localStorage ----------
   useEffect(() => {
@@ -105,47 +165,110 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     localStorage.setItem(STORAGE_KEY_EDGES, JSON.stringify(edges));
   }, [edges]);
 
-  // ---------- React Flow helpers ----------
-  const { screenToFlowPosition } = useReactFlow();
+  // ---------- History Management ----------
+  const historyRef = useRef<GraphSnapshot[]>([]);
+  const historyIndexRef = useRef<number>(-1);
+  const historyInitializedRef = useRef(false);
+  const isApplyingHistoryRef = useRef(false);
+  const historyDebounceRef = useRef<number | null>(null);
 
-  const onConnect = useCallback(
-    (conn: Edge | Connection) => setEdges((eds) => addEdge(conn, eds)),
-    [setEdges]
-  );
+  // ฟังทุกครั้งที่ nodes/edges เปลี่ยน แล้วบันทึกเป็น history snapshot (debounced)
+  useEffect(() => {
+    if (isApplyingHistoryRef.current) {
+      // ถ้าเป็นการ set จาก undo/redo เอง -> ไม่ต้องสร้าง snapshot ใหม่
+      return;
+    }
 
-  const onDragOver = useCallback((event: React.DragEvent) => {
-    event.preventDefault();
-    event.dataTransfer.dropEffect = 'move';
-  }, []);
+    const currentSnap: GraphSnapshot = {
+      nodes: nodesRef.current.map((n) => ({ ...n })),
+      edges: edgesRef.current.map((e) => ({ ...e })),
+    };
 
-  // ✅ ใช้ screenToFlowPosition (ไม่ต้องลบ bounds เอง)
-  const onDrop = useCallback(
-    (event: React.DragEvent) => {
-      event.preventDefault();
-      const type =
-        event.dataTransfer.getData('application/reactflow') ||
-        event.dataTransfer.getData('text/plain');
+    if (!historyInitializedRef.current) {
+      // initial snapshot ครั้งแรก
+      historyRef.current = [cloneSnapshot(currentSnap)];
+      historyIndexRef.current = 0;
+      historyInitializedRef.current = true;
+      return;
+    }
 
-      if (!type) return;
+    // debounce เพื่อรวม drag หลาย ๆ ครั้งให้เป็น 1 step
+    if (historyDebounceRef.current !== null) {
+      window.clearTimeout(historyDebounceRef.current);
+    }
 
-      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
-      const id = getId();
-
-      const newNode: RFNode<CustomNodeData> = {
-        id,
-        type,
-        position,
-        data: {
-          label: type.toUpperCase(),
-          status: 'idle',
-          onRunNode: (id: string) => runNodeById(id), // ✅ ใส่ตั้งแต่สร้าง
-        },
+    historyDebounceRef.current = window.setTimeout(() => {
+      const snap: GraphSnapshot = {
+        nodes: nodesRef.current.map((n) => ({ ...n })),
+        edges: edgesRef.current.map((e) => ({ ...e })),
       };
 
-      setNodes((nds) => nds.concat(newNode));
-    },
-    [screenToFlowPosition, setNodes]
-  );
+      const hist = historyRef.current;
+      const idx = historyIndexRef.current;
+      const lastSnap = hist[idx];
+
+      // 🔑 ถ้าโครงสร้างเหมือนเดิม (เปลี่ยนแค่ data/status/payload) => ไม่ต้อง push history
+      if (lastSnap && structurallyEqual(lastSnap, snap)) {
+        historyDebounceRef.current = null;
+        return;
+      }
+
+      const trimmed = hist.slice(0, idx + 1);
+      trimmed.push(cloneSnapshot(snap));
+
+      historyRef.current = trimmed;
+      historyIndexRef.current = trimmed.length - 1;
+      historyDebounceRef.current = null;
+    }, 80);
+  }, [nodes, edges]);
+
+  const undo = useCallback(() => {
+    if (!historyInitializedRef.current) return;
+
+    const hist = historyRef.current;
+    const idx = historyIndexRef.current;
+    if (idx <= 0) return;
+
+    if (historyDebounceRef.current !== null) {
+      window.clearTimeout(historyDebounceRef.current);
+      historyDebounceRef.current = null;
+    }
+
+    const targetIdx = idx - 1;
+    const snap = hist[targetIdx];
+    historyIndexRef.current = targetIdx;
+
+    isApplyingHistoryRef.current = true;
+    setNodes(snap.nodes);
+    setEdges(snap.edges);
+    setTimeout(() => {
+      isApplyingHistoryRef.current = false;
+    }, 0);
+  }, [setNodes, setEdges]);
+
+  const redo = useCallback(() => {
+    if (!historyInitializedRef.current) return;
+
+    const hist = historyRef.current;
+    const idx = historyIndexRef.current;
+    if (idx >= hist.length - 1) return;
+
+    if (historyDebounceRef.current !== null) {
+      window.clearTimeout(historyDebounceRef.current);
+      historyDebounceRef.current = null;
+    }
+
+    const targetIdx = idx + 1;
+    const snap = hist[targetIdx];
+    historyIndexRef.current = targetIdx;
+
+    isApplyingHistoryRef.current = true;
+    setNodes(snap.nodes);
+    setEdges(snap.edges);
+    setTimeout(() => {
+      isApplyingHistoryRef.current = false;
+    }, 0);
+  }, [setNodes, setEdges]);
 
   // ---------- Node Execution ----------
   const runNodeById = useCallback(
@@ -172,13 +295,28 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
 
         case 'homography-align':
         case 'affine-align':
-          return runAlignment(node, setNodes as any, nodesRef.current as any, edgesRef.current as any);
+          return runAlignment(
+            node,
+            setNodes as any,
+            nodesRef.current as any,
+            edgesRef.current as any
+          );
 
         case 'otsu':
-          return runOtsu(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any);
+          return runOtsu(
+            node as any,
+            setNodes as any,
+            nodesRef.current as any,
+            edgesRef.current as any
+          );
 
-        case 'snake':                                         // ✅ เพิ่ม case Snake
-          return runSnakeRunner(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any);
+        case 'snake':
+          return runSnakeRunner(
+            node as any,
+            setNodes as any,
+            nodesRef.current as any,
+            edgesRef.current as any
+          );
 
         default:
           console.warn(`⚠️ No runner found for node type: ${node.type}`);
@@ -187,13 +325,24 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     [setNodes]
   );
 
-  // ✅ เติม onRunNode ให้โหนดที่โหลดจาก localStorage (ที่ยังไม่มี)
+  // ---------- Hotkeys: undo / redo / copy / paste / delete ----------
+  useFlowHotkeys({
+    getPastePosition: () => lastMousePosRef.current,
+    runNodeById,
+    undo,
+    redo,
+  });
+
+  // เติม onRunNode ให้โหนดที่โหลดจาก localStorage (ที่ตอนแรกยังไม่มี)
   useEffect(() => {
     setNodes((nds) =>
       nds.map((n) =>
         typeof n.data?.onRunNode === 'function'
           ? n
-          : { ...n, data: { ...n.data, onRunNode: (id: string) => runNodeById(id) } }
+          : {
+              ...n,
+              data: { ...(n.data || {}), onRunNode: (id: string) => runNodeById(id) },
+            }
       )
     );
   }, [runNodeById, setNodes]);
@@ -217,6 +366,45 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     runAllNodes();
   }, [isRunning, onPipelineDone, runNodeById]);
 
+  // ---------- Connect / Drag / Drop ----------
+  const onConnect = useCallback(
+    (conn: Edge | Connection) => setEdges((eds) => addEdge(conn, eds)),
+    [setEdges]
+  );
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const type =
+        event.dataTransfer.getData('application/reactflow') ||
+        event.dataTransfer.getData('text/plain');
+
+      if (!type) return;
+
+      const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const id = getId();
+
+      const newNode: RFNode<CustomNodeData> = {
+        id,
+        type,
+        position,
+        data: {
+          label: type.toUpperCase(),
+          status: 'idle',
+          onRunNode: (id: string) => runNodeById(id),
+        },
+      };
+
+      setNodes((nds) => nds.concat(newNode));
+    },
+    [screenToFlowPosition, setNodes, runNodeById]
+  );
+
   // ---------- Default Edge Options ----------
   const defaultEdgeOptions = useMemo(
     () => ({
@@ -227,7 +415,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     []
   );
 
-  // ---------- Render ----------
   return (
     <ReactFlow
       nodes={nodes}
@@ -243,6 +430,13 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
       fitView
       minZoom={0.01}
       maxZoom={Infinity}
+      onPaneMouseMove={(e) => {
+        // เก็บตำแหน่งเมาส์ล่าสุดใน flow-space สำหรับใช้ตอน paste
+        lastMousePosRef.current = screenToFlowPosition({
+          x: e.clientX,
+          y: e.clientY,
+        });
+      }}
     >
       <MiniMap />
       <Controls />
