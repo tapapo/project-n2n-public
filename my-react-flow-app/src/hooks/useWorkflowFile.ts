@@ -1,6 +1,6 @@
 // src/hooks/useWorkflowFile.ts
 import { useCallback, useRef } from 'react';
-import type { Node, Edge } from 'reactflow';
+import { useReactFlow, type Node, type Edge } from 'reactflow'; // เพิ่ม useReactFlow
 import type { CustomNodeData, NodeStatus } from '../types';
 import type { MutableRefObject } from 'react';
 
@@ -8,18 +8,10 @@ import type { MutableRefObject } from 'react';
 type RFNode = Node<CustomNodeData>;
 
 export type UseWorkflowFileArgs = {
-  /** state ปัจจุบันของ nodes (มาจาก FlowCanvas) */
   nodes: RFNode[];
-  /** state ปัจจุบันของ edges (มาจาก FlowCanvas) */
   edges: Edge[];
-  /** setNodes จาก useNodesState */
   setNodes: (updater: (prev: RFNode[]) => RFNode[]) => void;
-  /** setEdges จาก useEdgesState */
   setEdges: (updater: (prev: Edge[]) => Edge[]) => void;
-  /**
-   * ref จาก useFlowHistory (ใช้กัน history effect ไม่ให้ snapshot ตอน load workflow)
-   * คือ isApplyingHistoryRef ที่ useFlowHistory return ออกมา
-   */
   isApplyingHistoryRef?: MutableRefObject<unknown>;
 };
 
@@ -39,9 +31,13 @@ export function useWorkflowFile({
   isApplyingHistoryRef,
 }: UseWorkflowFileArgs) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  
+  // เรียกใช้ fitView เพื่อจัดมุมกล้องหลังโหลด
+  const { fitView } = useReactFlow();
 
   // ---------- Save ----------
   const saveWorkflow = useCallback(() => {
+    // ... (ส่วนนี้ของคุณดีอยู่แล้ว ไม่ต้องแก้) ...
     const payload: SavedWorkflow = {
       version: 1,
       timestamp: new Date().toISOString(),
@@ -67,7 +63,7 @@ export function useWorkflowFile({
     URL.revokeObjectURL(url);
   }, [nodes, edges]);
 
-  // ---------- Internal: handle file input change ----------
+  // ---------- Load ----------
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
@@ -83,11 +79,14 @@ export function useWorkflowFile({
 
           const parsed = JSON.parse(text) as Partial<SavedWorkflow>;
 
-          if (!parsed.nodes || !parsed.edges) {
-            throw new Error('Invalid workflow JSON (missing nodes/edges)');
+          // ✅ Validation: เช็คว่าเป็น Array จริงๆ
+          if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
+            throw new Error('Invalid workflow JSON structure');
           }
 
-          // ✅ normalize nodes: ensure status exists (reset เป็น 'idle' เวลาโหลด)
+          // ✅ Normalize: Reset status เป็น 'idle'
+          // ⚠️ หมายเหตุ: functions (เช่น onRunNode) จะหายไปจากการ save/load
+          // แต่ FlowCanvas.tsx ของคุณมี useEffect ที่คอยเติม onRunNode ให้อยู่แล้ว ดังนั้นตรงนี้ปลอดภัยครับ
           const loadedNodes: RFNode[] = parsed.nodes.map((n) => ({
             ...n,
             data: {
@@ -98,26 +97,30 @@ export function useWorkflowFile({
 
           const loadedEdges: Edge[] = parsed.edges.map((e) => ({ ...e }));
 
-          // ⚠️ แจ้งให้ history รู้ว่า "กำลัง apply จากไฟล์" → ไม่ต้อง snapshot
+          // Pause History
           if (isApplyingHistoryRef) {
             (isApplyingHistoryRef.current as boolean) = true;
           }
 
-          // setNodes/setEdges แบบ replace ทั้งชุด
           setNodes(() => loadedNodes);
           setEdges(() => loadedEdges);
 
-          // ปล่อยให้ render เสร็จก่อน reset flag
+          // ✅ Fit View: รอสักนิดให้ Render เสร็จ แล้วขยับกล้องให้เห็นครบทุกโหนด
           setTimeout(() => {
+            window.requestAnimationFrame(() => {
+                fitView({ padding: 0.2, duration: 800 }); // มี animation นุ่มๆ
+            });
+            
+            // Resume History
             if (isApplyingHistoryRef) {
               (isApplyingHistoryRef.current as boolean) = false;
             }
-          }, 0);
+          }, 50);
+
         } catch (err) {
           console.error('Failed to load workflow file:', err);
           alert('โหลด workflow ไม่ได้: ไฟล์ไม่ถูกต้องหรือเสียหาย');
         } finally {
-          // เคลียร์ค่า input เพื่อให้เลือกไฟล์เดิมซ้ำได้ถ้าต้องการ
           event.target.value = '';
         }
       };
@@ -130,10 +133,9 @@ export function useWorkflowFile({
 
       reader.readAsText(file);
     },
-    [setNodes, setEdges, isApplyingHistoryRef]
+    [setNodes, setEdges, isApplyingHistoryRef, fitView]
   );
 
-  // ---------- Public: trigger open file dialog ----------
   const triggerLoadWorkflow = useCallback(() => {
     if (!fileInputRef.current) return;
     fileInputRef.current.click();

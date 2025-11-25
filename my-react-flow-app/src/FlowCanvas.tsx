@@ -18,6 +18,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 // ---------- Node Components ----------
+// ... (Imports เหมือนเดิม) ...
 import ImageInputNode from './components/nodes/ImageInputNode';
 import SiftNode from './components/nodes/SiftNode';
 import SurfNode from './components/nodes/SurfNode';
@@ -74,12 +75,25 @@ const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProps) {
   const { screenToFlowPosition } = useReactFlow();
 
-  // ---------- Load initial from localStorage ----------
+  // ---------- Track mouse position for paste ----------
+  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
+  const onMouseMove = useCallback(
+    (event: React.MouseEvent) => {
+      const pos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      lastMousePosRef.current = pos;
+    },
+    [screenToFlowPosition]
+  );
+
+  // ---------- Load initial from localStorage (Safer) ----------
   const initialNodes = useMemo(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_NODES);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
+      const parsed = raw ? JSON.parse(raw) : [];
+      // ✅ เช็คว่าเป็น Array จริงๆ เพื่อกัน Crash
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Failed to parse nodes from localStorage', e);
       return [];
     }
   }, []);
@@ -87,8 +101,10 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
   const initialEdges = useMemo(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_EDGES);
-      return raw ? JSON.parse(raw) : [];
-    } catch {
+      const parsed = raw ? JSON.parse(raw) : [];
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      console.error('Failed to parse edges from localStorage', e);
       return [];
     }
   }, []);
@@ -108,11 +124,14 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
 
   // ---------- Persist to localStorage ----------
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_NODES, JSON.stringify(nodes));
-  }, [nodes]);
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY_EDGES, JSON.stringify(edges));
-  }, [edges]);
+    // ใส่ try-catch เผื่อ Storage เต็ม (Quota Exceeded)
+    try {
+      localStorage.setItem(STORAGE_KEY_NODES, JSON.stringify(nodes));
+      localStorage.setItem(STORAGE_KEY_EDGES, JSON.stringify(edges));
+    } catch (error) {
+      console.warn('LocalStorage Save Failed:', error);
+    }
+  }, [nodes, edges]);
 
   // ---------- Drag flag สำหรับ history ----------
   const isDraggingRef = useRef(false);
@@ -162,26 +181,11 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
           return runMatcher(node, setNodes, nodesRef.current, edgesRef.current);
         case 'homography-align':
         case 'affine-align':
-          return runAlignment(
-            node,
-            setNodes as any,
-            nodesRef.current as any,
-            edgesRef.current as any
-          );
+          return runAlignment(node, setNodes as any, nodesRef.current as any, edgesRef.current as any);
         case 'otsu':
-          return runOtsu(
-            node as any,
-            setNodes as any,
-            nodesRef.current as any,
-            edgesRef.current as any
-          );
+          return runOtsu(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any);
         case 'snake':
-          return runSnakeRunner(
-            node as any,
-            setNodes as any,
-            nodesRef.current as any,
-            edgesRef.current as any
-          );
+          return runSnakeRunner(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any);
         default:
           console.warn(`⚠️ No runner found for node type: ${node.type}`);
       }
@@ -191,7 +195,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
 
   // ---------- Hotkeys ----------
   useFlowHotkeys({
-    getPastePosition: () => null, // หรือจะผูก lastMousePosRef ก็ได้ถ้าใช้อยู่
+    getPastePosition: () => lastMousePosRef.current,
     runNodeById,
     undo,
     redo,
@@ -199,34 +203,30 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
 
   // ---------- เติม onRunNode ให้โหนดที่โหลดจาก localStorage / ไฟล์ ----------
   useEffect(() => {
-  setNodes((nds) => {
-    let changed = false;
-
-    const updated = nds.map((n) => {
-      if (typeof n.data?.onRunNode === 'function') {
-        return n; // มี onRunNode แล้ว ไม่ต้องแตะ
-      }
-
-      changed = true;
-      return {
-        ...n,
-        data: {
-          ...(n.data || {}),
-          onRunNode: (id: string) => runNodeById(id),
-        },
-      };
+    setNodes((nds) => {
+      let changed = false;
+      const updated = nds.map((n) => {
+        // เช็คทั้ง type function และ data มีอยู่จริง
+        if (n.data && typeof n.data.onRunNode === 'function') return n;
+        changed = true;
+        return {
+          ...n,
+          data: {
+            ...(n.data || {}),
+            onRunNode: (id: string) => runNodeById(id),
+          },
+        };
+      });
+      return changed ? updated : nds;
     });
-
-    // ถ้าไม่มี node ไหนต้องแก้เลย → คืนของเดิม จะได้ไม่ trigger render/loop
-    return changed ? updated : nds;
-  });
-}, [nodes, runNodeById, setNodes]);
+  }, [nodes, runNodeById, setNodes]);
 
   // ---------- Pipeline Runner (Run All) ----------
   useEffect(() => {
     if (!isRunning) return;
-
     const runAllNodes = async () => {
+      // หมายเหตุ: การวน loop แบบนี้จะรันตามลำดับ Array (ลำดับการสร้าง)
+      // ถ้า Node มี Dependency กัน อาจต้องพิจารณาใช้ Topological Sort ในอนาคต
       for (const node of nodesRef.current) {
         if (!node?.id || !node?.type) continue;
         try {
@@ -237,7 +237,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
       }
       onPipelineDone?.();
     };
-
     runAllNodes();
   }, [isRunning, onPipelineDone, runNodeById]);
 
@@ -260,7 +259,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
         event.dataTransfer.getData('text/plain');
 
       if (!type) return;
-
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
       const id = getId();
 
@@ -274,7 +272,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
           onRunNode: (id: string) => runNodeById(id),
         },
       };
-
       setNodes((nds) => nds.concat(newNode));
     },
     [screenToFlowPosition, setNodes, runNodeById]
@@ -291,26 +288,21 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
   );
 
   return (
-    <div className="relative flex-1">
-      {/* ปุ่ม Save / Load แบบ hover สวย ๆ มุมขวาบน */}
+    <div className="relative flex-1 h-full">
+      {/* ปุ่ม Save / Load */}
       <div className="absolute z-10 top-2 right-2 flex gap-2">
         <button
           onClick={saveWorkflow}
-          className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm"
-          title="Save workflow เป็นไฟล์ .json"
+          className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white"
         >
           💾 SAVE WORKFLOW
-        
         </button>
         <button
           onClick={triggerLoadWorkflow}
-          className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm"
-          title="Load workflow จากไฟล์ .json"
+          className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white"
         >
           📂 LOAD WORKFLOW
         </button>
-
-        {/* input file ซ่อน */}
         <input
           ref={fileInputRef}
           type="file"
@@ -328,19 +320,18 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
         onConnect={onConnect}
         onDrop={onDrop}
         onDragOver={onDragOver}
+        onMouseMove={onMouseMove}
         nodeTypes={nodeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         connectionLineType={ConnectionLineType.SmoothStep}
         fitView
         minZoom={0.01}
         maxZoom={Infinity}
-        // ใช้ event จริงของ ReactFlow เป็น drag-gesture flag
-        onNodeDragStart={() => {
-          isDraggingRef.current = true;
-        }}
-        onNodeDragStop={() => {
-          isDraggingRef.current = false;
-        }}
+        onNodeDragStart={() => (isDraggingRef.current = true)}
+        onNodeDragStop={() => (isDraggingRef.current = false)}
+        // เพิ่ม deleteKeyCode เพื่อให้ลบด้วยปุ่ม Delete/Backspace ได้โดยตรง (ReactFlow จัดการให้)
+        // หรือถ้าใช้ useFlowHotkeys จัดการแล้วก็ไม่ต้องใส่ก็ได้ แต่ใส่ไว้กันเหนียวได้ครับ
+        deleteKeyCode={['Delete', 'Backspace']} 
       >
         <MiniMap />
         <Controls />
