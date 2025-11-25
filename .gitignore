@@ -30,3 +30,6 @@ __pycache__/
 outputs/
 Image-to-Descriptor/image/
 build-opencv/
+venv/
+.venv/
+__pycache__/

@@ -86,14 +86,11 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
       const ys = clip.nodes.map((n) => n.position.y);
       if (xs.length > 0 && ys.length > 0) {
         const minX = Math.min(...xs);
-        const maxX = Math.max(...xs);
         const minY = Math.min(...ys);
-        const maxY = Math.max(...ys);
-        const cx = (minX + maxX) / 2;
-        const cy = (minY + maxY) / 2;
 
-        dx = pastePos.x - cx;
-        dy = pastePos.y - cy;
+        // ✔ เอา "มุมซ้ายบน" ของกลุ่ม node ไปวางที่ cursor
+        dx = pastePos.x - minX;
+        dy = pastePos.y - minY;
       }
     }
 

@@ -40,6 +40,8 @@ import { runAlignment } from './lib/runners/alignment';
 import { runOtsu, runSnakeRunner } from './lib/runners/classification';
 import { markStartThenRunning } from './lib/runners/utils';
 import { useFlowHotkeys } from './hooks/useFlowHotkeys';
+import { useFlowHistory } from './hooks/useFlowHistory';
+import { useWorkflowFile } from './hooks/useWorkflowFile';
 
 // ---------- Props ----------
 interface FlowCanvasProps {
@@ -69,25 +71,10 @@ const STORAGE_KEY_NODES = 'n2n_nodes';
 const STORAGE_KEY_EDGES = 'n2n_edges';
 const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
-// ---------- History Types ----------
-type GraphSnapshot = {
-  nodes: RFNode<CustomNodeData>[];
-  edges: Edge[];
-};
-
-const cloneSnapshot = (snap: GraphSnapshot): GraphSnapshot => ({
-  nodes: snap.nodes.map((n) => ({ ...n })),
-  edges: snap.edges.map((e) => ({ ...e })),
-});
-
 export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProps) {
-  // React Flow helpers
   const { screenToFlowPosition } = useReactFlow();
 
-  // ใช้จำ "ตำแหน่งเมาส์ล่าสุดบน canvas" สำหรับ paste
-  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
-
-  // ---------- Load / Save State ----------
+  // ---------- Load initial from localStorage ----------
   const initialNodes = useMemo(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_NODES);
@@ -127,154 +114,31 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     localStorage.setItem(STORAGE_KEY_EDGES, JSON.stringify(edges));
   }, [edges]);
 
-  // ---------- History Management ----------
-  const historyRef = useRef<GraphSnapshot[]>([]);
-  const historyIndexRef = useRef<number>(-1);
-  const historyInitializedRef = useRef(false);
-  const isApplyingHistoryRef = useRef(false);
-  const wasDraggingRef = useRef(false);
+  // ---------- Drag flag สำหรับ history ----------
+  const isDraggingRef = useRef(false);
 
-  // ✅ helper: สร้าง snapshot แต่บังคับ status เป็น 'idle' เพื่อไม่ให้ history จำไฟ
-  const makeSnapshot = useCallback((): GraphSnapshot => {
-    return {
-      nodes: nodesRef.current.map((n) => ({
-        ...n,
-        data: {
-          ...(n.data || {}),
-          status: 'idle',
-        },
-      })),
-      edges: edgesRef.current.map((e) => ({ ...e })),
-    };
-  }, []);
+  // ---------- History Hook ----------
+  const { undo, redo, isApplyingHistoryRef } = useFlowHistory({
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    isDraggingRef,
+  });
 
-  const pushSnapshot = useCallback((snap: GraphSnapshot) => {
-    const hist = historyRef.current;
-    const idx = historyIndexRef.current;
-
-    const trimmed = hist.slice(0, idx + 1);
-    trimmed.push(cloneSnapshot(snap));
-
-    historyRef.current = trimmed;
-    historyIndexRef.current = trimmed.length - 1;
-  }, []);
-
-  // ✅ applySnapshot: ย้อนโครงสร้าง แต่ "พยายามเก็บ status ปัจจุบันของ node ไว้"
-  const applySnapshot = useCallback(
-    (snap: GraphSnapshot) => {
-      isApplyingHistoryRef.current = true;
-
-      setNodes((currentNodes) => {
-        const currentMap = new Map<string, RFNode<CustomNodeData>>(
-          currentNodes.map((n) => [n.id, n])
-        );
-
-        const mergedNodes: RFNode<CustomNodeData>[] = snap.nodes.map((snapNode) => {
-          const current = currentMap.get(snapNode.id);
-
-          const snapData = (snapNode.data || {}) as CustomNodeData;
-
-          if (!current) {
-            // node ถูก restore กลับมา → ให้ไฟ default เป็น idle
-            return {
-              ...snapNode,
-              data: {
-                ...snapData,
-                status: 'idle',
-              },
-            };
-          }
-
-          const currData = (current.data || {}) as CustomNodeData;
-
-          return {
-            ...snapNode,
-            data: {
-              ...snapData,
-              // ใช้ status ปัจจุบันของ node ตัวนี้ (ไม่ให้ undo ไปยุ่งไฟ)
-              status: currData.status,
-            },
-          };
-        });
-
-        return mergedNodes;
-      });
-
-      setEdges(snap.edges);
-
-      setTimeout(() => {
-        isApplyingHistoryRef.current = false;
-      }, 0);
-    },
-    [setNodes, setEdges]
-  );
-
-  // ฟังทุกครั้งที่ nodes/edges เปลี่ยน แล้วบันทึกเป็น history snapshot
-  // แต่ถ้าเป็น drag ให้ทั้ง gesture = 1 snapshot
-  useEffect(() => {
-    if (isApplyingHistoryRef.current) {
-      // ถ้าเป็นการ set จาก undo/redo เอง -> ไม่ต้องสร้าง snapshot ใหม่
-      return;
-    }
-
-    const anyDragging = nodes.some((n) => (n as any).dragging);
-
-    if (!historyInitializedRef.current) {
-      // initial snapshot ครั้งแรก
-      const snap = makeSnapshot();
-      historyRef.current = [snap];
-      historyIndexRef.current = 0;
-      historyInitializedRef.current = true;
-      wasDraggingRef.current = anyDragging;
-      return;
-    }
-
-    if (anyDragging) {
-      // กำลังลากอยู่ → ยังไม่ push, รอจนลากเสร็จ
-      wasDraggingRef.current = true;
-      return;
-    }
-
-    // ไม่มี node ไหน dragging แล้ว → เกิด action ใหม่
-    const snap = makeSnapshot();
-
-    if (wasDraggingRef.current) {
-      // เพิ่งจบ drag → push snapshot 1 ครั้งสำหรับทั้ง drag
-      pushSnapshot(snap);
-      wasDraggingRef.current = false;
-    } else {
-      // การเปลี่ยนอื่น ๆ (copy/paste/delete/add edge/ฯลฯ)
-      pushSnapshot(snap);
-    }
-  }, [nodes, edges, makeSnapshot, pushSnapshot]);
-
-  const undo = useCallback(() => {
-    if (!historyInitializedRef.current) return;
-
-    const hist = historyRef.current;
-    const idx = historyIndexRef.current;
-    if (idx <= 0) return;
-
-    const targetIdx = idx - 1;
-    const snap = hist[targetIdx];
-    historyIndexRef.current = targetIdx;
-
-    applySnapshot(snap);
-  }, [applySnapshot]);
-
-  const redo = useCallback(() => {
-    if (!historyInitializedRef.current) return;
-
-    const hist = historyRef.current;
-    const idx = historyIndexRef.current;
-    if (idx >= hist.length - 1) return;
-
-    const targetIdx = idx + 1;
-    const snap = hist[targetIdx];
-    historyIndexRef.current = targetIdx;
-
-    applySnapshot(snap);
-  }, [applySnapshot]);
+  // ---------- Workflow Save / Load (ไฟล์ JSON) ----------
+  const {
+    saveWorkflow,
+    triggerLoadWorkflow,
+    fileInputRef,
+    handleFileChange,
+  } = useWorkflowFile({
+    nodes,
+    edges,
+    setNodes,
+    setEdges,
+    isApplyingHistoryRef,
+  });
 
   // ---------- Node Execution ----------
   const runNodeById = useCallback(
@@ -289,16 +153,13 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
         case 'surf':
         case 'orb':
           return runFeature(node, setNodes, nodesRef.current, edgesRef.current);
-
         case 'brisque':
         case 'psnr':
         case 'ssim':
           return runQuality(node, setNodes, nodesRef.current, edgesRef.current);
-
         case 'bfmatcher':
         case 'flannmatcher':
           return runMatcher(node, setNodes, nodesRef.current, edgesRef.current);
-
         case 'homography-align':
         case 'affine-align':
           return runAlignment(
@@ -307,7 +168,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
             nodesRef.current as any,
             edgesRef.current as any
           );
-
         case 'otsu':
           return runOtsu(
             node as any,
@@ -315,7 +175,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
             nodesRef.current as any,
             edgesRef.current as any
           );
-
         case 'snake':
           return runSnakeRunner(
             node as any,
@@ -323,7 +182,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
             nodesRef.current as any,
             edgesRef.current as any
           );
-
         default:
           console.warn(`⚠️ No runner found for node type: ${node.type}`);
       }
@@ -331,27 +189,38 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     [setNodes]
   );
 
-  // ---------- Hotkeys: undo / redo / copy / paste / delete ----------
+  // ---------- Hotkeys ----------
   useFlowHotkeys({
-    getPastePosition: () => lastMousePosRef.current,
+    getPastePosition: () => null, // หรือจะผูก lastMousePosRef ก็ได้ถ้าใช้อยู่
     runNodeById,
     undo,
     redo,
   });
 
-  // เติม onRunNode ให้โหนดที่โหลดจาก localStorage (ที่ตอนแรกยังไม่มี)
+  // ---------- เติม onRunNode ให้โหนดที่โหลดจาก localStorage / ไฟล์ ----------
   useEffect(() => {
-    setNodes((nds) =>
-      nds.map((n) =>
-        typeof n.data?.onRunNode === 'function'
-          ? n
-          : {
-              ...n,
-              data: { ...(n.data || {}), onRunNode: (id: string) => runNodeById(id) },
-            }
-      )
-    );
-  }, [runNodeById, setNodes]);
+  setNodes((nds) => {
+    let changed = false;
+
+    const updated = nds.map((n) => {
+      if (typeof n.data?.onRunNode === 'function') {
+        return n; // มี onRunNode แล้ว ไม่ต้องแตะ
+      }
+
+      changed = true;
+      return {
+        ...n,
+        data: {
+          ...(n.data || {}),
+          onRunNode: (id: string) => runNodeById(id),
+        },
+      };
+    });
+
+    // ถ้าไม่มี node ไหนต้องแก้เลย → คืนของเดิม จะได้ไม่ trigger render/loop
+    return changed ? updated : nds;
+  });
+}, [nodes, runNodeById, setNodes]);
 
   // ---------- Pipeline Runner (Run All) ----------
   useEffect(() => {
@@ -422,31 +291,61 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
   );
 
   return (
-    <ReactFlow
-      nodes={nodes}
-      edges={edges}
-      onNodesChange={onNodesChange}
-      onEdgesChange={onEdgesChange}
-      onConnect={onConnect}
-      onDrop={onDrop}
-      onDragOver={onDragOver}
-      nodeTypes={nodeTypes}
-      defaultEdgeOptions={defaultEdgeOptions}
-      connectionLineType={ConnectionLineType.SmoothStep}
-      fitView
-      minZoom={0.01}
-      maxZoom={Infinity}
-      onPaneMouseMove={(e) => {
-        // เก็บตำแหน่งเมาส์ล่าสุดใน flow-space สำหรับใช้ตอน paste
-        lastMousePosRef.current = screenToFlowPosition({
-          x: e.clientX,
-          y: e.clientY,
-        });
-      }}
-    >
-      <MiniMap />
-      <Controls />
-      <Background />
-    </ReactFlow>
+    <div className="relative flex-1">
+      {/* ปุ่ม Save / Load แบบ hover สวย ๆ มุมขวาบน */}
+      <div className="absolute z-10 top-2 right-2 flex gap-2">
+        <button
+          onClick={saveWorkflow}
+          className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm"
+          title="Save workflow เป็นไฟล์ .json"
+        >
+          💾 SAVE WORKFLOW
+        
+        </button>
+        <button
+          onClick={triggerLoadWorkflow}
+          className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm"
+          title="Load workflow จากไฟล์ .json"
+        >
+          📂 LOAD WORKFLOW
+        </button>
+
+        {/* input file ซ่อน */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="application/json"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+      </div>
+
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onDrop={onDrop}
+        onDragOver={onDragOver}
+        nodeTypes={nodeTypes}
+        defaultEdgeOptions={defaultEdgeOptions}
+        connectionLineType={ConnectionLineType.SmoothStep}
+        fitView
+        minZoom={0.01}
+        maxZoom={Infinity}
+        // ใช้ event จริงของ ReactFlow เป็น drag-gesture flag
+        onNodeDragStart={() => {
+          isDraggingRef.current = true;
+        }}
+        onNodeDragStop={() => {
+          isDraggingRef.current = false;
+        }}
+      >
+        <MiniMap />
+        <Controls />
+        <Background />
+      </ReactFlow>
+    </div>
   );
 }
