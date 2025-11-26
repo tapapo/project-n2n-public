@@ -1,4 +1,3 @@
-// src/components/nodes/BFMatcherNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow';
 import type { CustomNodeData } from '../../types';
@@ -9,7 +8,6 @@ const handleStyle = { background: '#fff', borderRadius: '50%', width: 8, height:
 const statusDot = (active: boolean, color: string) =>
   `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`;
 
-// Settings icon (สไลเดอร์ในวงกลมขาว)
 const SettingsSlidersIcon = ({ className = 'h-3.5 w-3.5' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -61,7 +59,7 @@ function extractInputMeta(respJson: any) {
   return { metaA, metaB };
 }
 
-const BFMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
+const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
 
@@ -84,12 +82,11 @@ const BFMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
     setOpen(false);
   };
 
-  // Run เฉพาะ node นี้
-  const isBusy = data?.status === 'start' || data?.status === 'running';
+  const isRunning = data?.status === 'start' || data?.status === 'running';
   const onRun = useCallback(() => {
-    if (isBusy) return;
+    if (isRunning) return;
     data?.onRunNode?.(id);
-  }, [data, id, isBusy]);
+  }, [data, id, isRunning]);
 
   const visUrl = data?.payload?.vis_url as string | undefined;
   const respJson = data?.payload?.json as any | undefined;
@@ -117,8 +114,16 @@ const BFMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
 
   const caption = summary || (visUrl ? 'Matches preview' : 'Connect two feature nodes and run');
 
+  // ✅ FIXED: สีส้มเสมอ (ยกเว้น Running / Selected)
+  let borderColor = 'border-orange-500';
+  if (selected) {
+    borderColor = 'border-orange-400 ring-2 ring-orange-500';
+  } else if (isRunning) {
+    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
+  }
+
   return (
-    <div className="bg-gray-800 border-2 border-orange-500 rounded-xl shadow-2xl w-88 max-w-sm text-gray-200 overflow-visible">
+    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-88 max-w-sm text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
       {/* inputs / output */}
       <Handle type="target" position={Position.Left} id="file1"
         style={{ ...handleStyle, top: '35%', transform: 'translateY(-50%)' }} />
@@ -132,19 +137,22 @@ const BFMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
         <div className="font-bold">BFMatcher</div>
 
         <div className="flex items-center gap-2">
-          {/* Run */}
+          {/* Run Button */}
           <button
             onClick={onRun}
-            disabled={isBusy}
+            disabled={isRunning}
+            // ✅ FIXED: ปุ่มสีส้มเสมอ
             className={[
-              'px-2 py-1 rounded text-xs font-semibold transition-colors',
-              isBusy ? 'bg-gray-600 text-gray-300 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700 text-white',
+              'px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white',
+              isRunning
+                ? 'bg-yellow-600 cursor-wait opacity-80'
+                : 'bg-orange-600 hover:bg-orange-700',
             ].join(' ')}
           >
-            ▶ Run
+            {isRunning ? 'Running...' : '▶ Run'}
           </button>
 
-          {/* Settings + tooltip */}
+          {/* Settings */}
           <span className="relative inline-flex items-center group">
             <button
               aria-label="Open BFMatcher settings"
@@ -156,7 +164,6 @@ const BFMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
             >
               <SettingsSlidersIcon />
             </button>
-            {/* tooltip */}
             <span
               role="tooltip"
               className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
@@ -212,19 +219,19 @@ const BFMatcherNode = memo(({ id, data }: NodeProps<CustomNodeData>) => {
       <div className="border-t-2 border-gray-700 p-2 text-sm">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>
-          <div className={statusDot(data?.status === 'start','bg-red-500')} />
+          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
         </div>
         <div className="flex justify-between items-center py-1">
           <span className="text-cyan-400">running</span>
-          <div className={statusDot(data?.status === 'running','bg-cyan-400 animate-pulse')} />
+          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
         </div>
         <div className="flex justify-between items-center py-1">
           <span className="text-green-400">success</span>
-          <div className={statusDot(data?.status === 'success','bg-green-500')} />
+          <div className={statusDot(data?.status === 'success', 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1">
           <span className="text-yellow-400">fault</span>
-          <div className={statusDot(data?.status === 'fault','bg-yellow-500')} />
+          <div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} />
         </div>
       </div>
 

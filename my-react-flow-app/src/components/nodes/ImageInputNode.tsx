@@ -13,7 +13,8 @@ const handleStyle: React.CSSProperties = {
 
 type Props = NodeProps<CustomNodeData>;
 
-const ImageInputNode = memo(({ id, data }: Props) => {
+// ✅ เพิ่ม prop 'selected'
+const ImageInputNode = memo(({ id, data, selected }: Props) => {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const { setNodes } = useReactFlow();
   const [localName, setLocalName] = useState<string>(data?.payload?.name || '');
@@ -41,10 +42,8 @@ const ImageInputNode = memo(({ id, data }: Props) => {
       const f = resp.files[0];
       setLocalName(f.name);
 
-      // ทำให้แน่ใจว่าเป็น absolute URL เสมอ
       const absUrl: string = (abs(f.url) || f.url) as string;
 
-      // อ่านขนาดรูป
       let dims = { width: 0, height: 0 };
       try {
         dims = await readImageSize(absUrl);
@@ -52,7 +51,6 @@ const ImageInputNode = memo(({ id, data }: Props) => {
         // ignore
       }
 
-      // อัปเดต Node State
       setNodes((nds) =>
         nds.map((n) =>
           n.id === id
@@ -65,7 +63,7 @@ const ImageInputNode = memo(({ id, data }: Props) => {
                     name: f.name,
                     path: f.path,
                     url: absUrl,
-                    result_image_url: absUrl, // ใช้พรีวิวในโหนดอื่น
+                    result_image_url: absUrl,
                     width: dims.width,
                     height: dims.height,
                   },
@@ -88,8 +86,20 @@ const ImageInputNode = memo(({ id, data }: Props) => {
     (data?.payload && (data.payload.url as string)) ||
     undefined;
 
+  // ✅ Logic สีขอบ (Theme: Teal)
+  let borderColor = 'border-teal-500'; // Default
+  
+  if (selected) {
+    // ✨ Selected: เขียวอมฟ้าสว่าง + เงา
+    borderColor = 'border-teal-400 ring-2 ring-teal-500';
+  } else if (uploading) {
+    // 🟡 Uploading (ถือเป็น Running state)
+    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
+  }
+
   return (
-    <div className="bg-gray-800 border-2 border-teal-500 rounded-xl shadow-2xl w-72 text-gray-200">
+    // ✅ เพิ่ม transition และ borderColor
+    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 transition-all duration-200 ${borderColor}`}>
       {/* Output Handle */}
       <Handle
         type="source"
@@ -110,30 +120,34 @@ const ImageInputNode = memo(({ id, data }: Props) => {
         <button
           disabled={uploading}
           onClick={onPick}
-          className={`w-full rounded-lg px-3 py-2 font-semibold transition ${
-            uploading ? 'bg-gray-600 text-gray-400' : 'bg-teal-600 hover:bg-teal-700'
-          }`}
+          // ✅ Logic สีปุ่ม (Theme: Teal)
+          className={[
+            'w-full rounded-lg px-3 py-2 font-semibold transition-colors duration-200 text-white',
+            uploading
+              ? 'bg-yellow-600 cursor-wait opacity-80' // กำลังอัปโหลด = สีเหลือง
+              : 'bg-teal-600 hover:bg-teal-700',       // ปกติ = สี Teal
+          ].join(' ')}
         >
           {uploading ? 'Uploading...' : 'Choose Image'}
         </button>
 
         <input ref={fileRef} type="file" accept="image/*" onChange={onChange} className="hidden" />
 
-        {/* แสดงชื่อไฟล์ */}
+        {/* ชื่อไฟล์ */}
         {localName && (
           <div className="text-xs text-gray-400 break-all">
             Uploaded: <span className="text-gray-200">{localName}</span>
           </div>
         )}
 
-        {/* แสดงขนาดรูป */}
+        {/* ขนาดรูป */}
         {data?.payload?.width && data?.payload?.height && (
           <div className="text-xs text-gray-400">
             {data.payload.width}×{data.payload.height}px
           </div>
         )}
 
-        {/* แสดงพรีวิว */}
+        {/* พรีวิว */}
         {resultUrl && (
           <a href={resultUrl} target="_blank" rel="noreferrer">
             <img
@@ -145,7 +159,7 @@ const ImageInputNode = memo(({ id, data }: Props) => {
           </a>
         )}
 
-        {/* แสดง error ถ้ามี */}
+        {/* Error */}
         {error && <div className="text-xs text-red-400">{error}</div>}
       </div>
     </div>

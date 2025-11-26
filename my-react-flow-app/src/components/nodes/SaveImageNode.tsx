@@ -1,21 +1,25 @@
-import  { memo, useCallback } from 'react';
+import { memo, useCallback } from 'react';
 import { Handle, Position, type NodeProps } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 
 const SaveImageNode = ({ id, data, selected }: NodeProps<CustomNodeData>) => {
-  // เช็คสถานะ
   const isRunning = data.status === 'running';
-  const isSuccess = data.status === 'success'; // ใช้ success ตามที่ตกลง
-  const isFault = data.status === 'fault';     // ใช้ fault ตามที่ตกลง
+  const isSuccess = data.status === 'success';
+  const isFault = data.status === 'fault';
 
-  // กำหนดสีขอบตามสถานะ
-  let borderColor = 'border-slate-600';
-  if (selected) borderColor = 'border-blue-500 ring-2 ring-blue-500/50';
-  else if (isRunning) borderColor = 'border-yellow-400 ring-2 ring-yellow-400/50';
-  else if (isSuccess) borderColor = 'border-green-500 ring-2 ring-green-500/50';
-  else if (isFault) borderColor = 'border-red-500 ring-2 ring-red-500/50';
+  // ปรับสีขอบ: ปกติเป็นสีเทา (Gray)
+  let borderColor = 'border-gray-500'; // ปกติ
+  if (selected) {
+    // ✨ Selected: เปลี่ยนจาก Blue เป็น Gray ที่เด่นขึ้น (เทาอ่อน + เงาเทาเข้ม)
+    borderColor = 'border-gray-300 ring-2 ring-gray-500';
+  } else if (isRunning) {
+    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
+  } else if (isSuccess) {
+    borderColor = 'border-green-500 ring-2 ring-green-500/50';
+  } else if (isFault) {
+    borderColor = 'border-red-500 ring-2 ring-red-500/50';
+  }
 
-  // ✅ ฟังก์ชันกดปุ่ม: เรียก onRunNode ที่ส่งมาจาก FlowCanvas
   const handleRun = useCallback(() => {
     if (data.onRunNode) {
       data.onRunNode(id);
@@ -25,23 +29,24 @@ const SaveImageNode = ({ id, data, selected }: NodeProps<CustomNodeData>) => {
   }, [data, id]);
 
   return (
-    <div className={`bg-slate-800 text-white rounded-lg p-3 w-48 text-center border-2 shadow-md ${borderColor}`}>
+    // เปลี่ยนพื้นหลังเป็น gray-800 ให้เข้าธีม
+    <div className={`bg-gray-800 text-white rounded-lg p-3 w-48 text-center border-2 shadow-md ${borderColor}`}>
       
-      {/* Header */}
-      <div className="font-bold text-teal-400 mb-1">Save Image</div>
-      <p className="text-xs text-slate-300 mb-2">Export processed output</p>
+      {/* Header: เปลี่ยนเป็นสีเทาอ่อน */}
+      <div className="font-bold text-gray-300 mb-1">Save Image</div>
+      <p className="text-xs text-gray-400 mb-2">Export processed output</p>
 
-      {/* Button */}
+      {/* Button: เปลี่ยนเป็นสีเทา (Gray-600) เหมือน Sidebar */}
       <button
         onClick={handleRun}
         disabled={isRunning}
-        className={`nodrag w-full px-3 py-1.5 rounded text-sm font-medium transition-colors duration-200
+        className={`nodrag w-full px-3 py-1.5 rounded text-sm font-medium transition-colors duration-200 text-white
           ${
             isSuccess
-              ? "bg-green-600 hover:bg-green-700"
+              ? "bg-green-600 hover:bg-green-700" // ถ้าเสร็จแล้วเป็นสีเขียว
               : isFault
-              ? "bg-red-600 hover:bg-red-700"
-              : "bg-teal-600 hover:bg-teal-700"
+              ? "bg-red-600 hover:bg-red-700"     // ถ้าพังเป็นสีแดง
+              : "bg-gray-600 hover:bg-gray-700"   // ✅ ปกติเป็นสีเทา (เหมือน Sidebar)
           }
           ${isRunning ? "opacity-70 cursor-wait" : "cursor-pointer"}
         `}
@@ -55,18 +60,17 @@ const SaveImageNode = ({ id, data, selected }: NodeProps<CustomNodeData>) => {
           : "Save Image"}
       </button>
 
-      {/* Output Path Display (ถ้ามี) */}
       {data.output?.saved_path && (
-        <div className="mt-2 p-1 bg-slate-900 rounded text-[10px] text-green-400 break-all border border-slate-700">
+        <div className="mt-2 p-1 bg-gray-900 rounded text-[10px] text-gray-300 break-all border border-gray-700">
           Path: {data.output.saved_path.split(/[/\\]/).pop()}
         </div>
       )}
 
-      {/* Input Handle */}
+      {/* Handle: เปลี่ยนเป็นสีเทา */}
       <Handle
         type="target"
         position={Position.Left}
-        className="!bg-teal-500 w-3 h-3"
+        className="!bg-gray-500 w-3 h-3"
       />
     </div>
   );
