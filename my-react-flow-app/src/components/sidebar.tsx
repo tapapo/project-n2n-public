@@ -13,6 +13,10 @@ const Sidebar = () => {
     { name: 'Input', algorithms: [
       { type: 'image-input', label: 'Image Input', color: 'bg-teal-600' },
     ]},
+    { name: 'Saver', algorithms: [
+      { type: 'save-image', label: 'Save Image', color: 'bg-gray-600' },
+      { type: 'save-json', label: 'Save JSON', color: 'bg-gray-600' },
+    ]},
     { name: 'Feature Extraction', algorithms: [
       { type: 'sift', label: 'SIFT', color: 'bg-green-500' },
       { type: 'surf', label: 'SURF', color: 'bg-green-500' },
@@ -31,14 +35,11 @@ const Sidebar = () => {
       { type: 'psnr', label: 'PSNR', color: 'bg-blue-500' },
       { type: 'ssim', label: 'SSIM', color: 'bg-blue-500' },
     ]},
-    // ✅ Classification (คลาสสิก IP): Otsu + Snake
     { name: 'Classification', algorithms: [
-      { type: 'otsu', label: "Otsu's Thresholding", color: 'bg-pink-500' },
-      { type: 'snake', label: 'Snake (Active Contour)', color: 'bg-pink-500' }, // ✨ เพิ่ม Snake ที่นี่
-      // ภายหลังถ้าจะเพิ่ม: adaptive-threshold, superpixel ฯลฯ
-      // { type: 'adaptive-threshold', label: 'Adaptive Threshold', color: 'bg-pink-500' },
-      // { type: 'slic', label: 'Superpixel (SLIC)', color: 'bg-pink-500' },
+      { type: 'otsu', label: "Otsu's Threshold", color: 'bg-pink-500' },
+      { type: 'snake', label: 'Snake (Active Contour)', color: 'bg-pink-500' },
     ]},
+    
   ]), []);
 
   const toggleJob = (jobName: string) => {
@@ -71,7 +72,6 @@ const Sidebar = () => {
             Image Processing Job
           </div>
         )}
-        {/* ปุ่มยุบ/ขยายแถบ */}
         <button
           title={collapsed ? 'OPEN' : 'CLOSE'}
           onClick={() => setCollapsed(s => !s)}
@@ -91,7 +91,7 @@ const Sidebar = () => {
         </button>
       </div>
 
-      {/* ปุ่มกางหมด/พับหมด */}
+      {/* ปุ่มเปิด/ปิดทั้งหมด */}
       {!collapsed && (
         <div className="px-3 pb-2 flex gap-2">
           <button
@@ -109,7 +109,7 @@ const Sidebar = () => {
         </div>
       )}
 
-      {/* รายการ nodes */}
+      {/* รายการ jobs */}
       {!collapsed ? (
         <div className="flex flex-col gap-2 overflow-y-auto flex-grow px-2 pb-3 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
           {jobs.map((job) => (
@@ -151,7 +151,6 @@ const Sidebar = () => {
           ))}
         </div>
       ) : (
-        /* โหมดยุบ */
         <div className="flex-grow flex flex-col items-center gap-3 py-3 text-gray-400">
           <div className="w-5 h-1.5 bg-gray-700 rounded" />
           <div className="w-5 h-1.5 bg-gray-700 rounded" />
