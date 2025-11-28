@@ -1,116 +1,141 @@
-# server/algos/alignment/homography_adapter.py
-import os
 import cv2
-import json
 import numpy as np
-from typing import Dict, Any
+import json
+import os
+import uuid
 
-# ใช้ helpers เดิม
-from ...cache_utils import make_cache_key, ensure_dir
+def _read_json(path: str):
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"JSON file not found: {path}")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
 
+def run(match_json_path: str, out_root: str, warp_mode: str = "image2_to_image1", blend: bool = False):
+    # 1. อ่านข้อมูลจาก Matcher JSON
+    data = _read_json(match_json_path)
 
-def run(
-    match_json_path: str,
-    out_root: str,
-    warp_mode: str = "image2_to_image1",
-    blend: bool = False,
-) -> Dict[str, Any]:
-    """
-    คำนวณ Homography จาก matcher JSON (ต้องมี matched_points)
-    แล้ว warp ภาพ จากนั้นเซฟผลไว้ที่:
-        <out_root>/features/homographyadapter_outputs/homography_<hash>.{jpg,json}
+    # ✅ VALIDATION
+    if "matching_tool" not in data:
+        raise ValueError("Invalid input: Input file is not a Matcher result.")
 
-    - ใช้ชื่อไฟล์แบบ deterministic จาก hash ของ (match_json_path, warp_mode, blend)
-    - ถ้าไฟล์มีอยู่แล้วจะอ่าน JSON เดิมกลับคืน
-    """
+    # 2. ดึงข้อมูล Path รูปภาพ
+    details = data.get("input_features_details", {})
+    img1_info = details.get("image1", {})
+    img2_info = details.get("image2", {})
 
-    # ====== Target directory (ตามที่ผู้ใช้ต้องการ) ======
-    out_dir = os.path.join(out_root, "features", "homographyadapter_outputs")
-    ensure_dir(out_dir)
+    path1 = img1_info.get("original_path")
+    path2 = img2_info.get("original_path")
 
-    # ====== ทำ hash key ให้ชื่อไฟล์คงที่ ======
-    key = make_cache_key(
-        "HOMOGRAPHY_ADAPTER",
-        files=[match_json_path],
-        params={"warp_mode": warp_mode, "blend": blend},
-    )
-    stem = f"homography_{key}"
-    out_img = os.path.join(out_dir, f"{stem}.jpg")
-    out_json = os.path.join(out_dir, f"{stem}.json")
+    if not path1 or not path2:
+        # Fallback
+        path1 = path1 or img1_info.get("file_name")
+        path2 = path2 or img2_info.get("file_name")
+        
+        if not path1 or not path2:
+            raise ValueError("Matcher JSON missing 'original_path'. Please re-run Feature & Matcher nodes.")
 
-    # ====== cache hit ======
-    if os.path.exists(out_img) and os.path.exists(out_json):
-        with open(out_json, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        # sync path เผื่อเคยย้ายไฟล์
-        data.setdefault("output", {})["aligned_image"] = out_img
-        data["json_path"] = out_json
-        return data
+    # 3. โหลดรูปภาพ
+    img1 = cv2.imread(path1)
+    img2 = cv2.imread(path2)
 
-    # ====== โหลด matcher JSON ======
-    with open(match_json_path, "r", encoding="utf-8") as f:
-        match_data = json.load(f)
+    if img1 is None: raise FileNotFoundError(f"Cannot read image1: {path1}")
+    if img2 is None: raise FileNotFoundError(f"Cannot read image2: {path2}")
 
-    # ต้องมี original_path ของ image1/2
-    try:
-        img1_path = match_data["input_features_details"]["image1"]["original_path"]
-        img2_path = match_data["input_features_details"]["image2"]["original_path"]
-    except Exception:
-        raise ValueError("Matcher JSON ไม่มี input_features_details.image{1,2}.original_path")
+    # 4. ดึงจุดที่ Match กัน
+    matched_points = data.get("matched_points", [])
+    if not matched_points:
+         raise ValueError("JSON missing 'matched_points'. Please re-run Matcher node.")
 
-    matched_points = match_data.get("matched_points")
-    if not (matched_points and len(matched_points) >= 4):
-        raise ValueError("Matcher JSON ไม่มี matched_points ≥ 4 (กรุณาอัปเดต matcher adapter ให้บันทึก matched_points)")
+    src_pts = []
+    dst_pts = []
+    
+    # กำหนดค่าเริ่มต้นกัน Pylance บ่น
+    target_img = img1 
+    source_img = img2 
+    
+    for mp in matched_points:
+        pt1 = mp["pt1"]
+        pt2 = mp["pt2"]
+        
+        if warp_mode == "image2_to_image1":
+            src_pts.append(pt2)
+            dst_pts.append(pt1)
+            target_img = img1
+            source_img = img2
+        else:
+            src_pts.append(pt1)
+            dst_pts.append(pt2)
+            target_img = img2
+            source_img = img1
 
-    pts1 = np.float32([m["pt1"] for m in matched_points]).reshape(-1, 1, 2)
-    pts2 = np.float32([m["pt2"] for m in matched_points]).reshape(-1, 1, 2)
+    if len(src_pts) < 4:
+        raise ValueError(f"Not enough points for Homography (need 4+, found {len(src_pts)})")
 
-    # ====== คำนวณ Homography: pts2 -> pts1 (image2 -> image1) ======
-    H, mask = cv2.findHomography(pts2, pts1, cv2.RANSAC, 5.0)
+    src_pts = np.float32(src_pts).reshape(-1, 1, 2)
+    dst_pts = np.float32(dst_pts).reshape(-1, 1, 2)
+
+    # 5. คำนวณ Homography
+    H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+    
+    inliers_count = int(mask.sum()) if mask is not None else 0
+
     if H is None:
-        raise RuntimeError("Cannot compute homography matrix.")
-    inliers = int(np.sum(mask)) if mask is not None else 0
+         raise RuntimeError("Cannot compute homography matrix.")
 
-    # ====== อ่านภาพ ======
-    img1 = cv2.imread(img1_path)
-    img2 = cv2.imread(img2_path)
-    if img1 is None or img2 is None:
-        raise RuntimeError("Cannot read one or both input images.")
+    # 6. Warp Image
+    # ✅ กำหนดค่าเริ่มต้นกัน error 'not defined'
+    base_for_blend = target_img 
 
-    # ====== Warp ======
     if warp_mode == "image2_to_image1":
         h, w = img1.shape[:2]
         aligned = cv2.warpPerspective(img2, H, (w, h))
         base_for_blend = img1
     else:
-        H_inv = np.linalg.inv(H)
+        # image1 -> image2 (Inverse)
+        try:
+            H_inv = np.linalg.inv(H)
+        except np.linalg.LinAlgError:
+            raise RuntimeError("Homography matrix is singular (cannot invert).")
+            
         h2, w2 = img2.shape[:2]
         aligned = cv2.warpPerspective(img1, H_inv, (w2, h2))
         base_for_blend = img2
 
+    # Blend
     if blend:
         if aligned.shape[:2] != base_for_blend.shape[:2]:
-            aligned = cv2.resize(aligned, (base_for_blend.shape[1], base_for_blend.shape[0]))
+             # Resize aligned to match base (เผื่อมีเศษ pixel ต่างกัน)
+             aligned = cv2.resize(aligned, (base_for_blend.shape[1], base_for_blend.shape[0]))
+             
         aligned = cv2.addWeighted(base_for_blend, 0.5, aligned, 0.5, 0)
 
-    # ====== Save ======
-    cv2.imwrite(out_img, aligned)
+    # 7. Save Result
+    out_dir = os.path.join(out_root, "alignment", "homography_outputs")
+    os.makedirs(out_dir, exist_ok=True)
+    
+    unique_id = uuid.uuid4().hex[:8]
+    out_img_name = f"aligned_homo_{unique_id}.jpg"
+    out_img_path = os.path.join(out_dir, out_img_name)
+    
+    cv2.imwrite(out_img_path, aligned)
+
+    out_json_name = f"homography_{unique_id}.json"
+    out_json_path = os.path.join(out_dir, out_json_name)
 
     result = {
-        "alignment_tool": "RANSAC + Homography",
-        "tool_version": cv2.__version__,
+        "tool": "HomographyAlignment",
         "warp_mode": warp_mode,
         "blend": blend,
-        "num_inliers": inliers,
+        "num_inliers": inliers_count,
         "homography_matrix": H.tolist(),
-        "input_images": {"image1": img1_path, "image2": img2_path},
-        "inputs": {"match_json": match_json_path},
-        "output": {"aligned_image": out_img},
-        "cache_key": key,
-        "json_path": out_json,
+        "output": {
+            "aligned_image": out_img_path,
+            "aligned_url": f"/static/alignment/homography_outputs/{out_img_name}"
+        }
     }
 
-    with open(out_json, "w", encoding="utf-8") as f:
+    with open(out_json_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
-
+        
+    result["json_path"] = out_json_path
     return result

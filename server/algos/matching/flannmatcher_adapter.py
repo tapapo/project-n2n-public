@@ -1,4 +1,3 @@
-# server/algos/matching/flannmatcher_adapter.py
 import os, json, cv2, sys, uuid
 import numpy as np
 from typing import Optional, Dict, Any, List, Tuple
@@ -6,11 +5,15 @@ from typing import Optional, Dict, Any, List, Tuple
 
 # ---------- utils ----------
 def _read_json(path: str) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"JSON file not found: {path}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def _image_size(img_path: str) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    if not img_path or not os.path.exists(img_path):
+        return None, None, None
     img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         return None, None, None
@@ -27,11 +30,20 @@ def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray
     """
     data = _read_json(json_path)
 
+    # ✅ VALIDATION: ดักจับไฟล์ผิดประเภท (Pattern เดียวกับ BFMatcher)
+    if "matching_tool" in data:
+        raise ValueError(f"Invalid input: Input is a '{data['matching_tool']}' result. FLANN requires Feature files (SIFT/SURF/ORB).")
+    
+    if "tool" not in data:
+        raise ValueError("Invalid input: JSON missing 'tool' field. Please check upstream connections.")
+
     tool = str(data.get("tool", "UNKNOWN")).upper()
     kps_raw = data.get("keypoints", [])
     img_path = data.get("image", {}).get("original_path")
-    if not img_path:
-        raise ValueError("Missing image.original_path in feature JSON")
+    
+    # Fallback path check
+    if not img_path and data.get("image", {}).get("file_name"):
+         img_path = data.get("image", {}).get("file_name")
 
     keypoints: List[cv2.KeyPoint] = []
     desc_list: List[Any] = []
@@ -52,17 +64,15 @@ def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray
     extra: Dict[str, Any] = {}
 
     if tool in ("SIFT", "SURF"):
-        desc = np.array(desc_list, dtype=np.float32)
-        # เดา dim จาก payload (ถ้ามี) เพื่อให้ shape ถูกต้องแม้ไม่มี descriptor
+        descriptors = np.array(desc_list, dtype=np.float32)
         desc_dim = int(data.get("descriptor_dim", 128))
-        if desc.size == 0:
-            desc = np.empty((0, desc_dim), dtype=np.float32)
+        if descriptors.size == 0:
+            descriptors = np.empty((0, desc_dim), dtype=np.float32)
 
     elif tool == "ORB":
-        desc = np.array(desc_list, dtype=np.uint8)
-        if desc.size == 0:
-            desc = np.empty((0, 32), dtype=np.uint8)
-        # เก็บ WTA_K ไว้ใน extra (อาจมีประโยชน์ในอนาคต)
+        descriptors = np.array(desc_list, dtype=np.uint8)
+        if descriptors.size == 0:
+            descriptors = np.empty((0, 32), dtype=np.uint8)
         try:
             extra["WTA_K"] = int(data.get("orb_parameters_used", {}).get("WTA_K"))
         except Exception:
@@ -70,7 +80,11 @@ def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray
     else:
         raise ValueError(f"Unsupported descriptor tool: {tool}")
 
-    return keypoints, desc, tool, img_path, extra
+    if not img_path:
+         # อนุญาตให้ทำงานต่อได้แม้ไม่มี path รูป (แต่จะวาดรูปไม่ได้)
+         pass
+
+    return keypoints, descriptors, tool, img_path, extra
 
 
 # ---------- humanizers ----------
@@ -102,16 +116,16 @@ def run(
     json_b: str,
     out_root: str,
     *,
-    lowe_ratio: Optional[float] = None,     # None → auto by tool (SIFT/SURF=0.75, ORB=0.8)
+    lowe_ratio: Optional[float] = None,
     ransac_thresh: float = 5.0,
-    index_mode: Optional[str] = "AUTO",     # 'AUTO' | 'KD_TREE' | 'LSH'
+    index_mode: Optional[str] = "AUTO",
     kd_trees: int = 5,
     search_checks: int = 50,
     lsh_table_number: int = 6,
     lsh_key_size: int = 12,
     lsh_multi_probe_level: int = 1,
-    draw_mode: Optional[str] = "good",      # 'good' | 'inliers'
-    max_draw: Optional[int] = None,         # None=50, 0=all, N>0=top-N
+    draw_mode: Optional[str] = "good",
+    max_draw: Optional[int] = None,
 ) -> Dict[str, Any]:
 
     # --- load descriptors ---
@@ -177,21 +191,26 @@ def run(
     good_matches: List[cv2.DMatch] = []
 
     if des1.shape[0] >= 1 and des2.shape[0] >= 2:
-        knn = flann.knnMatch(des1, des2, k=2)
-        raw_matches = knn
-        for pair in knn:
-            if len(pair) < 2:
-                continue
-            m, n = pair
-            if m.distance < eff_ratio * n.distance:
-                good_matches.append(m)
-        good_matches.sort(key=lambda x: x.distance)
+        try:
+            knn = flann.knnMatch(des1, des2, k=2)
+            raw_matches = knn
+            for pair in knn:
+                if len(pair) < 2:
+                    continue
+                m, n = pair
+                if m.distance < eff_ratio * n.distance:
+                    good_matches.append(m)
+            good_matches.sort(key=lambda x: x.distance)
+        except Exception as e:
+            # Fallback for rare FLANN errors
+            print(f"FLANN Match error: {e}")
 
     # --- ransac / inliers + matched_points ---
     inliers = 0
     inlier_mask = None
     homography_reason = None
-    matched_points = []  # ✅ เก็บจุดจับคู่ทั้งหมด
+    matched_points = [] 
+    
     if len(good_matches) >= 4:
         pts_a = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
         pts_b = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
@@ -202,7 +221,9 @@ def run(
             for i, m in enumerate(good_matches):
                 pt1 = [float(kp1[m.queryIdx].pt[0]), float(kp1[m.queryIdx].pt[1])]
                 pt2 = [float(kp2[m.trainIdx].pt[0]), float(kp2[m.trainIdx].pt[1])]
+                # เช็ค index mask ให้ปลอดภัย
                 inlier_flag = bool(inlier_mask[i]) if i < len(inlier_mask) else False
+                
                 matched_points.append({
                     "queryIdx": m.queryIdx,
                     "trainIdx": m.trainIdx,
@@ -218,8 +239,14 @@ def run(
 
     # --- visualization ---
     vis_path = None
-    img1 = cv2.imread(img1_path)
-    img2 = cv2.imread(img2_path)
+    img1 = None
+    img2 = None
+    
+    if img1_path and os.path.exists(img1_path):
+        img1 = cv2.imread(img1_path)
+    if img2_path and os.path.exists(img2_path):
+        img2 = cv2.imread(img2_path)
+        
     w1, h1, c1 = _image_size(img1_path)
     w2, h2, c2 = _image_size(img2_path)
 
@@ -246,6 +273,7 @@ def run(
     os.makedirs(out_dir, exist_ok=True)
     out_json = os.path.join(out_dir, f"flannmatcher_{tool1.lower()}_{uuid.uuid4().hex[:8]}.json")
 
+    # ลดขนาด JSON
     matches_output_data = [
         {"queryIdx": m.queryIdx, "trainIdx": m.trainIdx, "distance": round(float(m.distance), 4)}
         for m in good_matches
@@ -269,14 +297,14 @@ def run(
         "input_features_details": {
             "image1": {
                 "original_path": img1_path,
-                "file_name": os.path.basename(img1_path),
+                "file_name": os.path.basename(img1_path) if img1_path else "unknown",
                 "feature_tool": tool1,
                 "num_keypoints": len(kp1),
                 **({"WTA_K": extra1.get("WTA_K")} if tool1 == "ORB" else {}),
             },
             "image2": {
                 "original_path": img2_path,
-                "file_name": os.path.basename(img2_path),
+                "file_name": os.path.basename(img2_path) if img2_path else "unknown",
                 "feature_tool": tool2,
                 "num_keypoints": len(kp2),
                 **({"WTA_K": extra2.get("WTA_K")} if tool2 == "ORB" else {}),
@@ -290,13 +318,13 @@ def run(
             "num_raw_matches": len(raw_matches),
             "num_good_matches": len(good_matches),
             "num_inliers": inliers,
-            "summary": f"{inliers} inliers / {len(good_matches)} good matches",
+            "summary": f"{inliers} inliers / {len(good_matches)} good matches (FLANN)",
             "homography_reason": homography_reason,
         },
         "inliers": inliers,
         "inlier_mask": inlier_mask,
         "good_matches": matches_output_data,
-        "matched_points": matched_points,  # ✅ เพิ่มส่วนสำคัญ
+        "matched_points": matched_points,  # ✅
         "vis_url": vis_path,
     }
 

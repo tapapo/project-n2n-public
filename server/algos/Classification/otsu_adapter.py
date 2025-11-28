@@ -1,4 +1,3 @@
-# server/algos/Classification/otsu_adapter.py
 import os
 import json
 import uuid
@@ -65,6 +64,7 @@ def run(
     """
     เขียนผลลัพธ์ไปที่:
     out_root / features / otsu_outputs
+    คืนค่า: (json_path, binary_path)
     """
     out_dir = os.path.join(out_root, "features", "otsu_outputs")
     _ensure_dir(out_dir)
@@ -107,6 +107,7 @@ def run(
     H, W = int(gray.shape[0]), int(gray.shape[1])
     result: Dict[str, Any] = {
         "tool": "OtsuThreshold",
+        "output_type": "classification",  # ✅ ป้ายบอกว่าเป็น Classification
         "tool_version": cv2.__version__,
         "input_image": {
             "path": image_path,

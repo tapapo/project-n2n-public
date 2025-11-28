@@ -1,85 +1,66 @@
-import os
-import json
-import cv2
+# server/algos/feature/surf_adapter.py
+
+import os, sys, json, uuid
 import numpy as np
-import uuid
+import cv2
+from typing import TYPE_CHECKING, Optional, Union, Tuple
 
-BASE_DIR = "/Users/pop/Desktop/project_n2n/outputs/features"
+if TYPE_CHECKING:
+    import cv2
 
-def ensure_dir(path: str):
+# โฟลเดอร์เริ่มต้น
+BASE_DIR = os.getenv("N2N_OUT", "outputs")
+
+# ---------------- Utils ----------------
+def ensure_dir(path: Union[str, os.PathLike]) -> None:
+    path = os.fspath(path)
     if not os.path.exists(path):
-        os.makedirs(path)
+        os.makedirs(path, exist_ok=True)
 
-def _to_gray(img):
-    if img.ndim == 2:
-        return img
-    if img.ndim == 3 and img.shape[2] == 3:
-        return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    if img.ndim == 3 and img.shape[2] == 4:
-        return cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
-    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-def _draw_keypoints(bgr, kps):
-    return cv2.drawKeypoints(bgr, kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-
-def _serialize(image_path, gray_shape, kps, desc, surf) -> dict:
-    data = []
-    if kps is not None and desc is not None and len(kps) == desc.shape[0]:
-        for i, kp in enumerate(kps):
-            data.append({
-                "x": round(kp.pt[0], 4),
-                "y": round(kp.pt[1], 4),
-                "size": round(kp.size, 4),
-                "angle": round(float(kp.angle), 4),
-                "response": round(float(kp.response), 6),
-                "octave": int(kp.octave),
-                "class_id": int(kp.class_id),
-                "descriptor": desc[i].tolist()
-            })
-
-    desc_dim = (desc.shape[1] if desc is not None and desc.ndim == 2 and desc.shape[0] > 0
-                else (128 if surf.getExtended() else 64))
-
+def _kp_dict(kp, desc_row):
     return {
-        "tool": "SURF",
-        "image": {
-            "original_path": image_path,
-            "file_name": os.path.basename(image_path),
-            "processed_shape": list(gray_shape),
-        },
-        "surf_parameters_used": {
-            "hessianThreshold": surf.getHessianThreshold(),
-            "nOctaves": surf.getNOctaves(),
-            "nOctaveLayers": surf.getNOctaveLayers(),
-            "extended": bool(surf.getExtended()),
-            "upright": bool(surf.getUpright()),
-        },
-        "num_keypoints": len(data),
-        "descriptor_dim": desc_dim,
-        "keypoints": data
+        "x": round(kp.pt[0], 4),
+        "y": round(kp.pt[1], 4),
+        "size": round(kp.size, 4),
+        "angle": round(kp.angle, 4),
+        "response": round(kp.response, 6),
+        "octave": int(kp.octave),
+        "class_id": int(kp.class_id),
+        "descriptor": desc_row.tolist() if desc_row is not None else None
     }
 
-def run(image_path: str, out_root: str = None, **params) -> tuple[str, str]:
+# ---------------- Main API ----------------
+def run(
+    image_path: Union[str, os.PathLike],
+    out_dir: Optional[Union[str, os.PathLike]] = None,
+    **params
+) -> Tuple[str, str]:
+    
+    # เช็คก่อนว่ามี SURF ไหม (อยู่ใน opencv-contrib-python)
     if not hasattr(cv2, "xfeatures2d") or not hasattr(cv2.xfeatures2d, "SURF_create"):
-        raise RuntimeError("SURF not available. Install 'opencv-contrib-python'.")
+        raise RuntimeError("SURF not available. Please install 'opencv-contrib-python' (pip install opencv-contrib-python).")
 
-    # load image
+    # --- normalize paths ---
+    image_path = os.fspath(image_path)
+    base_dir = os.fspath(out_dir) if out_dir is not None else BASE_DIR
+    
+    algo_dir = os.path.join(base_dir, "features", "surf_outputs")
+    ensure_dir(algo_dir)
+    
+    vis_dir = os.path.join(algo_dir, "visuals")
+    ensure_dir(vis_dir)
+
+    # --- Read image ---
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image file not found: {image_path}")
+
     img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if img is None:
-        raise FileNotFoundError(f"Cannot read image: {image_path}")
+        raise ValueError(f"Cannot read image: {image_path}")
 
-    # keep BGR for visualization
-    if img.ndim == 2:
-        bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-    elif img.ndim == 3 and img.shape[2] == 4:
-        bgr = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-    else:
-        bgr = img
-    gray = _to_gray(img)
-
-    # create SURF with params
+    # --- Run SURF ---
     surf = cv2.xfeatures2d.SURF_create(
-        hessianThreshold=float(params.get("hessianThreshold", 200)),
+        hessianThreshold=float(params.get("hessianThreshold", 100)),
         nOctaves=int(params.get("nOctaves", 4)),
         nOctaveLayers=int(params.get("nOctaveLayers", 3)),
         extended=bool(params.get("extended", False)),
@@ -88,31 +69,66 @@ def run(image_path: str, out_root: str = None, **params) -> tuple[str, str]:
 
     kps, desc = surf.detectAndCompute(img, None)
 
-    # SURF descriptors ต้องเป็น float32
+    # Handle descriptors
     if desc is None:
         desc_dim = 128 if surf.getExtended() else 64
         desc = np.empty((0, desc_dim), dtype=np.float32)
     elif desc.dtype != np.float32:
         desc = desc.astype(np.float32)
 
-    vis = _draw_keypoints(bgr, kps or [])
+    kplist = [_kp_dict(k, desc[i] if i < len(desc) else None) for i, k in enumerate(kps or [])]
 
-    # --- output dir ตามโครงสร้างใหม่ ---
-    algo_dir = os.path.join(BASE_DIR, "surf_outputs")
-    ensure_dir(algo_dir)
+    # --- Metadata (Gray shape) ---
+    if img.ndim == 3 and img.shape[2] in (3, 4):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.shape[2] == 3 else cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
+    else:
+        gray = img
 
-    # unique stem ป้องกันชื่อไฟล์ชนกัน
-    base = os.path.splitext(os.path.basename(image_path))[0]
+    payload = {
+        "tool": "SURF",
+        "tool_version": {"opencv": cv2.__version__, "python": sys.version.split()[0]},
+        "image": {
+            "original_path": image_path,
+            "file_name": os.path.basename(image_path),
+            "processed_shape": list(gray.shape),
+            "processed_dtype": str(gray.dtype)
+        },
+        "surf_parameters_used": {
+            "hessianThreshold": surf.getHessianThreshold(),
+            "nOctaves": surf.getNOctaves(),
+            "nOctaveLayers": surf.getNOctaveLayers(),
+            "extended": bool(surf.getExtended()),
+            "upright": bool(surf.getUpright()),
+        },
+        "num_keypoints": len(kplist),
+        "descriptor_dim": desc.shape[1] if desc.shape[0] > 0 else (128 if surf.getExtended() else 64),
+        "keypoints": kplist,
+        "descriptors": desc.tolist()
+    }
+
+    # --- Generate Unique Filename ---
     unique_id = uuid.uuid4().hex[:8]
-    stem = f"{base}_surf_{unique_id}"
+    stem = f"surf_{unique_id}"
 
-    json_path = os.path.join(algo_dir, f"{stem}.json")
-    vis_path  = os.path.join(algo_dir, f"{stem}_vis.jpg")
-
-    # save
-    payload = _serialize(image_path, gray.shape, kps or [], desc, surf)
+    # --- Save JSON ---
+    json_path = os.path.join(algo_dir, stem + ".json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
+
+    # --- Save Visualization ---
+    # เตรียมภาพสีสำหรับวาด keypoints
+    if img.ndim == 2:
+        vis_src = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    elif img.ndim == 3 and img.shape[2] == 4:
+        vis_src = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+    else:
+        vis_src = img.copy()
+
+    vis = cv2.drawKeypoints(
+        vis_src, kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
+    )
+    
+    vis_path = os.path.join(vis_dir, stem + "_vis.jpg")
     cv2.imwrite(vis_path, vis)
 
     return json_path, vis_path

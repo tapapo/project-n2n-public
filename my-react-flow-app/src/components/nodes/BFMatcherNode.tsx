@@ -1,10 +1,10 @@
+// src/components/nodes/BFMatcherNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow } from 'reactflow';
+import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; // ✅ ใช้ useEdges
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 
-const handleStyle = { background: '#fff', borderRadius: '50%', width: 8, height: 8, border: '2px solid #6b7280' };
 const statusDot = (active: boolean, color: string) =>
   `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`;
 
@@ -61,7 +61,12 @@ function extractInputMeta(respJson: any) {
 
 const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
+  const edges = useEdges(); // ✅ ใช้ useEdges เพื่อความ Real-time
   const [open, setOpen] = useState(false);
+  
+  // ✅ เช็ค Connection แยกราย Input (file1, file2)
+  const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file1'), [edges, id]);
+  const isConnected2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file2'), [edges, id]);
 
   const savedParams: BFParams = useMemo(() => {
     const p = (data?.payload?.params || {}) as Partial<BFParams>;
@@ -83,10 +88,15 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
   };
 
   const isRunning = data?.status === 'start' || data?.status === 'running';
+  const isFault = data?.status === 'fault';
+
   const onRun = useCallback(() => {
-    if (isRunning) return;
+    if (isBusy) return;
     data?.onRunNode?.(id);
   }, [data, id, isRunning]);
+
+  // Alias
+  const isBusy = isRunning;
 
   const visUrl = data?.payload?.vis_url as string | undefined;
   const respJson = data?.payload?.json as any | undefined;
@@ -114,7 +124,7 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
 
   const caption = summary || (visUrl ? 'Matches preview' : 'Connect two feature nodes and run');
 
-  // ✅ FIXED: สีส้มเสมอ (ยกเว้น Running / Selected)
+  // ✅ Theme: Orange (ส้มเสมอ)
   let borderColor = 'border-orange-500';
   if (selected) {
     borderColor = 'border-orange-400 ring-2 ring-orange-500';
@@ -122,15 +132,41 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
     borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
   }
 
+  // ✅ Helper สร้าง Class ให้ Handle
+  const getHandleClass = (connected: boolean) => `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
+    isFault && !connected
+      ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
+      : 'bg-white border-gray-500'
+  }`;
+
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-88 max-w-sm text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
-      {/* inputs / output */}
-      <Handle type="target" position={Position.Left} id="file1"
-        style={{ ...handleStyle, top: '35%', transform: 'translateY(-50%)' }} />
-      <Handle type="target" position={Position.Left} id="file2"
-        style={{ ...handleStyle, top: '65%', transform: 'translateY(-50%)' }} />
-      <Handle type="source" position={Position.Right}
-        style={{ ...handleStyle, top: '50%', transform: 'translateY(-50%)' }} />
+      
+      {/* Input 1 (Left Top) - เช็ค isConnected1 */}
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        id="file1"
+        className={getHandleClass(isConnected1)} 
+        style={{ top: '35%', transform: 'translateY(-50%)' }} 
+      />
+      
+      {/* Input 2 (Left Bottom) - เช็ค isConnected2 */}
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        id="file2"
+        className={getHandleClass(isConnected2)} 
+        style={{ top: '65%', transform: 'translateY(-50%)' }} 
+      />
+      
+      {/* Output (Right) - Always Normal (true) */}
+      <Handle 
+        type="source" 
+        position={Position.Right}
+        className={getHandleClass(true)} 
+        style={{ top: '50%', transform: 'translateY(-50%)' }} 
+      />
 
       {/* Header */}
       <div className="bg-gray-700 text-orange-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
@@ -140,8 +176,8 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
           {/* Run Button */}
           <button
             onClick={onRun}
-            disabled={isRunning}
-            // ✅ FIXED: ปุ่มสีส้มเสมอ
+            disabled={isBusy}
+            // ✅ ปุ่มเป็นสีส้มเสมอ
             className={[
               'px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white',
               isRunning
@@ -164,16 +200,6 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
             >
               <SettingsSlidersIcon />
             </button>
-            <span
-              role="tooltip"
-              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
-                         whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white
-                         opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150
-                         group-hover:opacity-100"
-            >
-              Settings
-              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-            </span>
           </span>
         </div>
       </div>
@@ -237,15 +263,9 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
 
       {/* Settings modal */}
       <Modal open={open} title="BFMatcher Settings" onClose={onClose}>
-        <div className="space-y-3">
-          <div className="rounded border border-gray-700 p-2 text-[11px] text-gray-400">
-            <div><span className="px-2 py-0.5 rounded bg-gray-700 text-gray-200 mr-2">AUTO</span>เลือก Norm/Cross-check อัตโนมัติจากชนิด descriptor</div>
-            <div className="mt-1"><span className="px-2 py-0.5 rounded bg-blue-700/40 text-blue-200 mr-2">L2 / L1</span>ใช้กับ SIFT/SURF</div>
-            <div className="mt-1"><span className="px-2 py-0.5 rounded bg-pink-700/40 text-pink-200 mr-2">HAMMING / HAMMING2</span>ใช้กับ ORB</div>
-          </div>
-
+        <div className="space-y-3 text-xs text-gray-300">
           <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs text-gray-300">
+            <label>
               Norm
               <select
                 className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
@@ -260,7 +280,7 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
               </select>
             </label>
 
-            <label className="text-xs text-gray-300">
+            <label>
               Cross-check
               <select
                 className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
@@ -276,7 +296,7 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
               </select>
             </label>
 
-            <label className="text-xs text-gray-300">
+            <label>
               Lowe's ratio
               <input
                 type="number" step="0.01" min={0} max={1}
@@ -288,7 +308,7 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
               />
             </label>
 
-            <label className="text-xs text-gray-300">
+            <label>
               RANSAC thresh (px)
               <input
                 type="number" step="0.1" min={0}
@@ -298,7 +318,7 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
               />
             </label>
 
-            <label className="text-xs text-gray-300">
+            <label>
               Draw
               <select
                 className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"

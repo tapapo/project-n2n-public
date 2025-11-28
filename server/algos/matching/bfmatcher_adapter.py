@@ -1,4 +1,3 @@
-# server/algos/matching/bfmatcher_adapter.py
 import os, json, cv2, sys, uuid
 import numpy as np
 from typing import Tuple, Optional, Any, Dict, List
@@ -34,12 +33,21 @@ def _norm_to_str(code: int) -> str:
 
 
 def _read_json(path: str) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"JSON file not found: {path}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
 def load_descriptor_data(json_path: str):
     data = _read_json(json_path)
+
+    # ✅ เพิ่ม Logic ดักจับไฟล์ผิดประเภท (จะได้ไม่ขึ้น UNKNOWN งงๆ)
+    if "matching_tool" in data:
+        raise ValueError(f"Invalid input: Input is a '{data['matching_tool']}' result. BFMatcher requires Feature files (SIFT/SURF/ORB).")
+    
+    if "tool" not in data:
+        raise ValueError("Invalid input: JSON missing 'tool' field. Please check upstream connections.")
 
     tool_name = str(data.get("tool", "UNKNOWN")).upper()
     keypoints_data = data.get("keypoints", [])
@@ -93,8 +101,13 @@ def load_descriptor_data(json_path: str):
         raise ValueError(f"Unsupported descriptor tool: {tool_name}")
 
     img_path = image_dict.get("original_path")
+    # Fallback if original_path missing but file_name exists (assume same dir)
+    if not img_path and image_dict.get("file_name"):
+        img_path = image_dict.get("file_name")
+        
     if not img_path:
-        raise ValueError("Missing image.original_path in feature JSON")
+        # Allow partial execution without image for pure math checks, but warn
+        print(f"Warning: Missing image path in {json_path}")
 
     return keypoints, descriptors, tool_name, img_path, default_norm, extra
 
@@ -106,7 +119,9 @@ def _validate_norm(tool: str, norm_code: int):
         raise ValueError(f"Invalid norm '{_norm_to_str(norm_code)}' for ORB. Use HAMMING/HAMMING2.")
 
 
-def _image_size(img_path: str) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+def _image_size(img_path: Optional[str]) -> Tuple[Optional[int], Optional[int], Optional[int]]:
+    if not img_path or not os.path.exists(img_path):
+        return None, None, None
     img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         return None, None, None
@@ -195,7 +210,8 @@ def run(
     inliers = 0
     inlier_mask = None
     homography_reason = None
-    matched_points = []  # ✅ เก็บพิกัดที่จับคู่แล้ว
+    matched_points = []
+    
     if len(good_matches) >= 4:
         pts_a = np.float32([kp1[m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
         pts_b = np.float32([kp2[m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
@@ -223,21 +239,23 @@ def run(
 
     # Visualization
     vis_path = None
-    img1 = cv2.imread(img_path1)
-    img2 = cv2.imread(img_path2)
-    if img1 is not None and img2 is not None and len(good_matches) > 0:
-        draw_list = good_matches
-        if mode_in == "inliers" and inlier_mask is not None:
-            draw_list = [m for m, flag in zip(good_matches, inlier_mask) if flag]
-        if len(draw_list) > 0:
-            vis = cv2.drawMatches(
-                img1, kp1, img2, kp2, draw_list[:50], None,
-                flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
-            )
-            out_vis_dir = os.path.join(out_root, "features", "bfmatcher_outputs", "visuals")
-            os.makedirs(out_vis_dir, exist_ok=True)
-            vis_path = os.path.join(out_vis_dir, f"bf_vis_{uuid.uuid4().hex[:8]}.jpg")
-            cv2.imwrite(vis_path, vis)
+    if img_path1 and img_path2 and os.path.exists(img_path1) and os.path.exists(img_path2):
+        img1 = cv2.imread(img_path1)
+        img2 = cv2.imread(img_path2)
+        if img1 is not None and img2 is not None and len(good_matches) > 0:
+            draw_list = good_matches
+            if mode_in == "inliers" and inlier_mask is not None:
+                draw_list = [m for m, flag in zip(good_matches, inlier_mask) if flag]
+            
+            if len(draw_list) > 0:
+                vis = cv2.drawMatches(
+                    img1, kp1, img2, kp2, draw_list[:100], None, # Limit draw count for speed
+                    flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+                )
+                out_vis_dir = os.path.join(out_root, "features", "bfmatcher_outputs", "visuals")
+                os.makedirs(out_vis_dir, exist_ok=True)
+                vis_path = os.path.join(out_vis_dir, f"bf_vis_{uuid.uuid4().hex[:8]}.jpg")
+                cv2.imwrite(vis_path, vis)
 
     # Output JSON
     out_dir = os.path.join(out_root, "features", "bfmatcher_outputs")
@@ -257,14 +275,14 @@ def run(
         "input_features_details": {
             "image1": {
                 "original_path": img_path1,
-                "file_name": os.path.basename(img_path1),
+                "file_name": os.path.basename(img_path1) if img_path1 else "unknown",
                 "feature_tool": tool1,
                 "num_keypoints": len(kp1),
                 "descriptor_shape": list(des1.shape),
             },
             "image2": {
                 "original_path": img_path2,
-                "file_name": os.path.basename(img_path2),
+                "file_name": os.path.basename(img_path2) if img_path2 else "unknown",
                 "feature_tool": tool2,
                 "num_keypoints": len(kp2),
                 "descriptor_shape": list(des2.shape),
@@ -283,11 +301,12 @@ def run(
         },
         "inliers": inliers,
         "inlier_mask": inlier_mask,
+        # ย่อข้อมูล Good Matches ให้เหลือเฉพาะที่จำเป็นเพื่อลดขนาดไฟล์
         "good_matches": [
             {"queryIdx": m.queryIdx, "trainIdx": m.trainIdx, "distance": round(float(m.distance), 4)}
             for m in good_matches
         ],
-        "matched_points": matched_points,  # ✅ เพิ่มข้อมูลพิกัดคู่
+        "matched_points": matched_points, 
         "vis_url": vis_path,
     }
 

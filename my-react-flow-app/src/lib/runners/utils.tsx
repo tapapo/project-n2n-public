@@ -1,8 +1,7 @@
-// src/lib/runners/utils.tsx
 import { abs } from '../api';
 import type { Dispatch, SetStateAction, MutableRefObject } from 'react';
-import type { Node } from 'reactflow';
-import type { CustomNodeData } from '../../types';
+import type { Node, Edge } from 'reactflow';
+import type { CustomNodeData, NodeStatus } from '../../types';
 
 // ====== Typed aliases ======
 export type RFNode = Node<CustomNodeData>;
@@ -10,44 +9,93 @@ export type SetNodes = Dispatch<SetStateAction<RFNode[]>>;
 
 /**
  * 🟢 markStartThenRunning
- * อัปเดตสถานะของโหนดให้แสดงผล Start → Running (typed)
  */
 export async function markStartThenRunning(
   nodeId: string,
   label: string,
   setNodes: SetNodes
 ) {
-  // Start
   setNodes((nds) =>
     nds.map((x) =>
       x.id === nodeId
-        ? {
-            ...x,
-            data: { ...x.data, status: 'start', description: `Start ${label}` },
-          }
+        ? { ...x, data: { ...x.data, status: 'start', description: `Start ${label}` } }
         : x
     )
   );
 
-  // หน่วงนิดให้ ReactFlow render
   await new Promise((r) => setTimeout(r, 200));
 
-  // Running
   setNodes((nds) =>
     nds.map((x) =>
       x.id === nodeId
-        ? {
-            ...x,
-            data: { ...x.data, status: 'running', description: `Running ${label}` },
-          }
+        ? { ...x, data: { ...x.data, status: 'running', description: `Running ${label}` } }
         : x
     )
   );
 }
 
 /**
+ * ✅ updateNodeStatus
+ */
+export async function updateNodeStatus(
+  nodeId: string,
+  status: NodeStatus,
+  setNodes: SetNodes
+) {
+  setNodes((nds) =>
+    nds.map((n) => {
+      if (n.id === nodeId) {
+        return { ...n, data: { ...n.data, status: status } };
+      }
+      return n;
+    })
+  );
+  await new Promise((r) => setTimeout(r, 50));
+}
+
+/**
+ * ✅ findInputImage (ตัวสำคัญที่ Brisque เรียกใช้)
+ */
+export function findInputImage(
+  nodeId: string, 
+  nodes: RFNode[], 
+  edges: Edge[]
+): string | undefined {
+  const incoming = edges.find(e => e.target === nodeId);
+  if (!incoming) return undefined;
+
+  const parent = nodes.find(n => n.id === incoming.source);
+  if (!parent || !parent.data) return undefined;
+
+  const data = parent.data.payload || parent.data.output;
+  if (!data) return undefined;
+  
+  // 1. String Path ตรงๆ
+  if (typeof data === 'string') return data;
+
+  // 2. Object (เช็ค URL รูปภาพหลักๆ)
+  if (typeof data === 'object') {
+     // เช็คแบบเจาะจงก่อน
+     if (['homography-align', 'affine-align'].includes(parent.type || '')) {
+        return (data as any).aligned_url || (data as any).url;
+     }
+     
+     // เช็คแบบทั่วไป
+     return (data as any).url || 
+            (data as any).aligned_url || 
+            (data as any).path || 
+            (data as any).image_path ||
+            (data as any).saved_path || 
+            (data as any).vis_url || 
+            (data as any).binary_url || 
+            (data as any).result_image_url || 
+            undefined;
+  }
+  return undefined;
+}
+
+/**
  * 📂 fetchFileFromUrl
- * โหลดภาพจาก URL แล้วคืนค่าเป็น File object (ใช้ส่งเข้า API)
  */
 export async function fetchFileFromUrl(url: string, filename: string): Promise<File> {
   if (!url) throw new Error('Missing URL');
@@ -59,60 +107,31 @@ export async function fetchFileFromUrl(url: string, filename: string): Promise<F
 
 /**
  * 🧭 getNodeImageUrl
- * คืนค่า absolute URL ของภาพที่อยู่ในโหนดใด ๆ
- * รองรับ image-input / SIFT / SURF / ORB / metric / matcher / alignment
  */
 export function getNodeImageUrl(n?: RFNode): string | undefined {
   if (!n) return undefined;
+  const normalize = (u?: string) => u ? (/^(https?:|blob:|data:)/i.test(u) ? u : abs(u)) : undefined;
 
-  const normalize = (u?: string) =>
-    u ? (/^(https?:|blob:|data:)/i.test(u) ? u : abs(u)) : undefined;
+  const p = n.data?.payload as any;
 
-  // image-input → url หรือ preview_url
   if (n.type === 'image-input') {
-    return (
-      normalize(n.data?.payload?.url) ??
-      normalize(n.data?.payload?.preview_url)
-    );
+    return normalize(p?.url) ?? normalize(p?.preview_url);
+  }
+  if (['sift', 'surf', 'orb'].includes(n.type || '')) {
+    return normalize(p?.result_image_url) ?? normalize(p?.vis_url);
+  }
+  if (['bfmatcher', 'flannmatcher'].includes(n.type || '')) {
+    return normalize(p?.vis_url);
+  }
+  if (['homography-align', 'affine-align'].includes(n.type || '')) {
+    return normalize(p?.output?.aligned_url) ?? normalize(p?.aligned_url);
   }
 
-  // feature nodes → result_image_url หรือ vis_url
-  if (n.type === 'sift' || n.type === 'surf' || n.type === 'orb') {
-    return (
-      normalize(n.data?.payload?.result_image_url) ??
-      normalize(n.data?.payload?.vis_url)
-    );
-  }
-
-  // matcher nodes → vis_url
-  if (n.type === 'bfmatcher' || n.type === 'flannmatcher') {
-    return normalize(n.data?.payload?.vis_url);
-  }
-
-  // alignment nodes → ใช้ output.aligned_image (หรือ aligned_url ถ้ามี)
-  if (n.type === 'homography-align' || n.type === 'affine-align') {
-    const alignedFromJson =
-      (n.data?.payload as any)?.json?.output?.aligned_image ||
-      (n.data?.payload as any)?.json?.output?.aligned_url;
-
-    // เผื่อมี caching อื่น ๆ เก็บ path ไว้ตรง payload โดยตรง
-    const alignedDirect =
-      (n.data?.payload as any)?.aligned_image ||
-      (n.data?.payload as any)?.aligned_url;
-
-    return normalize(alignedFromJson) ?? normalize(alignedDirect);
-  }
-
-  // metric nodes (PSNR / SSIM / BRISQUE) — เผื่อมีรูปไว้โชว์
-  return (
-    normalize(n.data?.payload?.result_image_url) ??
-    normalize(n.data?.payload?.url)
-  );
+  return normalize(p?.result_image_url) ?? normalize(p?.url);
 }
 
 /**
  * 🧰 guard
- * ใช้ตรวจสอบว่าถูกยกเลิก pipeline ระหว่างรันหรือไม่
  */
 export function guard(canceledRef: MutableRefObject<boolean>) {
   if (canceledRef.current) throw new Error('Pipeline canceled');

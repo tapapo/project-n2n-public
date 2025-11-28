@@ -1,4 +1,3 @@
-# server/algos/feature/brisque_adapter.py
 import os
 import sys
 import json
@@ -16,11 +15,12 @@ RANGE_PATH = os.path.join(PROJECT_ROOT, "server/algos/quality/brisque_models/bri
 
 
 def _to_uint8_gray(img: np.ndarray, image_path: str) -> np.ndarray:
-    
+    """
+    แปลงภาพเป็น grayscale uint8
+    """
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
 
-    # Convert to grayscale depending on channels
     if img.ndim == 2:
         gray = img
     elif img.ndim == 3:
@@ -34,26 +34,24 @@ def _to_uint8_gray(img: np.ndarray, image_path: str) -> np.ndarray:
     else:
         raise ValueError(f"Unsupported image shape {img.shape}: {image_path}")
 
-    # Ensure uint8
     if gray.dtype == np.uint8:
         return gray
     if gray.dtype == np.uint16:
-        # 16-bit to 8-bit (approx): divide by 257
         return (gray / 257).astype(np.uint8)
     if gray.dtype in (np.float32, np.float64):
         gmin, gmax = float(gray.min()), float(gray.max())
         if gmax > gmin:
             out = (gray - gmin) / (gmax - gmin)
             return np.clip(out * 255.0, 0, 255).astype(np.uint8)
-        # All pixels equal → return zeros
         return np.zeros_like(gray, dtype=np.uint8)
 
-    # Fallback: cast
     return gray.astype(np.uint8)
 
 
 def _interpret_brisque(score: float) -> str:
-    
+    """
+    แปลงคะแนน BRISQUE เป็นระดับคุณภาพ
+    """
     if score < 15:
         return "excellent"
     if score < 25:
@@ -66,39 +64,80 @@ def _interpret_brisque(score: float) -> str:
 
 
 def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str, Any]]:
-   
-    # 1) Load image unchanged (preserve bit depth / channels) and convert robustly to uint8 gray
-    img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-    gray = _to_uint8_gray(img, image_path)
+    """
+    ประเมินคุณภาพภาพด้วย BRISQUE (no-reference)
+    """
+    # ---------------------------------------------------------
+    # 1. VALIDATION: ป้องกันการรับไฟล์ JSON จากโหนดอื่น
+    # ---------------------------------------------------------
+    if image_path.lower().endswith(".json"):
+        try:
+            with open(image_path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            tool = meta.get("tool") or meta.get("matching_tool") or meta.get("alignment_tool")
+            if tool:
+                raise ValueError(
+                    f"Invalid Input: Received a '{tool}' result file. "
+                    "BRISQUE requires an Image file, not a JSON result."
+                )
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError):
+            pass
+
+    # ---------------------------------------------------------
+    # 2. Resolve absolute image path correctly ✅
+    # ---------------------------------------------------------
+    abs_path = image_path
+    if not os.path.isabs(image_path):
+        # เช่น "outputs/foo.png"
+        abs_path = os.path.join(PROJECT_ROOT, image_path.lstrip("/"))
+    elif image_path.startswith("/outputs/"):
+        # เช่น "/outputs/foo.png" → ให้ชี้ไปยัง project_n2n/outputs/foo.png
+        abs_path = os.path.join(PROJECT_ROOT, image_path.lstrip("/"))
+
+    print(f"[BRISQUE] Reading image from: {abs_path}")
+
+    # ---------------------------------------------------------
+    # 3. Load Image
+    # ---------------------------------------------------------
+    img = cv2.imread(abs_path, cv2.IMREAD_UNCHANGED)
+
+    if img is None:
+        raise ValueError(f"Cannot read image: {abs_path} (File might not be an image or path invalid)")
+
+    gray = _to_uint8_gray(img, abs_path)
 
     # Guard small images (statistics may be unstable)
     h, w = gray.shape[:2]
     if min(h, w) < 48:
-        raise ValueError(f"Image too small for stable BRISQUE (got {w}x{h}); please use >= 48x48. Path={image_path}")
+        raise ValueError(f"Image too small for stable BRISQUE (got {w}x{h}); please use >= 48x48. Path={abs_path}")
 
-    # 2) Ensure model files exist
+    # ---------------------------------------------------------
+    # 4. Ensure model files exist
+    # ---------------------------------------------------------
     if not os.path.exists(MODEL_PATH) or not os.path.exists(RANGE_PATH):
         raise FileNotFoundError(
             "BRISQUE model/range files not found.\n"
             f"MODEL_PATH={MODEL_PATH}\nRANGE_PATH={RANGE_PATH}"
         )
 
-    # 3) Compute BRISQUE score
+    # ---------------------------------------------------------
+    # 5. Compute BRISQUE score
+    # ---------------------------------------------------------
     try:
         scorer = cv2.quality.QualityBRISQUE_create(MODEL_PATH, RANGE_PATH)
     except AttributeError as e:
-        # Likely opencv-contrib not installed
         raise RuntimeError(
             "OpenCV 'quality' module not available. "
             "Please install opencv-contrib-python, not just opencv-python."
         ) from e
 
-    # cv2.quality returns a 1-element array-like; take [0]
     score = float(scorer.compute(gray)[0])
     score_rounded = round(score, 4)
     score_bucket = _interpret_brisque(score)
 
-    # 4) Prepare output directory
+    # ---------------------------------------------------------
+    # 6. Prepare output
+    # ---------------------------------------------------------
     if out_root is None:
         out_dir = os.path.join(PROJECT_ROOT, "outputs", "features", "brisque_outputs")
     else:
@@ -109,7 +148,9 @@ def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str,
     uid = uuid.uuid4().hex[:8]
     out_json = os.path.join(out_dir, f"{base}_brisque_{uid}.json")
 
-    # 5) Save JSON
+    # ---------------------------------------------------------
+    # 7. Save JSON
+    # ---------------------------------------------------------
     data: Dict[str, Any] = {
         "tool": "BRISQUE",
         "tool_version": {
@@ -117,22 +158,23 @@ def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str,
             "python": sys.version.split()[0],
         },
         "image": {
-            "original_path": image_path,
-            "file_name": os.path.basename(image_path),
+            "original_path": abs_path,
+            "file_name": os.path.basename(abs_path),
             "processed_shape": [int(h), int(w)],
-            "dtype": "uint8",  # after normalization
-            "channels": 1
+            "dtype": "uint8",
+            "channels": 1,
         },
         "brisque_parameters_used": {
             "model_file": os.path.basename(MODEL_PATH),
             "range_file": os.path.basename(RANGE_PATH),
-            "note": "Lower score = better perceptual quality"
+            "note": "Lower score = better perceptual quality",
         },
         "quality_score": score_rounded,
-        "quality_bucket": score_bucket
+        "quality_bucket": score_bucket,
     }
 
     with open(out_json, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
+    print(f"[BRISQUE] Done. Score={score_rounded}, Bucket={score_bucket}")
     return out_json, data

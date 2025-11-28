@@ -1,86 +1,66 @@
-// src/lib/runners/quality.tsx
 import { runBrisque, runPsnr, runSsim } from '../api';
-import { markStartThenRunning, fetchFileFromUrl, getNodeImageUrl } from './utils';
+import { markStartThenRunning, getNodeImageUrl, updateNodeStatus, findInputImage } from './utils';
 import type { Edge } from 'reactflow';
 import type { RFNode, SetNodes } from './utils';
 import type { CustomNodeData } from '../../types';
 
-/**
- * 🔹 รัน Quality Assessment (BRISQUE / PSNR / SSIM)
- * - BRISQUE: single image
- * - PSNR / SSIM: image pair (input1, input2)
- */
 export async function runQuality(
   node: RFNode,
   setNodes: SetNodes,
   nodes: RFNode[],
   edges: Edge[]
 ) {
+  const nodeId = node.id;
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
+  const nodeName = node.data.label || node.type?.toUpperCase();
 
-  // ---------- Case 1: BRISQUE ----------
+  // Helper: Throw & Update Fault
+  const fail = async (msg: string) => {
+    await updateNodeStatus(nodeId, 'fault', setNodes);
+    throw new Error(msg); 
+  };
+
+  // รายชื่อโหนดที่ห้ามนำมาต่อ
+  const BAD_SOURCES = ['sift', 'surf', 'orb', 'bfmatcher', 'flannmatcher', 'otsu', 'snake', 'save-json'];
+
+  // -----------------------------------------------------
+  // 🛡️ BRISQUE (ต้องการ 1 รูปภาพ)
+  // -----------------------------------------------------
   if (node.type === 'brisque') {
-    const incoming = getIncoming(node.id);
-    const edge = incoming[0];
+    const incoming = getIncoming(nodeId);
+    if (incoming.length < 1) return fail('No image input');
 
-    if (!edge) {
-      setNodes((nds) =>
-        nds.map((x) =>
-          x.id === node.id
-            ? {
-                ...x,
-                data: {
-                  ...x.data,
-                  status: 'fault',
-                  description: 'No image input',
-                } as CustomNodeData,
-              }
-            : x
-        )
-      );
-      return;
+    const prevNode = nodes.find((n) => n.id === incoming[0].source);
+    
+    // ✅ Validation: ดึงชื่อโหนดที่ผิดมาแสดง
+    if (prevNode && BAD_SOURCES.includes(prevNode.type || '')) {
+      const toolName = prevNode.data.label || prevNode.type;
+      return fail(`Invalid Input: ${nodeName} requires a clean image, but received output from '${toolName}'.`);
     }
 
-    const prevNode = nodes.find((n) => n.id === edge.source);
-    const imgUrl = getNodeImageUrl(prevNode);
+    const imgUrl = findInputImage(nodeId, nodes, edges);
 
-    if (!imgUrl) {
-      setNodes((nds) =>
-        nds.map((x) =>
-          x.id === node.id
-            ? {
-                ...x,
-                data: {
-                  ...x.data,
-                  status: 'fault',
-                  description: 'Image not found',
-                } as CustomNodeData,
-              }
-            : x
-        )
-      );
-      return;
-    }
+    if (!imgUrl) return fail('Image URL not found for processing.');
 
-    await markStartThenRunning(node.id, 'Running BRISQUE', setNodes);
+    await markStartThenRunning(nodeId, `Running ${nodeName}`, setNodes);
 
     try {
-      // หมายเหตุ: ฟังก์ชัน runBrisque ฝั่ง frontend ของคุณรองรับ URL/Path ตามที่ใช้งานเดิมอยู่แล้ว
       const resp = await runBrisque(imgUrl);
 
       setNodes((nds) =>
         nds.map((x) =>
-          x.id === node.id
+          x.id === nodeId
             ? {
                 ...x,
                 data: {
                   ...x.data,
                   status: 'success',
-                  description: `BRISQUE = ${Number(resp.score).toFixed(2)}`,
+                  description: `${nodeName} = ${Number(resp.score).toFixed(2)}`,
                   payload: {
                     ...(x.data as CustomNodeData)?.payload,
                     quality_score: resp.score,
                     json: resp,
+                    output: resp
                   },
                 } as CustomNodeData,
               }
@@ -88,81 +68,56 @@ export async function runQuality(
         )
       );
     } catch (err: any) {
-      setNodes((nds) =>
-        nds.map((x) =>
-          x.id === node.id
-            ? {
-                ...x,
-                data: {
-                  ...x.data,
-                  status: 'fault',
-                  description: err?.message || 'BRISQUE failed',
-                } as CustomNodeData,
-              }
-            : x
-        )
-      );
+      await fail(err?.message || `${nodeName} failed`);
+      return; 
     }
     return;
   }
 
-  // ---------- Case 2: PSNR / SSIM ----------
+  // -----------------------------------------------------
+  // 🛡️ PSNR / SSIM (ต้องการ 2 รูปภาพ)
+  // -----------------------------------------------------
   if (node.type === 'psnr' || node.type === 'ssim') {
-    const incoming = getIncoming(node.id);
+    const incoming = getIncoming(nodeId);
     const e1 = incoming.find((e) => e.targetHandle === 'input1');
     const e2 = incoming.find((e) => e.targetHandle === 'input2');
 
-    if (!e1 || !e2) {
-      setNodes((nds) =>
-        nds.map((x) =>
-          x.id === node.id
-            ? {
-                ...x,
-                data: {
-                  ...x.data,
-                  status: 'fault',
-                  description: 'Need two image inputs',
-                } as CustomNodeData,
-              }
-            : x
-        )
-      );
-      return;
-    }
+    if (!e1 || !e2) return fail('Need two image inputs (Input 1 & Input 2)');
 
     const nodeA = nodes.find((x) => x.id === e1.source);
     const nodeB = nodes.find((x) => x.id === e2.source);
 
+    const typeA = nodeA?.type || '';
+    const typeB = nodeB?.type || '';
+
+    // ✅ Validation: เช็คทั้งคู่และรวมชื่อคนผิด
+    const badInputs: string[] = [];
+    
+    if (BAD_SOURCES.includes(typeA)) {
+        badInputs.push(`Input 1 ('${nodeA?.data.label || typeA}')`);
+    }
+    if (BAD_SOURCES.includes(typeB)) {
+        badInputs.push(`Input 2 ('${nodeB?.data.label || typeB}')`);
+    }
+
+    if (badInputs.length > 0) {
+      // ถ้าผิดทั้งคู่ มันจะบอกว่า "Invalid from: Input 1 ('SIFT'), Input 2 ('ORB')"
+      return fail(`Invalid Input: ${nodeName} requires images. Received invalid outputs from: ${badInputs.join(', ')}.`);
+    }
+
     const urlA = getNodeImageUrl(nodeA);
     const urlB = getNodeImageUrl(nodeB);
 
-    if (!urlA || !urlB) {
-      setNodes((nds) =>
-        nds.map((x) =>
-          x.id === node.id
-            ? {
-                ...x,
-                data: {
-                  ...x.data,
-                  status: 'fault',
-                  description: 'Input images missing',
-                } as CustomNodeData,
-              }
-            : x
-        )
-      );
-      return;
-    }
+    if (!urlA || !urlB) return fail('Image URL for one or both inputs missing.');
 
-    await markStartThenRunning(node.id, `Running ${node.type.toUpperCase()}`, setNodes);
+    await markStartThenRunning(nodeId, `Running ${nodeName}`, setNodes);
 
     try {
-      // แปลง URL → File เพื่อส่ง multipart ให้ API ของ PSNR/SSIM
-      const fileA = await fetchFileFromUrl(urlA, 'a.jpg');
-      const fileB = await fetchFileFromUrl(urlB, 'b.jpg');
-
+      // ส่ง Path ไปให้ Backend
       const runner = node.type === 'psnr' ? runPsnr : runSsim;
-      const resp = await runner(fileA, fileB);
+      const params = node.data.payload?.params;
+      
+      const resp = await runner(urlA, urlB, params);
 
       const desc =
         node.type === 'psnr'
@@ -171,7 +126,7 @@ export async function runQuality(
 
       setNodes((nds) =>
         nds.map((x) =>
-          x.id === node.id
+          x.id === nodeId
             ? {
                 ...x,
                 data: {
@@ -181,6 +136,7 @@ export async function runQuality(
                   payload: {
                     ...(x.data as CustomNodeData)?.payload,
                     json: resp,
+                    output: resp
                   },
                 } as CustomNodeData,
               }
@@ -188,20 +144,8 @@ export async function runQuality(
         )
       );
     } catch (err: any) {
-      setNodes((nds) =>
-        nds.map((x) =>
-          x.id === node.id
-            ? {
-                ...x,
-                data: {
-                  ...x.data,
-                  status: 'fault',
-                  description: err?.message || 'Metric failed',
-                } as CustomNodeData,
-              }
-            : x
-        )
-      );
+      await fail(err?.message || 'Metric failed');
+      return;
     }
   }
 }

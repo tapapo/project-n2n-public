@@ -1,4 +1,3 @@
-# server/main.py
 import os
 import json
 import shutil
@@ -6,12 +5,14 @@ import tempfile
 from pathlib import Path
 from urllib.parse import urlparse
 from typing import Optional, Tuple, List
+import hashlib
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+# ---- Utils ----
 from .utils_io import save_upload, static_url, ensure_dirs
 from .cache_utils import make_cache_key, feature_paths, metric_json_path, ensure_dir
 
@@ -57,28 +58,33 @@ def _as_count(x) -> int:
     except Exception:
         return 0
 
-# แปลง URL (/static/... หรือ http(s)://.../static/...) -> พาธไฟล์โลคัลใน OUT
+def _sha1_of_file(path: str) -> str:
+    """คืนค่า SHA1 ของ 'เนื้อไฟล์'"""
+    h = hashlib.sha1()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+# แปลง URL (/static/... หรือ http...) -> Local Path
 def resolve_image_path(p: str) -> str:
     if not p:
         return p
-    # ถ้าเป็น URL เต็ม
+    
     if p.startswith("http://") or p.startswith("https://"):
         parsed = urlparse(p)
         path_part = parsed.path or ""
     else:
         path_part = p
 
-    # กรณีเป็นเส้นทางภายใต้ /static/ ให้แมปกลับไป OUT
     if path_part.startswith("/static/"):
-        rel = path_part[len("/static/"):]  # ตัด prefix /static/
+        rel = path_part[len("/static/"):] 
         return str(Path(OUT, rel))
 
-    # ถ้าพบ /uploads/ ให้ดึงชื่อไฟล์แล้วชี้ไปโฟลเดอร์ UPLOAD_DIR
     if "/uploads/" in path_part:
         name = Path(path_part).name
         return str(Path(UPLOAD_DIR, name))
 
-    # ไม่ใช่ URL/ไม่ใช่เส้นทาง static: ถือว่าเป็นพาธไฟล์อยู่แล้ว
     return p
 
 
@@ -86,13 +92,15 @@ def resolve_image_path(p: str) -> str:
 # FastAPI setup
 # -------------------------
 app = FastAPI(title="N2N Image API (modular)")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 app.mount("/static", StaticFiles(directory=OUT), name="static")
 
 
@@ -187,161 +195,102 @@ def feature_surf(req: FeatureReq):
 # -------------------------
 # Quality (BRISQUE / PSNR / SSIM)
 # -------------------------
-import hashlib
-
 class QualityReq(BaseModel):
     image_path: str
     params: Optional[dict] = None
 
-def _sha1_of_file(path: str) -> str:
-    """คืนค่า SHA1 ของ 'เนื้อไฟล์' เพื่อให้คีย์คงที่ (ไม่ขึ้นกับ path ชั่วคราว)"""
-    h = hashlib.sha1()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
+class MetricReq(BaseModel):
+    original_path: str
+    processed_path: str
+    params: Optional[dict] = None
+
+
+# =========================================================
+# 🟢 1. BRISQUE (No-reference Image Quality)
+# =========================================================
 @app.post("/api/quality/brisque")
 def quality_brisque(req: QualityReq):
+    # 🔹 แปลง URL หรือ /static/... เป็น path จริง
     img_path = resolve_image_path(req.image_path)
-    h = _sha1_of_file(img_path)
-    key = make_cache_key("BRISQUE", files=[h], params=req.params or {})
 
-    out_json = metric_json_path(RESULT_DIR, "brisque_outputs", f"brisque_{key}")
-    if os.path.exists(out_json):
-        with open(out_json, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return {
-            "tool": "BRISQUE",
-            "score": data["quality_score"],
-            "json_path": out_json,
-            "json_url": static_url(out_json, RESULT_DIR),
-            "cache": True,
-        }
-
-    j, _ = brisque_run(img_path, RESULT_DIR, **(req.params or {}))
+    # 🔹 เรียก adapter (ที่อยู่ใน server/algos/quality/brisque_adapter.py)
     try:
-        if os.path.exists(j): os.replace(j, out_json)
-        else: out_json = j
-    except Exception:
-        out_json = j
+        json_path, data = brisque_run(img_path, out_root=RESULT_DIR)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-    with open(out_json, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    # 🔹 ส่งข้อมูลกลับให้ frontend
     return {
         "tool": "BRISQUE",
-        "score": data["quality_score"],
-        "json_path": out_json,
-        "json_url": static_url(out_json, RESULT_DIR),
+        "score": data.get("quality_score"),
+        "quality_bucket": data.get("quality_bucket"),
+        "json_path": json_path,
+        "json_url": static_url(json_path, OUT),
+        "message": "Lower score = better perceptual quality",
         "cache": False,
     }
 
+
+# =========================================================
+# 🟠 2. PSNR (Full-reference Metric)
+# =========================================================
 @app.post("/api/quality/psnr")
-async def quality_psnr(original: UploadFile = File(...), processed: UploadFile = File(...)):
-    tmpdir = tempfile.mkdtemp()
+def quality_psnr(req: MetricReq):
+    # แปลง URL เป็น Path จริง
+    p1 = resolve_image_path(req.original_path)
+    p2 = resolve_image_path(req.processed_path)
+
     try:
-        orig_path = os.path.join(tmpdir, original.filename or "a.bin")
-        proc_path = os.path.join(tmpdir, processed.filename or "b.bin")
-        with open(orig_path, "wb") as f:
-            shutil.copyfileobj(original.file, f)
-        with open(proc_path, "wb") as f:
-            shutil.copyfileobj(processed.file, f)
+        # เรียก Adapter ตรงๆ
+        json_path, data = psnr_run(p1, p2, out_root=RESULT_DIR, use_luma=True)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-        h1, h2 = _sha1_of_file(orig_path), _sha1_of_file(proc_path)
-        psnr_params = {"use_luma": True}
-        key = make_cache_key("PSNR", files=[h1, h2], params=psnr_params)
+    return {
+        "tool": "PSNR",
+        "quality_score": data["quality_score"],
+        "json_path": json_path,
+        "json_url": static_url(json_path, OUT),
+        "score_interpretation": data.get("score_interpretation"),
+        "cache": False,
+    }
 
-        out_json = metric_json_path(RESULT_DIR, "psnr_outputs", f"psnr_{key}")
-        if os.path.exists(out_json):
-            with open(out_json, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return {
-                "tool": "PSNR",
-                "quality_score": data["quality_score"],
-                "json_path": out_json,
-                "json_url": static_url(out_json, RESULT_DIR),
-                "score_interpretation": data.get("score_interpretation"),
-                "cache": True,
-            }
 
-        j, data = psnr_run(orig_path, proc_path, out_root=RESULT_DIR, use_luma=True)
-        try:
-            if os.path.exists(j): os.replace(j, out_json)
-            else: out_json = j
-        except Exception:
-            out_json = j
-
-        return {
-            "tool": "PSNR",
-            "quality_score": data["quality_score"],
-            "json_path": out_json,
-            "json_url": static_url(out_json, RESULT_DIR),
-            "score_interpretation": data.get("score_interpretation"),
-            "cache": False,
-        }
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-
+# =========================================================
+# 🔵 3. SSIM (Full-reference Metric)
+# =========================================================
 @app.post("/api/quality/ssim")
-async def quality_ssim(original: UploadFile = File(...), processed: UploadFile = File(...)):
-    tmpdir = tempfile.mkdtemp()
+def quality_ssim(req: MetricReq):
+    p1 = resolve_image_path(req.original_path)
+    p2 = resolve_image_path(req.processed_path)
+
+    params = req.params or {}
+    default_params = {
+        "data_range": 255,
+        "win_size": 11,
+        "gaussian_weights": True,
+        "sigma": 1.5,
+        "use_sample_covariance": True,
+        "K1": 0.01,
+        "K2": 0.03,
+        "calculate_on_color": False,
+    }
+    final_params = {**default_params, **params}
+
     try:
-        orig_path = os.path.join(tmpdir, original.filename or "a.bin")
-        proc_path = os.path.join(tmpdir, processed.filename or "b.bin")
-        with open(orig_path, "wb") as f:
-            f.write(await original.read())
-        with open(proc_path, "wb") as f:
-            f.write(await processed.read())
+        result = compute_ssim(p1, p2, out_root=RESULT_DIR, **final_params)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-        default_ssim_params = {
-            "data_range": 255,
-            "win_size": 11,
-            "gaussian_weights": True,
-            "sigma": 1.5,
-            "use_sample_covariance": True,
-            "K1": 0.01,
-            "K2": 0.03,
-            "calculate_on_color": False,
-        }
-
-        h1, h2 = _sha1_of_file(orig_path), _sha1_of_file(proc_path)
-        key = make_cache_key("SSIM", files=[h1, h2], params=default_ssim_params)
-
-        out_json = metric_json_path(RESULT_DIR, "ssim_outputs", f"ssim_{key}")
-        if os.path.exists(out_json):
-            with open(out_json, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            return {
-                "tool": "SSIM",
-                "score": float(data["score"]),
-                "json_path": out_json,
-                "json_url": static_url(out_json, RESULT_DIR),
-                "message": "Higher is better (1.0 = identical)",
-                "cache": True,
-            }
-
-        result = compute_ssim(
-            orig_path, proc_path,
-            out_root=RESULT_DIR,
-            **default_ssim_params
-        )
-        try:
-            if os.path.exists(result["json_path"]): os.replace(result["json_path"], out_json)
-            else: out_json = result["json_path"]
-        except Exception:
-            out_json = result["json_path"]
-
-        return {
-            "tool": "SSIM",
-            "score": float(result["score"]),
-            "json_path": out_json,
-            "json_url": static_url(out_json, RESULT_DIR),
-            "message": "Higher is better (1.0 = identical)",
-            "cache": False,
-        }
-    finally:
-        shutil.rmtree(tmpdir, ignore_errors=True)
-
+    return {
+        "tool": "SSIM",
+        "score": float(result["score"]),
+        "json_path": result["json_path"],
+        "json_url": static_url(result["json_path"], RESULT_DIR),
+        "message": "Higher is better (1.0 = identical)",
+        "cache": False,
+    }
 
 # -------------------------
 # Matching (BFMatcher / FLANN)
@@ -595,7 +544,7 @@ class OtsuReq(BaseModel):
     invert: Optional[bool] = False
     morph_open: Optional[bool] = False
     morph_close: Optional[bool] = False
-    morph_kernel: Optional[bool | int] = 3   # รองรับ false/true ผิดพลาด โดยจะ cast ด้านล่าง
+    morph_kernel: Optional[bool | int] = 3
     show_histogram: Optional[bool] = False
 
 def _otsu_paths(root: str, stem: str) -> Tuple[str, str, str]:
@@ -725,7 +674,7 @@ class SnakeReq(BaseModel):
     gaussian_blur_ksize: int = 5
 
     class Config:
-        extra = "ignore"  # กัน 422 ถ้ามีฟิลด์เกินมาจาก client เก่า ๆ
+        extra = "ignore"
 
 
 def _snake_paths(root: str, stem: str) -> tuple[str, str, str]:
@@ -741,14 +690,12 @@ def _snake_paths(root: str, stem: str) -> tuple[str, str, str]:
 def segmentation_snake(req: SnakeReq):
     img_path = resolve_image_path(req.image_path)
 
-    # cache key ครอบคลุมพารามิเตอร์สำคัญทั้งหมด
     params_for_key = req.model_dump()
-    params_for_key["image_path"] = img_path  # ใช้ path ที่ resolve แล้วใน key
+    params_for_key["image_path"] = img_path
     key  = make_cache_key("SNAKE", files=[img_path], params=params_for_key)
     stem = f"snake_{key}"
     json_p, overlay_p, mask_p = _snake_paths(RESULT_DIR, stem)
 
-    # cache hit
     if os.path.exists(json_p) and (os.path.exists(overlay_p) or os.path.exists(mask_p)):
         try:
             data = _read_json(json_p)
@@ -765,7 +712,6 @@ def segmentation_snake(req: SnakeReq):
             "iterations": (data.get("output") or {}).get("iterations"),
         }
 
-    # run + ตั้งชื่อ deterministic
     try:
         j_tmp, overlay_tmp, mask_tmp = snake_run(
             image_path=img_path,
@@ -820,7 +766,6 @@ def segmentation_snake(req: SnakeReq):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-# alias เส้นทางเดิมให้ใช้ได้เหมือนเดิม
 @app.post("/api/classify/snake")
 def classify_snake(req: SnakeReq):
     return segmentation_snake(req)

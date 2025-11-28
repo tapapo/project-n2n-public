@@ -1,13 +1,12 @@
-// src/lib/runners/features.tsx
 import { runSift, runSurf, runOrb, abs } from '../api';
-import { markStartThenRunning } from './utils';
+// ✅ เพิ่ม findInputImage เข้ามา
+import { markStartThenRunning, updateNodeStatus, findInputImage } from './utils'; 
 import type { Edge } from 'reactflow';
 import type { RFNode, SetNodes } from './utils';
 import type { CustomNodeData } from '../../types';
 
 /**
  * รัน Feature Extraction (SIFT, SURF, ORB)
- * ใช้ใน FlowCanvas ผ่าน runFeature(node, setNodes, nodes, edges)
  */
 export async function runFeature(
   node: RFNode,
@@ -15,18 +14,6 @@ export async function runFeature(
   nodes: RFNode[],
   edges: Edge[]
 ) {
-  // ---------- Helper: หา upstream image ----------
-  const getUpstreamImagePath = (id: string): string | null => {
-    const incoming = edges.filter((e) => e.target === id);
-    for (const e of incoming) {
-      const prev = nodes.find((n) => n.id === e.source);
-      if (prev?.type === 'image-input' && (prev.data as CustomNodeData)?.payload?.path) {
-        return String((prev.data as CustomNodeData).payload!.path);
-      }
-    }
-    return null;
-  };
-
   // ---------- Helper: ดึงเมตาดาต้าจาก response ----------
   async function extractFeatureMeta(
     resp: any,
@@ -55,7 +42,7 @@ export async function runFeature(
     let fileName = resp?.image?.file_name ?? resp?.file_name ?? null;
     const absJsonUrl = resp?.json_url ? abs(resp.json_url) : undefined;
 
-    // fallback: ลองอ่าน JSON ถ้ามี url แต่ยังได้ meta ไม่ครบ
+    // fallback
     if ((!num_keypoints || !shapeFromResp || !dtypeFromResp) && absJsonUrl) {
       try {
         const j = await (await fetch(absJsonUrl)).json();
@@ -110,19 +97,13 @@ export async function runFeature(
       return;
   }
 
-  const imagePath = getUpstreamImagePath(node.id);
+  // ✅ แก้ไข: ใช้ findInputImage (รองรับทั้ง ImageInput และ Alignment)
+  const imagePath = findInputImage(node.id, nodes, edges);
+
   if (!imagePath) {
-    setNodes((nds) =>
-      nds.map((x) =>
-        x.id === node.id
-          ? {
-              ...x,
-              data: { ...x.data, status: 'fault', description: 'No upstream image' },
-            }
-          : x
-      )
-    );
-    return;
+    const msg = 'No input image found (Please check connection or run parent node).';
+    await updateNodeStatus(node.id, 'fault', setNodes);
+    throw new Error(msg);
   }
 
   const params = (node.data as CustomNodeData)?.payload?.params || {};
@@ -140,10 +121,12 @@ export async function runFeature(
               data: {
                 ...x.data,
                 status: 'success',
-                description: `${prefix} done`,
+                description: `Found ${meta.num_keypoints ?? 0} keypoints`,
                 payload: {
                   ...(x.data as CustomNodeData)?.payload,
                   params,
+                  // ✅ เก็บข้อมูลสำคัญให้ครบเพื่อส่งต่อให้ Save Node หรือ Matcher
+                  json: resp,
                   json_url: resp.json_url,
                   json_path: resp.json_path,
                   result_image_url: abs(resp.vis_url),
@@ -152,6 +135,13 @@ export async function runFeature(
                   image_shape: meta.image_shape,
                   image_dtype: meta.image_dtype,
                   file_name: meta.file_name,
+                  
+                  // ✅ Output มาตรฐาน
+                  output: {
+                    vis_url: abs(resp.vis_url),
+                    json_url: resp.json_url,
+                    num_keypoints: meta.num_keypoints
+                  }
                 },
               } as CustomNodeData,
             }
@@ -159,19 +149,10 @@ export async function runFeature(
       )
     );
   } catch (err: any) {
-    setNodes((nds) =>
-      nds.map((x) =>
-        x.id === node.id
-          ? {
-              ...x,
-              data: {
-                ...x.data,
-                status: 'fault',
-                description: err?.message || 'Error',
-              },
-            }
-          : x
-      )
-    );
+    console.error(`${prefix} Error:`, err);
+    await updateNodeStatus(node.id, 'fault', setNodes);
+    
+    // ✅ Throw Error เพื่อให้ Log Panel แสดงสีแดง
+    throw err;
   }
 }

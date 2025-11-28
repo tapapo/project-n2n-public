@@ -1,8 +1,21 @@
 # server/algos/feature/orb_adapter.py
-import os, sys, json
+
+import os, sys, json, uuid
 import numpy as np
 import cv2
-import uuid
+from typing import TYPE_CHECKING, Optional, Union, Tuple
+
+if TYPE_CHECKING:
+    import cv2
+
+# โฟลเดอร์เริ่มต้น
+BASE_DIR = os.getenv("N2N_OUT", "outputs")
+
+# ---------------- Utils ----------------
+def ensure_dir(path: Union[str, os.PathLike]) -> None:
+    path = os.fspath(path)
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
 
 def _kp_dict(kp, desc_row):
     return {
@@ -11,16 +24,38 @@ def _kp_dict(kp, desc_row):
         "size": round(kp.size, 4),
         "angle": round(kp.angle, 4),
         "response": round(kp.response, 6),
-        "octave": kp.octave,
-        "class_id": kp.class_id,
+        "octave": int(kp.octave),
+        "class_id": int(kp.class_id),
         "descriptor": desc_row.tolist() if desc_row is not None else None
     }
 
-def run(image_path: str, out_root: str = ".", **params):
+# ---------------- Main API ----------------
+def run(
+    image_path: Union[str, os.PathLike],
+    out_dir: Optional[Union[str, os.PathLike]] = None,
+    **params
+) -> Tuple[str, str]:
+    
+    # --- normalize paths ---
+    image_path = os.fspath(image_path)
+    base_dir = os.fspath(out_dir) if out_dir is not None else BASE_DIR
+    
+    algo_dir = os.path.join(base_dir, "features", "orb_outputs")
+    ensure_dir(algo_dir)
+    
+    vis_dir = os.path.join(algo_dir, "visuals")
+    ensure_dir(vis_dir)
+
+    # --- Read image ---
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image file not found: {image_path}")
+
     img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
 
+    # --- Run ORB ---
+    # ORB Parameters mapping
     orb = cv2.ORB_create(
         nfeatures=int(params.get("nfeatures", 500)),
         scaleFactor=float(params.get("scaleFactor", 1.2)),
@@ -34,12 +69,18 @@ def run(image_path: str, out_root: str = ".", **params):
     )
 
     kps, desc = orb.detectAndCompute(img, None)
+    
+    # Handle descriptors (ORB uses uint8)
     if desc is None:
-        desc = np.empty((0, 32), np.uint8)
+        desc = np.empty((0, 32), dtype=np.uint8)
 
     kplist = [_kp_dict(k, desc[i] if i < len(desc) else None) for i, k in enumerate(kps or [])]
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if (img.ndim==3 and img.shape[2] in (3,4)) else img
+    # --- Metadata ---
+    if img.ndim == 3 and img.shape[2] in (3, 4):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.shape[2] == 3 else cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
+    else:
+        gray = img
 
     payload = {
         "tool": "ORB",
@@ -63,30 +104,34 @@ def run(image_path: str, out_root: str = ".", **params):
         },
         "num_keypoints": len(kplist),
         "descriptor_dim": 32,
-        "keypoints": kplist
+        "keypoints": kplist,
+        "descriptors": desc.tolist()
     }
 
-    # --- unique stem ป้องกันไฟล์ชนกัน ---
+    # --- Generate Unique Filename ---
     base = os.path.splitext(os.path.basename(image_path))[0]
     unique_id = uuid.uuid4().hex[:8]
     stem = f"{base}_orb_{unique_id}"
 
-    # --- เคารพ out_root + สร้างโครงสร้างเดียวกับตัวอื่น ๆ ---
-    out_root_abs = os.path.abspath(out_root or ".")
-    algo_dir = os.path.join(out_root_abs, "features", "orb_outputs")
-    os.makedirs(algo_dir, exist_ok=True)
-
-    # --- Save JSON (absolute path) ---
+    # --- Save JSON ---
     json_path = os.path.join(algo_dir, stem + ".json")
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=4)
-    json_path = os.path.abspath(json_path)
+        json.dump(payload, f, indent=2, ensure_ascii=False)
 
-    # --- Save Visualization (absolute path) ---
-    bgr = img if img.ndim==2 else (cv2.cvtColor(img, cv2.COLOR_BGRA2BGR) if (img.ndim==3 and img.shape[2]==4) else img)
-    vis = cv2.drawKeypoints(bgr, kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-    vis_path = os.path.join(algo_dir, stem + "_vis.jpg")
+    # --- Save Visualization ---
+    # Prepare BGR image for drawing
+    if img.ndim == 2:
+        vis_src = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
+    elif img.ndim == 3 and img.shape[2] == 4:
+        vis_src = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+    else:
+        vis_src = img.copy()
+
+    vis = cv2.drawKeypoints(
+        vis_src, kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
+    )
+    
+    vis_path = os.path.join(vis_dir, stem + "_vis.jpg")
     cv2.imwrite(vis_path, vis)
-    vis_path = os.path.abspath(vis_path)
 
     return json_path, vis_path
