@@ -1,6 +1,6 @@
 import type { Node, Edge } from 'reactflow';
 import type { CustomNodeData } from '../../types';
-import {abs } from '../api'; 
+import { abs } from '../api'; 
 import { updateNodeStatus, findInputImage } from './utils';
 
 // Helper: ดาวน์โหลดไฟล์ผ่าน Browser
@@ -13,6 +13,34 @@ function triggerBrowserDownload(blob: Blob, filename: string) {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+// Helper: หา Node ต้นทาง (เพื่อเอาชื่อมาตั้งชื่อไฟล์)
+function getSourceNode(nodeId: string, nodes: Node<CustomNodeData>[], edges: Edge[]) {
+  const edge = edges.find((e) => e.target === nodeId);
+  if (!edge) return null;
+  return nodes.find((n) => n.id === edge.source);
+}
+
+// Helper: สร้างชื่อไฟล์จากชื่อโหนด + เวลา
+function generateFilename(node: Node<CustomNodeData>, extension: string): string {
+  const now = new Date();
+  
+  // จัดรูปแบบเวลา: YYYYMMDD_HHmmss
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hour = String(now.getHours()).padStart(2, '0');
+  const minute = String(now.getMinutes()).padStart(2, '0');
+  const second = String(now.getSeconds()).padStart(2, '0');
+  const timestamp = `${year}${month}${day}_${hour}${minute}${second}`;
+
+  // ดึงชื่อโหนด (Label) ถ้าไม่มีให้ใช้ Type
+  const rawLabel = node.data.label || node.type || "output";
+  // ลบอักขระพิเศษและเว้นวรรค
+  const cleanLabel = rawLabel.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
+
+  return `${cleanLabel}_${timestamp}.${extension}`;
 }
 
 // Helper: หา JSON จากโหนดต้นทาง (Strict Version)
@@ -30,13 +58,11 @@ function findInputJson(
   const payload = parentNode.data.payload;
   if (!payload) return null;
 
-  // ✅ FIX: ต้องมีคีย์ 'json' เท่านั้น (แสดงว่าเป็นผลลัพธ์จาก Algo)
-  // Image Input จะไม่มีคีย์นี้ -> จะ return null และแจ้ง Error
+  // ต้องมีคีย์ 'json' เท่านั้น
   if ((payload as any).json) {
     return (payload as any).json;
   }
 
-  // ถ้าไม่มี json (เช่นเป็น Image Input เฉยๆ) ให้ถือว่าไม่มีข้อมูล
   return null;
 }
 
@@ -81,7 +107,11 @@ export async function runSaveImage(
     else if (blob.type === 'image/png') ext = 'png';
     else if (typeof imageUrlPath === 'string' && imageUrlPath.toLowerCase().endsWith('.jpg')) ext = 'jpg';
 
-    const filename = `save_${nodeId.slice(0, 5)}.${ext}`;
+    // ✅ หาโหนดต้นทางเพื่อเอามาตั้งชื่อ
+    const sourceNode = getSourceNode(nodeId, nodes, edges);
+    // ถ้ามีโหนดต้นทางใช้ชื่อโหนดต้นทาง ถ้าไม่มีใช้ชื่อโหนด Save เอง
+    const targetNamingNode = sourceNode || node;
+    const filename = generateFilename(targetNamingNode, ext);
 
     triggerBrowserDownload(blob, filename);
 
@@ -122,8 +152,7 @@ export async function runSaveJson(
     const rawData = findInputJson(nodeId, nodes, edges);
 
     if (!rawData) {
-      // ✅ ถ้าลากมาจาก Image Input จะเข้าเงื่อนไขนี้
-      throw new Error("Input node does not have JSON result data (Image Input cannot be saved as JSON).");
+      throw new Error("Input node does not have JSON result data (Image cannot be saved as JSON).");
     }
 
     let finalData = rawData;
@@ -144,7 +173,11 @@ export async function runSaveJson(
 
     const jsonString = JSON.stringify(finalData, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
-    const filename = `data_${nodeId.slice(0, 5)}.json`;
+    
+    // ✅ หาโหนดต้นทางเพื่อเอามาตั้งชื่อ
+    const sourceNode = getSourceNode(nodeId, nodes, edges);
+    const targetNamingNode = sourceNode || node;
+    const filename = generateFilename(targetNamingNode, 'json');
 
     triggerBrowserDownload(blob, filename);
 

@@ -1,69 +1,25 @@
-// my-react-flow-app/src/lib/runners/classification.tsx
 import React from 'react';
-import { type Node as RFNode } from 'reactflow';
+// ✅ Import Edge จาก reactflow โดยตรง (ลบ AnyEdge ทิ้ง)
+import type { Node as RFNode, Edge } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import { runOtsuClassification, runSnake, abs } from '../api';
-import { markStartThenRunning, updateNodeStatus } from './utils';
+import { markStartThenRunning, updateNodeStatus, findInputImage } from './utils';
 
 type RF = RFNode<CustomNodeData>;
 type SetNodes = React.Dispatch<React.SetStateAction<RF[]>>;
 
-type AnyEdge = {
-  id?: string;
-  source: string;
-  target: string;
-  targetHandle?: string | null;
-  [k: string]: any;
-};
-
-const getIncoming = (edges: AnyEdge[], id: string) => edges.filter((e) => e.target === id);
+const getIncoming = (edges: Edge[], id: string) => edges.filter((e) => e.target === id);
 
 function getNodeParams<T extends object = Record<string, any>>(node: RF): T {
   return ((node.data?.payload?.params as T) ?? ({} as T));
 }
 
-// ✅ Helper: หา Path รูปภาพจาก Node ก่อนหน้า (รองรับ Alignment ด้วย)
-function getUpstreamImagePath(nodes: RF[], edges: AnyEdge[], nodeId: string): string | null {
-  const incoming = getIncoming(edges, nodeId);
-  for (const e of incoming) {
-    const prev = nodes.find((n) => n.id === e.source);
-    if (!prev || !prev.data) continue;
-
-    const data = prev.data.payload || prev.data.output;
-    if (!data) continue;
-
-    if (typeof data === 'string') return data;
-
-    if (typeof data === 'object') {
-      return (
-        (data as any).path ||
-        (data as any).image_path ||
-        (data as any).aligned_image ||   // ✅ เพิ่มรองรับ alignment
-        (data as any).aligned_path ||    // ✅ เพิ่มรองรับ alignment
-        (data as any).aligned_url ||     // ✅ เพิ่มรองรับ alignment
-        (data as any).saved_path ||
-        (data as any).binary_url ||
-        (data as any).result_image_url ||
-        null
-      );
-    }
-  }
-  return null;
-}
-
-// ✅ สร้างข้อความ Error มาตรฐาน
-const ERR_NO_IMAGE = "No input image found.";
-
-// ✅ รายชื่อ Node ที่ห้ามใช้เป็น Input ให้ Classification (อนุญาต alignment แล้ว)
+// ✅ รายชื่อ Node ที่ห้ามใช้เป็น Input ให้ Classification
 const INVALID_INPUT_TYPES = [
-  'sift',
-  'surf',
-  'orb',
-  'bfmatcher',
-  'flannmatcher',
-  'psnr',
-  'ssim',
-  'brisque',
+  'sift', 'surf', 'orb',
+  'bfmatcher', 'flannmatcher',
+  'psnr', 'ssim', 'brisque',
+  'save-json','otsu','snake'
 ];
 
 // ============================================================
@@ -73,32 +29,40 @@ export async function runOtsu(
   node: RF,
   setNodes: SetNodes,
   nodes: RF[],
-  edges: AnyEdge[],
+  edges: Edge[], // ✅ ใช้ Type Edge ของจริง
   signal?: AbortSignal
 ) {
   const nodeId = node.id;
+  const nodeName = "Otsu Threshold";
 
-  // 🔍 ตรวจสอบว่า Node ก่อนหน้าเป็นประเภทต้องห้ามหรือไม่
+  // Helper: แจ้ง Error
+  const fail = async (msg: string) => {
+    await updateNodeStatus(nodeId, 'fault', setNodes);
+    throw new Error(msg);
+  };
+
+  // 🛡️ 1. Validation: เช็คเส้นเชื่อมต่อ
   const incoming = getIncoming(edges, nodeId);
-  if (incoming.length > 0) {
-    const parent = nodes.find((n) => n.id === incoming[0].source);
-    if (parent) {
-      const t = parent.type || '';
-      // ✅ ไม่บล็อก alignment อีกต่อไป
-      if (INVALID_INPUT_TYPES.includes(t)) {
-        await updateNodeStatus(nodeId, 'fault', setNodes);
-        throw new Error(
-          `Invalid input: Classification cannot follow a '${parent.type}' node.`
-        );
-      }
-    }
+  if (incoming.length === 0) {
+    return fail('No input connection (Please connect an Image source).');
+  }
+
+  // 🛡️ 2. Validation: เช็คประเภทโหนดต้นทาง
+  const prevNode = nodes.find((n) => n.id === incoming[0].source);
+  if (prevNode && INVALID_INPUT_TYPES.includes(prevNode.type || '')) {
+    const tool = prevNode.data.label || prevNode.type;
+    return fail(`Invalid Input: ${nodeName} requires an Image source, not a '${tool}' result.`);
   }
 
   await markStartThenRunning(nodeId, 'Running OTSU', setNodes);
 
   try {
-    const imagePath = getUpstreamImagePath(nodes, edges, nodeId);
-    if (!imagePath) throw new Error(ERR_NO_IMAGE);
+    // 🛡️ 3. หา Path รูปภาพ (ใช้ helper กลาง findInputImage)
+    const imagePath = findInputImage(nodeId, nodes, edges);
+
+    if (!imagePath) {
+      return fail('No input image found (Please check connection or run parent node).');
+    }
 
     const defaults = {
       gaussian_blur: true,
@@ -147,8 +111,7 @@ export async function runOtsu(
   } catch (err: any) {
     if (err?.name === 'AbortError') return;
     console.error("Otsu Error:", err);
-    await updateNodeStatus(nodeId, 'fault', setNodes);
-    throw err;
+    await fail(err?.message || 'Otsu failed');
   }
 }
 
@@ -159,32 +122,39 @@ export async function runSnakeRunner(
   node: RF,
   setNodes: SetNodes,
   nodes: RF[],
-  edges: AnyEdge[],
+  edges: Edge[], // ✅ ใช้ Type Edge ของจริง
   signal?: AbortSignal
 ) {
   const nodeId = node.id;
+  const nodeName = "Snake";
 
-  // 🔍 ตรวจสอบว่า Node ก่อนหน้าเป็นประเภทต้องห้ามหรือไม่
+  // Helper: แจ้ง Error
+  const fail = async (msg: string) => {
+    await updateNodeStatus(nodeId, 'fault', setNodes);
+    throw new Error(msg);
+  };
+
+  // 🛡️ 1. Validation
   const incoming = getIncoming(edges, nodeId);
-  if (incoming.length > 0) {
-    const parent = nodes.find((n) => n.id === incoming[0].source);
-    if (parent) {
-      const t = parent.type || '';
-      // ✅ ไม่บล็อก alignment อีกต่อไป
-      if (INVALID_INPUT_TYPES.includes(t)) {
-        await updateNodeStatus(nodeId, 'fault', setNodes);
-        throw new Error(
-          `Invalid input: Classification cannot follow a '${parent.type}' node.`
-        );
-      }
-    }
+  if (incoming.length === 0) {
+    return fail('No input connection (Please connect an Image source).');
+  }
+
+  const prevNode = nodes.find((n) => n.id === incoming[0].source);
+  if (prevNode && INVALID_INPUT_TYPES.includes(prevNode.type || '')) {
+    const tool = prevNode.data.label || prevNode.type;
+    return fail(`Invalid Input: ${nodeName} requires an Image source, not a '${tool}' result.`);
   }
 
   await markStartThenRunning(nodeId, 'Running Snake', setNodes);
 
   try {
-    const imagePath = getUpstreamImagePath(nodes, edges, nodeId);
-    if (!imagePath) throw new Error(ERR_NO_IMAGE);
+    // 🛡️ 2. หา Path รูปภาพ
+    const imagePath = findInputImage(nodeId, nodes, edges);
+    
+    if (!imagePath) {
+      return fail('No input image found (Please check connection or run parent node).');
+    }
 
     const params: any = { ...getNodeParams(node) };
 
@@ -253,7 +223,6 @@ export async function runSnakeRunner(
   } catch (err: any) {
     if (err?.name === 'AbortError') return;
     console.error("Snake Error:", err);
-    await updateNodeStatus(nodeId, 'fault', setNodes);
-    throw err;
+    await fail(err?.message || 'Snake failed');
   }
 }

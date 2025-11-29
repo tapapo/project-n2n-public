@@ -12,7 +12,9 @@ export async function runQuality(
 ) {
   const nodeId = node.id;
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
-  const nodeName = node.data.label || node.type?.toUpperCase();
+  
+  // ชื่อโหนดปัจจุบัน
+  const nodeName = node.data.label || node.type?.toUpperCase() || 'Quality Node';
 
   // Helper: Throw & Update Fault
   const fail = async (msg: string) => {
@@ -20,27 +22,33 @@ export async function runQuality(
     throw new Error(msg); 
   };
 
-  // รายชื่อโหนดที่ห้ามนำมาต่อ
-  const BAD_SOURCES = ['sift', 'surf', 'orb', 'bfmatcher', 'flannmatcher', 'otsu', 'snake', 'save-json'];
+  // ✅ รายชื่อโหนดที่ห้ามนำมาต่อ (เพิ่ม brisque, psnr, ssim เข้าไปแล้ว)
+  const BAD_SOURCES = [
+    'sift', 'surf', 'orb', 
+    'bfmatcher', 'flannmatcher', 
+    'otsu', 'snake', 
+    'save-json',
+    'brisque', 'psnr', 'ssim' // 👈 เพิ่มตรงนี้ครับ
+  ];
 
-  // -----------------------------------------------------
+  // =====================================================
   // 🛡️ BRISQUE (ต้องการ 1 รูปภาพ)
-  // -----------------------------------------------------
+  // =====================================================
   if (node.type === 'brisque') {
     const incoming = getIncoming(nodeId);
     if (incoming.length < 1) return fail('No image input');
 
     const prevNode = nodes.find((n) => n.id === incoming[0].source);
     
-    // ✅ Validation: ดึงชื่อโหนดที่ผิดมาแสดง
+    // Validation
     if (prevNode && BAD_SOURCES.includes(prevNode.type || '')) {
       const toolName = prevNode.data.label || prevNode.type;
-      return fail(`Invalid Input: ${nodeName} requires a clean image, but received output from '${toolName}'.`);
+      return fail(`Invalid Input: ${nodeName} requires an Image source, not a '${toolName}' result.`);
     }
 
     const imgUrl = findInputImage(nodeId, nodes, edges);
 
-    if (!imgUrl) return fail('Image URL not found for processing.');
+    if (!imgUrl) return fail('No input image found (Please check connection or run parent node).');
 
     await markStartThenRunning(nodeId, `Running ${nodeName}`, setNodes);
 
@@ -74,9 +82,9 @@ export async function runQuality(
     return;
   }
 
-  // -----------------------------------------------------
+  // =====================================================
   // 🛡️ PSNR / SSIM (ต้องการ 2 รูปภาพ)
-  // -----------------------------------------------------
+  // =====================================================
   if (node.type === 'psnr' || node.type === 'ssim') {
     const incoming = getIncoming(nodeId);
     const e1 = incoming.find((e) => e.targetHandle === 'input1');
@@ -90,30 +98,28 @@ export async function runQuality(
     const typeA = nodeA?.type || '';
     const typeB = nodeB?.type || '';
 
-    // ✅ Validation: เช็คทั้งคู่และรวมชื่อคนผิด
+    // Validation
     const badInputs: string[] = [];
     
     if (BAD_SOURCES.includes(typeA)) {
-        badInputs.push(`Input 1 ('${nodeA?.data.label || typeA}')`);
+        badInputs.push(`'${nodeA?.data.label || typeA}'`);
     }
     if (BAD_SOURCES.includes(typeB)) {
-        badInputs.push(`Input 2 ('${nodeB?.data.label || typeB}')`);
+        badInputs.push(`'${nodeB?.data.label || typeB}'`);
     }
 
     if (badInputs.length > 0) {
-      // ถ้าผิดทั้งคู่ มันจะบอกว่า "Invalid from: Input 1 ('SIFT'), Input 2 ('ORB')"
-      return fail(`Invalid Input: ${nodeName} requires images. Received invalid outputs from: ${badInputs.join(', ')}.`);
+      return fail(`Invalid Input: ${nodeName} requires Image sources, not a ${badInputs.join(' or ')} result.`);
     }
 
     const urlA = getNodeImageUrl(nodeA);
     const urlB = getNodeImageUrl(nodeB);
 
-    if (!urlA || !urlB) return fail('Image URL for one or both inputs missing.');
+    if (!urlA || !urlB) return fail('No input image found (Please check connection or run parent node).');
 
     await markStartThenRunning(nodeId, `Running ${nodeName}`, setNodes);
 
     try {
-      // ส่ง Path ไปให้ Backend
       const runner = node.type === 'psnr' ? runPsnr : runSsim;
       const params = node.data.payload?.params;
       

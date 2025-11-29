@@ -27,28 +27,27 @@ export async function runMatcher(
   const e2 = incoming.find((e) => e.targetHandle === 'file2');
 
   if (!e1 || !e2) {
-    // ถ้ายังไม่ได้ต่อสายเลย
-    const msg = 'Need two feature inputs. Please connect SIFT, SURF, or ORB nodes.';
+    const msg = 'Need two feature inputs. Please connect Feature Extraction nodes.';
     await updateNodeStatus(nodeId, 'fault', setNodes);
     throw new Error(msg);
   }
 
   // -----------------------------------------------------------
   // 🛡️ STEP 2: เช็คประเภทโหนด (Strict Type Validation)
-  // จุดนี้จะกันไม่ให้ Error แบบ JSON {"detail":...} หลุดออกมา
   // -----------------------------------------------------------
   const n1 = nodes.find(n => n.id === e1.source);
   const n2 = nodes.find(n => n.id === e2.source);
   
-  // รายชื่อโหนดที่อนุญาตให้เข้า Matcher ได้
   const allowedTypes = ['sift', 'surf', 'orb'];
-
   const type1 = n1?.type || 'unknown';
   const type2 = n2?.type || 'unknown';
 
   if (!allowedTypes.includes(type1) || !allowedTypes.includes(type2)) {
-     // ถ้ามีเส้นไหนผิดประเภท (เช่นลาก Otsu หรือ Matcher มาใส่) -> แจ้ง Error แบบที่คุณชอบทันที
-     const msg = `Invalid input type. Matchers require Feature Extraction nodes (SIFT/SURF/ORB).`;
+     // หาตัวที่ผิดเพื่อเอามาโชว์ในข้อความ Error
+     const badType = !allowedTypes.includes(type1) ? type1 : type2;
+     
+     
+     const msg = `Invalid input: Matchers require Feature Extraction nodes, not a '${badType}' result.`;
      
      await updateNodeStatus(nodeId, 'fault', setNodes);
      throw new Error(msg);
@@ -56,13 +55,12 @@ export async function runMatcher(
 
   // -----------------------------------------------------------
   // 🛡️ STEP 3: เช็คข้อมูล (Data Check)
-  // ประเภทถูกแล้ว แต่ยังไม่ได้กด Run โหนดแม่
   // -----------------------------------------------------------
   const jsonA = findFeatureJson(n1);
   const jsonB = findFeatureJson(n2);
 
   if (!jsonA || !jsonB) {
-    const msg = 'Upstream features not ready (Please Run SIFT/SURF/ORB first).';
+    const msg = 'Upstream features not ready (Please Run Features Extraction node first).';
     await updateNodeStatus(nodeId, 'fault', setNodes);
     throw new Error(msg);
   }
@@ -84,7 +82,6 @@ export async function runMatcher(
       resp = await runBfmatcher(jsonA, jsonB, params);
     }
     else if (kind === 'flannmatcher') {
-      // FLANN Logic
       const p = params || {};
       let indexMode: any = 'AUTO';
       let kdTrees, lshTableNumber, lshKeySize, lshMultiProbeLevel, searchChecks;
@@ -145,7 +142,7 @@ export async function runMatcher(
     console.error(`❌ ${kind} failed:`, err);
     await updateNodeStatus(node.id, 'fault', setNodes);
     
-    // โยน Error ออกไปให้ Log Panel
+    // Throw Error
     throw err;
   }
 }

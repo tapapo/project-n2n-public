@@ -1,6 +1,5 @@
 import { runSift, runSurf, runOrb, abs } from '../api';
-// ✅ เพิ่ม findInputImage เข้ามา
-import { markStartThenRunning, updateNodeStatus, findInputImage } from './utils'; 
+import { markStartThenRunning, updateNodeStatus, findInputImage } from './utils';
 import type { Edge } from 'reactflow';
 import type { RFNode, SetNodes } from './utils';
 import type { CustomNodeData } from '../../types';
@@ -14,145 +13,118 @@ export async function runFeature(
   nodes: RFNode[],
   edges: Edge[]
 ) {
-  // ---------- Helper: ดึงเมตาดาต้าจาก response ----------
-  async function extractFeatureMeta(
-    resp: any,
-    algo: 'SIFT' | 'SURF' | 'ORB'
-  ) {
-    let num_keypoints =
-      resp?.num_keypoints ??
-      resp?.kps_count ??
-      resp?.keypoints?.length ??
-      null;
+  const nodeId = node.id;
+  
+  // Helper: ค้นหาเส้นขาเข้า
+  const getIncoming = (id: string) => edges.filter((e) => e.target === id);
 
-    let shapeFromResp =
-      resp?.image?.processed_sift_shape ??
-      resp?.image?.processed_shape ??
-      resp?.image?.processed_orb_shape ??
-      resp?.image_shape ??
-      null;
+  // Helper: แจ้ง Error และเปลี่ยนสีแดง
+  const fail = async (msg: string) => {
+    await updateNodeStatus(nodeId, 'fault', setNodes);
+    throw new Error(msg); 
+  };
 
-    let dtypeFromResp =
-      resp?.image?.processed_sift_dtype ??
-      resp?.image?.processed_dtype ??
-      resp?.image?.processed_orb_dtype ??
-      resp?.image_dtype ??
-      null;
-
-    let fileName = resp?.image?.file_name ?? resp?.file_name ?? null;
-    const absJsonUrl = resp?.json_url ? abs(resp.json_url) : undefined;
-
-    // fallback
-    if ((!num_keypoints || !shapeFromResp || !dtypeFromResp) && absJsonUrl) {
-      try {
-        const j = await (await fetch(absJsonUrl)).json();
-        num_keypoints = num_keypoints ?? j?.num_keypoints ?? j?.keypoints?.length ?? null;
-        shapeFromResp =
-          shapeFromResp ??
-          j?.image?.processed_sift_shape ??
-          j?.image?.processed_shape ??
-          j?.image?.processed_orb_shape ??
-          j?.image?.shape ??
-          null;
-        dtypeFromResp =
-          dtypeFromResp ??
-          j?.image?.processed_sift_dtype ??
-          j?.image?.processed_dtype ??
-          j?.image?.processed_orb_dtype ??
-          j?.image?.dtype ??
-          null;
-        fileName = fileName ?? j?.image?.file_name ?? null;
-      } catch {
-        /* ignore network/parse error */
-      }
-    }
-
-    return {
-      num_keypoints: typeof num_keypoints === 'number' ? num_keypoints : null,
-      image_shape: Array.isArray(shapeFromResp) ? shapeFromResp : null,
-      image_dtype: typeof dtypeFromResp === 'string' ? dtypeFromResp : null,
-      file_name: typeof fileName === 'string' ? fileName : null,
-      algo,
-    };
+  // ------------------------------------------------------
+  // 🛡️ STEP 1: Validation (เช็คประเภทโหนดต้นทาง)
+  // ------------------------------------------------------
+  const incoming = getIncoming(nodeId);
+  if (incoming.length === 0) {
+    return fail('No input connection (Please connect an Image source).');
   }
 
-  // ---------- เลือก runner ตามประเภท ----------
-  let prefix: 'SIFT' | 'SURF' | 'ORB';
-  let runner: (imagePath: string, params?: Record<string, unknown>) => Promise<any>;
+  const prevNode = nodes.find((n) => n.id === incoming[0].source);
+  
+  // รายชื่อโหนดที่ "ห้าม" เอามาต่อเข้า Feature (เพราะไม่ใช่รูปภาพดิบ)
+  const BAD_SOURCES = [
+    'sift', 'surf', 'orb',           // Feature ต่อ Feature ไม่ได้
+    'bfmatcher', 'flannmatcher',     // Matcher ต่อ Feature ไม่ได้
+    'otsu', 'snake',                 // Classification ต่อ Feature ไม่ได้
+    'psnr', 'ssim', 'brisque',       // Quality ต่อ Feature ไม่ได้
+    'save-json', 'save-image'        // Save ต่อ Feature ไม่ได้
+  ];
 
-  switch (node.type) {
-    case 'sift':
-      prefix = 'SIFT';
-      runner = runSift;
-      break;
-    case 'surf':
-      prefix = 'SURF';
-      runner = runSurf;
-      break;
-    case 'orb':
-      prefix = 'ORB';
-      runner = runOrb;
-      break;
-    default:
-      return;
+  if (prevNode && BAD_SOURCES.includes(prevNode.type || '')) {
+    const tool = prevNode.data.label || prevNode.type;
+    return fail(`Invalid Input: Feature Extraction requires an Image source, not a '${tool}' result.`);
   }
 
-  // ✅ แก้ไข: ใช้ findInputImage (รองรับทั้ง ImageInput และ Alignment)
-  const imagePath = findInputImage(node.id, nodes, edges);
+  // ------------------------------------------------------
+  // 🛡️ STEP 2: หา Path รูปภาพ
+  // ------------------------------------------------------
+  const imagePath = findInputImage(nodeId, nodes, edges);
 
   if (!imagePath) {
-    const msg = 'No input image found (Please check connection or run parent node).';
-    await updateNodeStatus(node.id, 'fault', setNodes);
-    throw new Error(msg);
+    return fail('No input image found (Please check connection or run parent node).');
   }
 
-  const params = (node.data as CustomNodeData)?.payload?.params || {};
-  await markStartThenRunning(node.id, `Running ${prefix}`, setNodes);
+  // ------------------------------------------------------
+  // 🚀 STEP 3: Execution
+  // ------------------------------------------------------
+  let prefix = '';
+  let runner: any;
+
+  switch (node.type) {
+    case 'sift': prefix = 'SIFT'; runner = runSift; break;
+    case 'surf': prefix = 'SURF'; runner = runSurf; break;
+    case 'orb':  prefix = 'ORB';  runner = runOrb; break;
+    default: return;
+  }
+
+  await markStartThenRunning(nodeId, `Running ${prefix}`, setNodes);
 
   try {
-    const resp = await runner(imagePath, params as Record<string, unknown>);
-    const meta = await extractFeatureMeta(resp, prefix);
+    const params = node.data.payload?.params;
+    
+    // เรียก API
+    const resp = await runner(imagePath, params);
 
+    // เตรียมข้อมูล Metadata
+    const num_keypoints = resp.num_keypoints ?? resp.kps_count ?? 0;
+    
+    // เช็คว่ามี vis_url ไหม (บางที backend อาจส่ง path เต็มมา ต้องแปลงเป็น abs url)
+    const visUrl = resp.vis_url ? abs(resp.vis_url) : undefined;
+
+    // Update Success
     setNodes((nds) =>
-      nds.map((x) =>
-        x.id === node.id
+      nds.map((n) =>
+        n.id === nodeId
           ? {
-              ...x,
+              ...n,
               data: {
-                ...x.data,
+                ...n.data,
                 status: 'success',
-                description: `Found ${meta.num_keypoints ?? 0} keypoints`,
+                description: `Found ${num_keypoints} keypoints`,
                 payload: {
-                  ...(x.data as CustomNodeData)?.payload,
+                  ...(n.data as CustomNodeData)?.payload,
                   params,
-                  // ✅ เก็บข้อมูลสำคัญให้ครบเพื่อส่งต่อให้ Save Node หรือ Matcher
                   json: resp,
                   json_url: resp.json_url,
                   json_path: resp.json_path,
-                  result_image_url: abs(resp.vis_url),
-                  vis_url: abs(resp.vis_url),
-                  num_keypoints: meta.num_keypoints,
-                  image_shape: meta.image_shape,
-                  image_dtype: meta.image_dtype,
-                  file_name: meta.file_name,
                   
-                  // ✅ Output มาตรฐาน
+                  // สำหรับแสดงผล
+                  result_image_url: visUrl,
+                  vis_url: visUrl,
+                  
+                  // Meta
+                  num_keypoints: num_keypoints,
+                  image_shape: resp?.image?.processed_shape || resp?.image_shape,
+                  image_dtype: resp?.image?.processed_dtype || resp?.image_dtype,
+                  file_name: resp?.image?.file_name || resp?.file_name,
+                  
+                  // Output มาตรฐาน
                   output: {
-                    vis_url: abs(resp.vis_url),
+                    vis_url: visUrl,
                     json_url: resp.json_url,
-                    num_keypoints: meta.num_keypoints
+                    num_keypoints: num_keypoints
                   }
                 },
               } as CustomNodeData,
             }
-          : x
+          : n
       )
     );
   } catch (err: any) {
     console.error(`${prefix} Error:`, err);
-    await updateNodeStatus(node.id, 'fault', setNodes);
-    
-    // ✅ Throw Error เพื่อให้ Log Panel แสดงสีแดง
-    throw err;
+    await fail(err?.message || `${prefix} failed`);
   }
 }

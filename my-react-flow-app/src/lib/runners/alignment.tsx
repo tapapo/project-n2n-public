@@ -61,7 +61,9 @@ export async function runAlignment(
   const allowedTypes = ['bfmatcher', 'flannmatcher'];
   if (!matchNode || !allowedTypes.includes(matchNode.type || '')) {
     const label = matchNode?.data.label || matchNode?.type || 'Unknown Node';
-    const msg = `Invalid input: '${label}'. Alignment requires a Matcher node (BF/FLANN) as input.`;
+    
+    // ✅ แก้ข้อความ Error ตามที่ต้องการ
+    const msg = `Invalid Input: Alignment requires a Matcher node, not a '${label}' result.`;
     
     await updateNodeStatus(nodeId, 'fault', setNodes);
     throw new Error(msg);
