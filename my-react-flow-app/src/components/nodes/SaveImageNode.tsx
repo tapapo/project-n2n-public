@@ -35,7 +35,7 @@ const SaveImageNode = ({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   return (
     <div className={`bg-gray-800 text-white rounded-lg p-3 w-48 text-center border-2 shadow-md transition-all duration-200 ${borderColor}`}>
-      <div className="font-bold text-gray-300 mb-1">🖼️ Save Image</div>
+      <div className="font-bold text-gray-300 mb-1">Save Image</div>
       <p className="text-xs text-gray-400 mb-2">Export processed output</p>
       
       <button 

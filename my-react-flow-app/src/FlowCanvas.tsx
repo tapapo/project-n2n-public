@@ -39,7 +39,7 @@ import type { CustomNodeData, LogEntry } from './types';
 import { runFeature } from './lib/runners/features';
 import { runQuality } from './lib/runners/quality';
 import { runMatcher } from './lib/runners/matching';
-import { runAlignment } from './lib/runners/alignment'; // ใช้ runAlignment ตัวเดียวพอ
+import { runAlignment } from './lib/runners/alignment';
 import { runOtsu, runSnakeRunner } from './lib/runners/classification';
 import { runSaveImage, runSaveJson } from './lib/runners/saver';
 import { markStartThenRunning } from './lib/runners/utils';
@@ -91,8 +91,8 @@ function cleanErrorMessage(rawMsg: string): string {
       const parsed = JSON.parse(jsonPart);
       if (parsed.detail) return parsed.detail;
     }
-  } catch (e) {}
-  
+  } catch (e) { }
+
   return rawMsg
     .replace(/^HTTP \d+ [a-zA-Z ]+ - /, '')
     .replace(/^Error: /, '')
@@ -153,7 +153,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     try {
       localStorage.setItem(STORAGE_KEY_NODES, JSON.stringify(nodes));
       localStorage.setItem(STORAGE_KEY_EDGES, JSON.stringify(edges));
-    } catch (e) {}
+    } catch (e) { }
   }, [nodes, edges]);
 
   const isDraggingRef = useRef(false);
@@ -222,11 +222,8 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
             await runQuality(node, setNodes, nodesRef.current, edgesRef.current); break;
           case 'bfmatcher': case 'flannmatcher':
             await runMatcher(node, setNodes, nodesRef.current, edgesRef.current); break;
-          
-          // ✅ ใช้ runAlignment ตัวเดียวพอ (เพราะข้างในเช็ค type ให้อยู่แล้ว)
           case 'homography-align': case 'affine-align':
             await runAlignment(node, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
-          
           case 'otsu':
             await runOtsu(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           case 'snake':
@@ -272,7 +269,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
       addLog('Starting Pipeline', 'info');
       for (const node of nodesRef.current) {
         if (!node?.id || !node?.type) continue;
-        try { await runNodeById(node.id); } catch (e) {}
+        try { await runNodeById(node.id); } catch (e) { }
       }
       addLog('Pipeline Finished', 'success');
       onPipelineDone?.();
@@ -323,8 +320,8 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
   return (
     <div className="relative flex-1 h-full flex flex-col">
       <div className="absolute z-10 top-2 right-2 flex gap-2">
-        <button onClick={saveWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">💾 SAVE</button>
-        <button onClick={triggerLoadWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">📂 LOAD</button>
+        <button onClick={saveWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">💾 SAVE WORKFLOW</button>
+        <button onClick={triggerLoadWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">📂 LOAD WORKFLOW</button>
         <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
       </div>
 
@@ -349,7 +346,26 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
           deleteKeyCode={['Delete', 'Backspace']}
           isValidConnection={isValidConnection}
         >
-          <MiniMap />
+          <MiniMap
+            style={{
+              position: 'absolute',
+              bottom: 0,   // ขยับขึ้นจากล่างนิดนึง ให้ไม่ชน Controls
+              left: 50,     // อยู่ข้างปุ่ม + -
+              width: 200,
+              height: 140,
+              borderRadius: 8,
+              background: 'rgba(15,23,42,0.9)', // สีเข้มขึ้น
+              border: '1px solid #475569',
+            }}
+            maskColor="rgba(0,0,0,0.6)"
+            nodeColor={(n) =>
+              n.data?.status === 'fault'
+                ? '#ef4444'
+                : n.data?.status === 'success'
+                  ? '#22c55e'
+                  : '#94a3b8'
+            }
+          />
           <Controls />
           <Background />
         </ReactFlow>
