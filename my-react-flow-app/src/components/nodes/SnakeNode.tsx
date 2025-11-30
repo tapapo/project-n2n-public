@@ -1,6 +1,5 @@
-// src/components/nodes/SnakeNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; // ✅ เพิ่ม useEdges
+import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api';
 import Modal from '../common/Modal';
@@ -65,14 +64,16 @@ type InitMode = 'circle' | 'point' | 'bbox';
 type Numish = number | string | null | undefined;
 
 type Params = {
-  alpha: Numish; beta: Numish; gamma: Numish; w_line: Numish; w_edge: Numish; max_iterations: Numish; gaussian_blur_ksize: Numish; convergence: Numish;
+  alpha: Numish; beta: Numish; gamma: Numish; w_line: Numish; w_edge: Numish;
+  max_iterations: Numish; gaussian_blur_ksize: Numish; convergence: Numish;
   init_mode: InitMode; init_cx: Numish; init_cy: Numish; init_radius: Numish; init_points: Numish;
   from_point_x: Numish; from_point_y: Numish;
   bbox_x1: Numish; bbox_y1: Numish; bbox_x2: Numish; bbox_y2: Numish;
 };
 
 const DEFAULT_PARAMS: Params = {
-  alpha: 0.2, beta: 0.2, gamma: 0.1, w_line: 0.0, w_edge: 1.0, max_iterations: 250, gaussian_blur_ksize: 0, convergence: 0.001,
+  alpha: 0.2, beta: 0.2, gamma: 0.1, w_line: 0.0, w_edge: 1.0,
+  max_iterations: 250, gaussian_blur_ksize: 0, convergence: 0.001,
   init_mode: 'circle', init_cx: null, init_cy: null, init_radius: null, init_points: 400,
   from_point_x: null, from_point_y: null,
   bbox_x1: null, bbox_y1: null, bbox_x2: null, bbox_y2: null
@@ -117,6 +118,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const onSave = () => {
     const next = { ...form };
+    // Sanitize numbers
     const alpha = toFloat(form.alpha, 0.2); const beta = toFloat(form.beta, 0.2); const gamma = toFloat(form.gamma, 0.1);
     const w_line = toFloat(form.w_line, 0.0); const w_edge = toFloat(form.w_edge, 1.0);
     const max_iterations = Math.max(1, toInt(form.max_iterations, 250));
@@ -162,7 +164,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     (data?.payload?.result_image_url as string | undefined) ||
     (data?.payload?.preview_url as string | undefined) ||
     (resp?.overlay_url as string | undefined) ||
-    (resp?.contour_url as string | undefined) ||
     (resp?.mask_url as string | undefined);
 
   const iterText: number | undefined =
@@ -171,11 +172,8 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   // ✅ Theme: Pink (ชมพูเสมอ)
   let borderColor = 'border-pink-500';
-  if (selected) {
-    borderColor = 'border-pink-400 ring-2 ring-pink-500';
-  } else if (isRunning) {
-    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
-  }
+  if (selected) borderColor = 'border-pink-400 ring-2 ring-pink-500';
+  else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
   // ✅ Handle Class Logic
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
@@ -186,9 +184,11 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const sourceHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 bg-white border-gray-500`;
 
   return (
-    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-80 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
-      {/* ✅ แยก Class Input/Output */}
+    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
+      {/* Input Handle (Left) */}
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+      
+      {/* Output Handle (Right) */}
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
       <div className="bg-gray-700 text-pink-400 rounded-t-xl px-3 py-2 flex items-center justify-between">
@@ -197,35 +197,40 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
           <button
             onClick={onRun}
             disabled={isRunning}
-            // ✅ ปุ่มชมพูเสมอ
+            // ✅ Fixed Pink Button
             className={[
               'ml-1 px-3 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white',
-              isRunning
-                ? 'bg-yellow-600 cursor-wait opacity-80'
-                : 'bg-pink-600 hover:bg-pink-700',
+              isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-pink-600 hover:bg-pink-700',
             ].join(' ')}
           >
             ▶ Run
           </button>
-          <button
-            aria-label="Open settings"
-            onClick={() => setOpen(true)}
-            className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80"
-            title="Settings"
-          >
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="black" aria-hidden="true">
-              <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
-                <path d="M3 7h18" />
-                <circle cx="9" cy="7" r="3.4" fill="white" />
-                <path d="M3 17h18" />
-                <circle cx="15" cy="17" r="3.4" fill="white" />
-              </g>
-            </svg>
-          </button>
+
+          {/* ✅ Settings Button with Tooltip */}
+          <span className="relative inline-flex items-center group">
+            <button
+              aria-label="Open settings"
+              onClick={() => setOpen(true)}
+              className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80 cursor-pointer"
+            >
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="black">
+                <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
+                  <path d="M3 7h18" />
+                  <circle cx="9" cy="7" r="3.4" fill="white" />
+                  <path d="M3 17h18" />
+                  <circle cx="15" cy="17" r="3.4" fill="white" />
+                </g>
+              </svg>
+            </button>
+            <span className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 shadow-lg transition-opacity duration-200">
+              Settings
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></span>
+            </span>
+          </span>
         </div>
       </div>
 
-      <div className="p-4 space-y-3" onMouseDown={stopAll} onClick={stopAll}>
+      <div className="p-4 space-y-3" onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll}>
         <p className="text-sm text-gray-300">
           {previewUrl ? `Done ${iterText ? `(${iterText} iters)` : ''}` : 'Connect Image Input and run'}
         </p>
@@ -248,85 +253,76 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <Modal open={open} title="Snake Settings" onClose={() => setOpen(false)}>
-        <div
-          className="space-y-5 text-xs text-gray-300"
-          onMouseDown={stopAll}
-          onClick={stopAll}
-          onDoubleClick={stopAll}
-        >
-          {/* ===== CORE ===== */}
-          <div className="space-y-2">
-            <div className="font-semibold text-pink-300">Core</div>
-            <div className="grid grid-cols-2 gap-2">
-              <Num label="alpha" value={form.alpha} step={0.01} onChange={(v) => setForm((s) => ({ ...s, alpha: v }))} />
-              <Num label="beta" value={form.beta} step={0.1} onChange={(v) => setForm((s) => ({ ...s, beta: v }))} />
-              <Num label="gamma" value={form.gamma} step={0.01} onChange={(v) => setForm((s) => ({ ...s, gamma: v }))} />
-              <Num label="w_edge" value={form.w_edge} step={0.05} onChange={(v) => setForm((s) => ({ ...s, w_edge: v }))} />
-              <Num label="w_line" value={form.w_line} step={0.05} onChange={(v) => setForm((s) => ({ ...s, w_line: v }))} />
-              <Num label="max_iterations" value={form.max_iterations} min={1} step={1} onChange={(v) => setForm((s) => ({ ...s, max_iterations: v }))} />
-              <Num label="gaussian_blur_ksize (0=none)" value={form.gaussian_blur_ksize} min={0} step={1} onChange={(v) => setForm((s) => ({ ...s, gaussian_blur_ksize: v }))} />
-            </div>
-          </div>
-
-          {/* ===== ADVANCED ===== */}
-          <div className="space-y-2">
-            <button
-              className="px-2 py-1 rounded bg-gray-700 text-gray-100 hover:bg-gray-600"
-              onClick={(e) => {
-                stopAll(e);
-                setShowAdv((s) => !s);
-              }}
-            >
-              {showAdv ? '▾ Advanced (hide)' : '▸ Advanced (show)'}
-            </button>
-
-            {showAdv && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-3 gap-2">
-                  <Num label="convergence" value={form.convergence} min={0} step={0.0001} onChange={(v) => setForm((s) => ({ ...s, convergence: v }))} />
+         <div className="space-y-5 text-xs text-gray-300" onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll}>
+            {/* CORE */}
+            <div className="space-y-2">
+                <div className="font-semibold text-pink-300">Core</div>
+                <div className="grid grid-cols-2 gap-2">
+                    <Num label="alpha" value={form.alpha} step={0.01} onChange={(v) => setForm((s) => ({ ...s, alpha: v }))} />
+                    <Num label="beta" value={form.beta} step={0.1} onChange={(v) => setForm((s) => ({ ...s, beta: v }))} />
+                    <Num label="gamma" value={form.gamma} step={0.01} onChange={(v) => setForm((s) => ({ ...s, gamma: v }))} />
+                    <Num label="w_edge" value={form.w_edge} step={0.05} onChange={(v) => setForm((s) => ({ ...s, w_edge: v }))} />
+                    <Num label="w_line" value={form.w_line} step={0.05} onChange={(v) => setForm((s) => ({ ...s, w_line: v }))} />
+                    <Num label="max_iterations" value={form.max_iterations} min={1} step={1} onChange={(v) => setForm((s) => ({ ...s, max_iterations: v }))} />
+                    <Num label="gaussian_blur_ksize (0=none)" value={form.gaussian_blur_ksize} min={0} step={1} onChange={(v) => setForm((s) => ({ ...s, gaussian_blur_ksize: v }))} />
                 </div>
-
-                <div className="space-y-2">
-                  <div className="font-semibold text-pink-300">Init</div>
-                  <Select label="Init mode" value={form.init_mode} onChange={(v) => setForm((s) => ({ ...s, init_mode: v as InitMode }))} options={[{ label: 'circle', value: 'circle' }, { label: 'point', value: 'point' }, { label: 'bbox', value: 'bbox' }]} />
-                  <Num label="init_points" value={form.init_points} min={8} step={1} onChange={(v) => setForm((s) => ({ ...s, init_points: v }))} />
-                  
-                  {/* Init specific fields */}
-                  {form.init_mode === 'circle' && (
-                    <div className="grid grid-cols-3 gap-2">
-                      <Num label="init_cx" value={form.init_cx} step={1} onChange={(v) => setForm((s) => ({ ...s, init_cx: v }))} />
-                      <Num label="init_cy" value={form.init_cy} step={1} onChange={(v) => setForm((s) => ({ ...s, init_cy: v }))} />
-                      <Num label="init_radius" value={form.init_radius} min={1} step={1} onChange={(v) => setForm((s) => ({ ...s, init_radius: v }))} />
-                    </div>
-                  )}
-                  {form.init_mode === 'point' && (
-                    <div className="grid grid-cols-3 gap-2">
-                      <Num label="from_point_x" value={form.from_point_x} step={1} onChange={(v) => setForm((s) => ({ ...s, from_point_x: v }))} />
-                      <Num label="from_point_y" value={form.from_point_y} step={1} onChange={(v) => setForm((s) => ({ ...s, from_point_y: v }))} />
-                      <Num label="init_radius" value={form.init_radius} min={1} step={1} onChange={(v) => setForm((s) => ({ ...s, init_radius: v }))} />
-                    </div>
-                  )}
-                  {form.init_mode === 'bbox' && (
-                    <div className="grid grid-cols-4 gap-2">
-                      <Num label="bbox_x1" value={form.bbox_x1} step={1} onChange={(v) => setForm((s) => ({ ...s, bbox_x1: v }))} />
-                      <Num label="bbox_y1" value={form.bbox_y1} step={1} onChange={(v) => setForm((s) => ({ ...s, bbox_y1: v }))} />
-                      <Num label="bbox_x2" value={form.bbox_x2} step={1} onChange={(v) => setForm((s) => ({ ...s, bbox_x2: v }))} />
-                      <Num label="bbox_y2" value={form.bbox_y2} step={1} onChange={(v) => setForm((s) => ({ ...s, bbox_y2: v }))} />
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-between items-center pt-1">
-            <button onClick={(e) => { stopAll(e); setForm(DEFAULT_PARAMS); }} className="px-3 py-1 rounded bg-gray-700 text-gray-200 hover:bg-gray-600" title="Reset to defaults">Reset</button>
-            <div className="flex gap-2">
-              <button onClick={(e) => { stopAll(e); onClose(); }} className="px-3 py-1 rounded bg-gray-700 text-gray-200 hover:bg-gray-600">Close</button>
-              <button onClick={(e) => { stopAll(e); onSave(); }} className="px-3 py-1 rounded bg-pink-600 text-white hover:bg-pink-700">Save</button>
             </div>
-          </div>
-        </div>
+            
+            {/* ADVANCED */}
+            <div className="space-y-2">
+                <button
+                  className="px-2 py-1 rounded bg-gray-700 text-gray-100 hover:bg-gray-600"
+                  onClick={(e) => { stopAll(e); setShowAdv((s) => !s); }}
+                >
+                  {showAdv ? '▾ Advanced (hide)' : '▸ Advanced (show)'}
+                </button>
+
+                {showAdv && (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-3 gap-2">
+                          <Num label="convergence" value={form.convergence} min={0} step={0.0001} onChange={(v) => setForm((s) => ({ ...s, convergence: v }))} />
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <div className="font-semibold text-pink-300">Init</div>
+                            <Select label="Init mode" value={form.init_mode} onChange={(v) => setForm((s) => ({ ...s, init_mode: v as InitMode }))} options={[{ label: 'circle', value: 'circle' }, { label: 'point', value: 'point' }, { label: 'bbox', value: 'bbox' }]} />
+                            <Num label="init_points" value={form.init_points} min={8} step={1} onChange={(v) => setForm((s) => ({ ...s, init_points: v }))} />
+                            
+                            {form.init_mode === 'circle' && (
+                              <div className="grid grid-cols-3 gap-2">
+                                <Num label="init_cx" value={form.init_cx} step={1} onChange={(v) => setForm((s) => ({ ...s, init_cx: v }))} />
+                                <Num label="init_cy" value={form.init_cy} step={1} onChange={(v) => setForm((s) => ({ ...s, init_cy: v }))} />
+                                <Num label="init_radius" value={form.init_radius} min={1} step={1} onChange={(v) => setForm((s) => ({ ...s, init_radius: v }))} />
+                              </div>
+                            )}
+                            {form.init_mode === 'point' && (
+                              <div className="grid grid-cols-3 gap-2">
+                                <Num label="from_point_x" value={form.from_point_x} step={1} onChange={(v) => setForm((s) => ({ ...s, from_point_x: v }))} />
+                                <Num label="from_point_y" value={form.from_point_y} step={1} onChange={(v) => setForm((s) => ({ ...s, from_point_y: v }))} />
+                                <Num label="init_radius" value={form.init_radius} min={1} step={1} onChange={(v) => setForm((s) => ({ ...s, init_radius: v }))} />
+                              </div>
+                            )}
+                            {form.init_mode === 'bbox' && (
+                              <div className="grid grid-cols-4 gap-2">
+                                <Num label="bbox_x1" value={form.bbox_x1} step={1} onChange={(v) => setForm((s) => ({ ...s, bbox_x1: v }))} />
+                                <Num label="bbox_y1" value={form.bbox_y1} step={1} onChange={(v) => setForm((s) => ({ ...s, bbox_y1: v }))} />
+                                <Num label="bbox_x2" value={form.bbox_x2} step={1} onChange={(v) => setForm((s) => ({ ...s, bbox_x2: v }))} />
+                                <Num label="bbox_y2" value={form.bbox_y2} step={1} onChange={(v) => setForm((s) => ({ ...s, bbox_y2: v }))} />
+                              </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex justify-between items-center pt-1">
+                <button onClick={(e) => { stopAll(e); setForm(DEFAULT_PARAMS); }} className="px-3 py-1 rounded bg-gray-700 text-gray-200 hover:bg-gray-600" title="Reset to defaults">Reset</button>
+                <div className="flex gap-2">
+                  <button onClick={(e) => { stopAll(e); onClose(); }} className="px-3 py-1 rounded bg-gray-700 text-gray-200 hover:bg-gray-600">Close</button>
+                  <button onClick={(e) => { stopAll(e); onSave(); }} className="px-3 py-1 rounded bg-pink-600 text-white hover:bg-pink-700">Save</button>
+                </div>
+            </div>
+         </div>
       </Modal>
     </div>
   );

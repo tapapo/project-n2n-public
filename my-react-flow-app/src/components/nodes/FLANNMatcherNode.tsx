@@ -175,7 +175,7 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
   }`;
 
   return (
-    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-88 max-w-sm text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
+    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 max-w-sm text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
       
       {/* Input 1 (Left Top) */}
       <Handle 

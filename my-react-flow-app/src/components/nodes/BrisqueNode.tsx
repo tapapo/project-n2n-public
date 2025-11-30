@@ -22,10 +22,12 @@ const BrisqueNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
   }, [data, id, isRunning]);
 
   const caption =
-    (typeof data?.description === 'string' && data.description) ||
-    (typeof data?.payload?.quality_score === 'number'
-      ? `BRISQUE score = ${Number(data.payload.quality_score).toFixed(2)}`
-      : 'No score yet');
+  (typeof data?.description === 'string' &&
+   !/(running|start)/i.test(data.description)) // ✅ ตัดทั้ง start / running
+    ? data.description
+    : (typeof data?.payload?.quality_score === 'number'
+        ? `BRISQUE score = ${Number(data.payload.quality_score).toFixed(2)}`
+        : 'Connect Image Input and run');
 
   // ✅ Theme: Blue (ฟ้าเสมอ)
   let borderColor = 'border-blue-500';

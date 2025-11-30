@@ -23,8 +23,12 @@ const SsimNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const val = data?.payload?.json?.score;
   const caption =
-    (typeof data?.description === 'string' && data.description) ||
-    (typeof val === 'number' ? `SSIM = ${val.toFixed(4)}` : 'No score yet');
+  (typeof data?.description === 'string' &&
+   !/(running|start)/i.test(data.description)) 
+    ? data.description
+    : (typeof val === 'number'
+        ? `PSNR = ${val.toFixed(2)} dB`
+        : 'Connect two Image Input and run');
 
   // ✅ Theme: Blue (ฟ้าเสมอ)
   let borderColor = 'border-blue-500';

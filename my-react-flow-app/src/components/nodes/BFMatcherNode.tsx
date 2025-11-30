@@ -1,4 +1,3 @@
-// src/components/nodes/BFMatcherNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; // ✅ ใช้ useEdges
 import type { CustomNodeData } from '../../types';
@@ -140,7 +139,7 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
   }`;
 
   return (
-    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-88 max-w-sm text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
+    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 max-w-sm text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
       
       {/* Input 1 (Left Top) - เช็ค isConnected1 */}
       <Handle 
@@ -188,18 +187,23 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
 
-          {/* Settings */}
+          {/* ✅ Settings Button with Tooltip */}
           <span className="relative inline-flex items-center group">
             <button
               aria-label="Open BFMatcher settings"
               onClick={() => setOpen(true)}
-              className="h-5 w-5 rounded-full bg-white flex items-center justify-center
-                         shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80
-                         transition focus-visible:outline-none focus-visible:ring-2
-                         focus-visible:ring-orange-500/70"
+              className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/70"
             >
               <SettingsSlidersIcon />
             </button>
+            {/* Tooltip Bubble */}
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 shadow-lg transition-opacity duration-200"
+            >
+              Settings
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></span>
+            </span>
           </span>
         </div>
       </div>
@@ -241,7 +245,6 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
         )}
       </div>
 
-      {/* Status */}
       <div className="border-t-2 border-gray-700 p-2 text-sm">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>

@@ -147,24 +147,59 @@ def _return_feature(tool: str, json_path: str, vis_path: Optional[str]):
 def feature_sift(req: FeatureReq):
     img_path = resolve_image_path(req.image_path)
     key, subdir, json_p, vis_p = _feature_cached("SIFT", img_path, req.params)
-    if os.path.exists(json_p):
-        return _return_feature("SIFT", json_p, vis_p if os.path.exists(vis_p) else None)
 
+    # ถ้ามี cache → โหลด JSON กลับเลย
+    if os.path.exists(json_p):
+        data = _read_json(json_p)
+        return {
+            "tool": "SIFT",
+            "num_keypoints": data.get("num_keypoints"),
+            "descriptor_dim": data.get("descriptor_dim"),
+            "sift_parameters_used": data.get("sift_parameters_used"),
+            "json_path": json_p,
+            "json_url": static_url(json_p, OUT),
+            "vis_url": static_url(vis_p, OUT) if os.path.exists(vis_p) else None,
+            "cache": True,
+        }
+
+    # ถ้ายังไม่มี → รันใหม่
     j, v = sift_run(img_path, RESULT_DIR, **(req.params or {}))
     ensure_dir(os.path.dirname(json_p))
     try:
         if os.path.exists(j): os.replace(j, json_p)
         if v and os.path.exists(v): os.replace(v, vis_p)
     except Exception:
-        return _return_feature("SIFT", j, v)
-    return _return_feature("SIFT", json_p, vis_p)
+        json_p, vis_p = j, v
+
+    data = _read_json(json_p)
+    return {
+        "tool": "SIFT",
+        "num_keypoints": data.get("num_keypoints"),
+        "descriptor_dim": data.get("descriptor_dim"),
+        "sift_parameters_used": data.get("sift_parameters_used"),
+        "json_path": json_p,
+        "json_url": static_url(json_p, OUT),
+        "vis_url": static_url(vis_p, OUT) if os.path.exists(vis_p) else None,
+        "cache": False,
+    }
 
 @app.post("/api/feature/orb")
 def feature_orb(req: FeatureReq):
     img_path = resolve_image_path(req.image_path)
     key, subdir, json_p, vis_p = _feature_cached("ORB", img_path, req.params)
+
     if os.path.exists(json_p):
-        return _return_feature("ORB", json_p, vis_p if os.path.exists(vis_p) else None)
+        data = _read_json(json_p)
+        return {
+            "tool": "ORB",
+            "num_keypoints": data.get("num_keypoints"),
+            "descriptor_dim": data.get("descriptor_dim"),
+            "orb_parameters_used": data.get("orb_parameters_used"),
+            "json_path": json_p,
+            "json_url": static_url(json_p, OUT),
+            "vis_url": static_url(vis_p, OUT) if os.path.exists(vis_p) else None,
+            "cache": True,
+        }
 
     j, v = orb_run(img_path, RESULT_DIR, **(req.params or {}))
     ensure_dir(os.path.dirname(json_p))
@@ -172,15 +207,37 @@ def feature_orb(req: FeatureReq):
         if os.path.exists(j): os.replace(j, json_p)
         if v and os.path.exists(v): os.replace(v, vis_p)
     except Exception:
-        return _return_feature("ORB", j, v)
-    return _return_feature("ORB", json_p, vis_p)
+        json_p, vis_p = j, v
+
+    data = _read_json(json_p)
+    return {
+        "tool": "ORB",
+        "num_keypoints": data.get("num_keypoints"),
+        "descriptor_dim": data.get("descriptor_dim"),
+        "orb_parameters_used": data.get("orb_parameters_used"),
+        "json_path": json_p,
+        "json_url": static_url(json_p, OUT),
+        "vis_url": static_url(vis_p, OUT) if os.path.exists(vis_p) else None,
+        "cache": False,
+    }
 
 @app.post("/api/feature/surf")
 def feature_surf(req: FeatureReq):
     img_path = resolve_image_path(req.image_path)
     key, subdir, json_p, vis_p = _feature_cached("SURF", img_path, req.params)
+
     if os.path.exists(json_p):
-        return _return_feature("SURF", json_p, vis_p if os.path.exists(vis_p) else None)
+        data = _read_json(json_p)
+        return {
+            "tool": "SURF",
+            "num_keypoints": data.get("num_keypoints"),
+            "descriptor_dim": data.get("descriptor_dim"),
+            "surf_parameters_used": data.get("surf_parameters_used"),
+            "json_path": json_p,
+            "json_url": static_url(json_p, OUT),
+            "vis_url": static_url(vis_p, OUT) if os.path.exists(vis_p) else None,
+            "cache": True,
+        }
 
     j, v = surf_run(img_path, RESULT_DIR, **(req.params or {}))
     ensure_dir(os.path.dirname(json_p))
@@ -188,8 +245,19 @@ def feature_surf(req: FeatureReq):
         if os.path.exists(j): os.replace(j, json_p)
         if v and os.path.exists(v): os.replace(v, vis_p)
     except Exception:
-        return _return_feature("SURF", j, v)
-    return _return_feature("SURF", json_p, vis_p)
+        json_p, vis_p = j, v
+
+    data = _read_json(json_p)
+    return {
+        "tool": "SURF",
+        "num_keypoints": data.get("num_keypoints"),
+        "descriptor_dim": data.get("descriptor_dim"),
+        "surf_parameters_used": data.get("surf_parameters_used"),
+        "json_path": json_p,
+        "json_url": static_url(json_p, OUT),
+        "vis_url": static_url(vis_p, OUT) if os.path.exists(vis_p) else None,
+        "cache": False,
+    }
 
 
 # -------------------------

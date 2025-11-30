@@ -107,7 +107,11 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     (data?.payload && (data.payload.vis_url as string)) ||
     undefined;
 
-  const caption = (data?.description as string) || (resultUrl ? 'Result preview' : undefined);
+  const caption =
+  (data?.description &&
+    !/(running|start)/i.test(data?.description)) 
+    ? data.description
+    : (resultUrl ? 'Result preview' : 'Connect Image Input and run');
 
   // ✅ Theme: Green (สีเขียวเสมอ)
   let borderColor = 'border-green-500';
@@ -204,7 +208,7 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             draggable={false}
           />
         )}
-        {caption && <p className="text-xs text-gray-400 break-words">{caption}</p>}
+        {caption && <p className="text-xs text-white-400 break-words">{caption}</p>}
       </div>
 
       <div className="border-t-2 border-gray-700 p-2 text-sm">

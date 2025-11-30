@@ -1,6 +1,5 @@
-// src/components/nodes/SiftNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; // ✅ เพิ่ม useEdges
+import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 
@@ -37,10 +36,9 @@ function shapeToWH(shape?: any): { w?: number, h?: number } {
 
 const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
-  const edges = useEdges(); // ✅ ใช้ useEdges
+  const edges = useEdges(); 
   const [open, setOpen] = useState(false);
 
-  // ✅ Check Connection (Real-time)
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
   const params = useMemo(() => ({ ...DEFAULT_SIFT, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
@@ -94,19 +92,25 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const isFault = data?.status === 'fault';
 
   const handleRun = useCallback(() => {
-    if (isRunning) return;
-    data?.onRunNode?.(id);
+    if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
   const resultUrl = data?.payload?.result_image_url || data?.payload?.vis_url || data?.payload?.sift_vis_url;
-  const caption = data?.description || (resultUrl ? 'Result preview' : undefined);
+  
+  // ✅ เพิ่มข้อความ Default ถ้ายังไม่มีผลลัพธ์
+  
+  const caption =
+  (data?.description &&
+    !/(running|start)/i.test(data?.description)) 
+    ? data.description
+    : (resultUrl ? 'Result preview' : 'Connect Image Input and run');
 
-  // ✅ Theme: Green (Fixed)
+  
+
   let borderColor = 'border-green-500';
   if (selected) borderColor = 'border-green-400 ring-2 ring-green-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // ✅ Handle Class Logic
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
@@ -116,32 +120,16 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
-      
-      {/* Input Handle (Left) */}
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        className={targetHandleClass} 
-        style={{ top: '50%', transform: 'translateY(-50%)' }} 
-      />
-      
-      {/* Output Handle (Right) */}
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        className={sourceHandleClass} 
-        style={{ top: '50%', transform: 'translateY(-50%)' }} 
-      />
+      <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+      <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
       <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
         <div className="font-bold">SIFT</div>
-
         <div className="flex items-center gap-2">
           <button
             title="Run this node"
             onClick={handleRun}
             disabled={isRunning}
-            // ✅ Button: Green (Fixed)
             className={[
               'px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white',
               isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700',
@@ -161,6 +149,16 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             >
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                         whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white
+                         opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150
+                         group-hover:opacity-100"
+            >
+              Settings
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+            </span>
           </span>
         </div>
       </div>
@@ -169,11 +167,9 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         {fmtSize(upstream.w, upstream.h) && (
           <div className="text-[11px] text-gray-400">Input: {fmtSize(upstream.w, upstream.h)}</div>
         )}
-
         {typeof data?.payload?.num_keypoints === 'number' && (
           <div className="text-[11px] text-gray-400">Keypoints: {data.payload.num_keypoints}</div>
         )}
-
         {showProcessed && (
           <div className="text-[11px] text-gray-400">Processed: {fmtSize(processed.w!, processed.h!)}</div>
         )}
@@ -186,26 +182,15 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             draggable={false}
           />
         )}
-        {caption && <p className="text-xs text-gray-400 break-words">{caption}</p>}
+        {/* ✅ แสดงข้อความ (ถ้าไม่มีรูปจะเป็น "Connect...") */}
+        {caption && <p className="text-xs text-white-400 break-words">{caption}</p>}
       </div>
 
       <div className="border-t-2 border-gray-700 p-2 text-sm">
-        <div className="flex justify-between items-center py-1">
-          <span className="text-red-400">start</span>
-          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-cyan-400">running</span>
-          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-green-400">success</span>
-          <div className={statusDot(data?.status === 'success', 'bg-green-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          <div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} />
-        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
       <Modal open={open} title="SIFT Settings" onClose={handleClose}>
@@ -218,7 +203,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm((s: any) => ({ ...s, nfeatures: Number(e.target.value) }))}
             />
           </label>
-
           <label>Octaves
             <input
               type="number" step={1} min={1} max={8}
@@ -230,7 +214,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               }}
             />
           </label>
-
           <label>Contrast
             <input
               type="number" step="0.001" min={0}
@@ -239,7 +222,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm((s: any) => ({ ...s, contrastThreshold: Number(e.target.value) }))}
             />
           </label>
-
           <label>Edge
             <input
               type="number" min={0}
@@ -248,7 +230,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm((s: any) => ({ ...s, edgeThreshold: Number(e.target.value) }))}
             />
           </label>
-
           <label>Sigma
             <input
               type="number" step="0.1" min={0}
@@ -258,7 +239,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             />
           </label>
         </div>
-
         <div className="flex justify-end gap-2 pt-3">
           <button onClick={handleClose} className="px-3 py-1 rounded bg-gray-700">Cancel</button>
           <button onClick={saveParams} className="px-3 py-1 rounded bg-green-600 text-white">Save</button>

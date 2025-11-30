@@ -339,8 +339,8 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
           defaultEdgeOptions={defaultEdgeOptions as any}
           connectionLineType={ConnectionLineType.SmoothStep}
           fitView
-          minZoom={0.01}
-          maxZoom={Infinity}
+          minZoom={0.1}
+          maxZoom={5}
           onNodeDragStart={() => (isDraggingRef.current = true)}
           onNodeDragStop={() => (isDraggingRef.current = false)}
           deleteKeyCode={['Delete', 'Backspace']}
@@ -349,12 +349,12 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
           <MiniMap
             style={{
               position: 'absolute',
-              bottom: 0,   // ขยับขึ้นจากล่างนิดนึง ให้ไม่ชน Controls
-              left: 50,     // อยู่ข้างปุ่ม + -
+              bottom: 0,   
+              left: 50,     
               width: 200,
               height: 140,
               borderRadius: 8,
-              background: 'rgba(15,23,42,0.9)', // สีเข้มขึ้น
+              background: 'rgba(15,23,42,0.9)', 
               border: '1px solid #475569',
             }}
             maskColor="rgba(0,0,0,0.6)"

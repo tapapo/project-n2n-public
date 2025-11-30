@@ -1,6 +1,5 @@
-// src/components/nodes/OrbNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; // ✅ เพิ่ม useEdges
+import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 
@@ -30,27 +29,23 @@ const DEFAULT_ORB = {
   fastThreshold: 20,
 };
 
-const fmtSize = (w?: number|null, h?: number|null) => (w && h) ? `${w}×${h}px` : undefined;
+const fmtSize = (w?: number | null, h?: number | null) => (w && h) ? `${w}×${h}px` : undefined;
 function shapeToWH(shape?: any): { w?: number, h?: number } {
   if (!Array.isArray(shape) || shape.length < 2) return {};
-  const h = Number(shape[0]); const w = Number(shape[1]);
+  const h = Number(shape[0]);
+  const w = Number(shape[1]);
   if (Number.isFinite(w) && Number.isFinite(h)) return { w, h };
   return {};
 }
 
 const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
-  const edges = useEdges(); // ✅ ใช้ useEdges
+  const edges = useEdges();
   const [open, setOpen] = useState(false);
 
-  // ✅ Check Connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  const params = useMemo(
-    () => ({ ...DEFAULT_ORB, ...(data?.payload?.params || {}) }),
-    [data?.payload?.params]
-  );
-
+  const params = useMemo(() => ({ ...DEFAULT_ORB, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
   const [form, setForm] = useState(params);
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
 
@@ -78,17 +73,13 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
+
+  // ✅ แก้ warning: ensure it's used in Modal
   const saveParams = useCallback(() => {
     rf.setNodes((nds) =>
       nds.map((n) =>
         n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                payload: { ...(n.data?.payload || {}), params: { ...form } },
-              },
-            }
+          ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } }
           : n
       )
     );
@@ -97,54 +88,42 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const isRunning = data?.status === 'start' || data?.status === 'running';
   const isFault = data?.status === 'fault';
+  const isBusy = isRunning;
 
   const handleRun = useCallback(() => {
     if (isBusy) return;
     data?.onRunNode?.(id);
-  }, [data, id, isRunning]);
-
-  const isBusy = isRunning;
+  }, [data, id, isBusy]);
 
   const resultUrl =
-    (data?.payload && (data.payload.result_image_url as string)) ||
-    (data?.payload && (data.payload.vis_url as string)) ||
+    data?.payload?.result_image_url ||
+    data?.payload?.vis_url ||
     undefined;
 
-  const caption = (data?.description as string) || (resultUrl ? 'Result preview' : undefined);
+  const caption =
+  (data?.description &&
+    !/(running|start)/i.test(data?.description)) 
+    ? data.description
+    : (resultUrl ? 'Result preview' : 'Connect Image Input and run');
 
-  // ✅ Theme: Green (สีเขียวเสมอ)
+  // ✅ Theme
   let borderColor = 'border-green-500';
-  if (selected) {
-    borderColor = 'border-green-400 ring-2 ring-green-500';
-  } else if (isRunning) {
-    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
-  }
+  if (selected) borderColor = 'border-green-400 ring-2 ring-green-500';
+  else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // ✅ Handle Class Logic
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
       : 'bg-white border-gray-500'
   }`;
-
   const sourceHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 bg-white border-gray-500`;
 
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
-      {/* ✅ แยก Class Input/Output */}
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        className={targetHandleClass} 
-        style={{ top: '50%', transform: 'translateY(-50%)' }} 
-      />
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        className={sourceHandleClass} 
-        style={{ top: '50%', transform: 'translateY(-50%)' }} 
-      />
+      <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+      <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
+      {/* Header */}
       <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
         <div className="font-bold">ORB</div>
 
@@ -153,7 +132,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             title="Run this node"
             onClick={handleRun}
             disabled={isBusy}
-            // ✅ ปุ่มเขียวเสมอ
             className={[
               'px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white',
               isBusy ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700',
@@ -162,6 +140,7 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             {isBusy ? 'Running...' : '▶ Run'}
           </button>
 
+          {/* ✅ Tooltip Settings */}
           <span className="relative inline-flex items-center group">
             <button
               aria-label="Open ORB settings"
@@ -173,10 +152,21 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             >
               <SettingsSlidersIcon />
             </button>
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                         whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white
+                         opacity-0 shadow-lg ring-1 ring-black/20 transition-all duration-150
+                         translate-y-1 group-hover:translate-y-0 group-hover:opacity-100"
+            >
+              Settings
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+            </span>
           </span>
         </div>
       </div>
 
+      {/* Body */}
       <div className="p-4 space-y-3">
         {fmtSize(upstream.w, upstream.h) && (
           <div className="text-[11px] text-gray-400">Input: {fmtSize(upstream.w, upstream.h)}</div>
@@ -187,7 +177,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         {showProcessed && (
           <div className="text-[11px] text-gray-400">Processed: {fmtSize(processed.w!, processed.h!)}</div>
         )}
-
         {resultUrl && (
           <img
             src={resultUrl}
@@ -196,9 +185,10 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             draggable={false}
           />
         )}
-        {caption && <p className="text-xs text-gray-400 break-words">{caption}</p>}
+        {caption && <p className="text-xs text-white-400 break-words">{caption}</p>}
       </div>
 
+      {/* Status */}
       <div className="border-t-2 border-gray-700 p-2 text-sm">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>
@@ -218,57 +208,52 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
+      {/* ✅ Modal Settings */}
       <Modal open={open} title="ORB Settings" onClose={handleClose}>
         <div className="grid grid-cols-2 gap-3 text-xs text-gray-300">
-          <label>
-            nfeatures
+          <label>nfeatures
             <input
               type="number" min={0}
-              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              className="w-full bg-gray-900 rounded border border-gray-700"
               value={form.nfeatures}
               onChange={(e) => setForm((s: any) => ({ ...s, nfeatures: Number(e.target.value) }))}
             />
           </label>
-          <label>
-            scaleFactor
+          <label>scaleFactor
             <input
-              type="number" step="0.1" min={1.0}
-              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              type="number" step="0.1" min={1}
+              className="w-full bg-gray-900 rounded border border-gray-700"
               value={form.scaleFactor}
               onChange={(e) => setForm((s: any) => ({ ...s, scaleFactor: Number(e.target.value) }))}
             />
           </label>
-          <label>
-            nlevels
+          <label>nlevels
             <input
               type="number" min={1}
-              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              className="w-full bg-gray-900 rounded border border-gray-700"
               value={form.nlevels}
               onChange={(e) => setForm((s: any) => ({ ...s, nlevels: Number(e.target.value) }))}
             />
           </label>
-          <label>
-            edgeThreshold
+          <label>edgeThreshold
             <input
               type="number" min={0}
-              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              className="w-full bg-gray-900 rounded border border-gray-700"
               value={form.edgeThreshold}
               onChange={(e) => setForm((s: any) => ({ ...s, edgeThreshold: Number(e.target.value) }))}
             />
           </label>
-          <label>
-            firstLevel
+          <label>firstLevel
             <input
               type="number" min={0}
-              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              className="w-full bg-gray-900 rounded border border-gray-700"
               value={form.firstLevel}
               onChange={(e) => setForm((s: any) => ({ ...s, firstLevel: Number(e.target.value) }))}
             />
           </label>
-          <label>
-            WTA_K
+          <label>WTA_K
             <select
-              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              className="w-full bg-gray-900 rounded border border-gray-700"
               value={form.WTA_K}
               onChange={(e) => setForm((s: any) => ({ ...s, WTA_K: Number(e.target.value) }))}
             >
@@ -277,10 +262,9 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               <option value={4}>4</option>
             </select>
           </label>
-          <label>
-            scoreType
+          <label>scoreType
             <select
-              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              className="w-full bg-gray-900 rounded border border-gray-700"
               value={form.scoreType}
               onChange={(e) => setForm((s: any) => ({ ...s, scoreType: e.target.value }))}
             >
@@ -288,20 +272,18 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               <option value="HARRIS">HARRIS</option>
             </select>
           </label>
-          <label>
-            patchSize
+          <label>patchSize
             <input
               type="number" min={1}
-              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              className="w-full bg-gray-900 rounded border border-gray-700"
               value={form.patchSize}
               onChange={(e) => setForm((s: any) => ({ ...s, patchSize: Number(e.target.value) }))}
             />
           </label>
-          <label>
-            fastThreshold
+          <label>fastThreshold
             <input
               type="number" min={0}
-              className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
+              className="w-full bg-gray-900 rounded border border-gray-700"
               value={form.fastThreshold}
               onChange={(e) => setForm((s: any) => ({ ...s, fastThreshold: Number(e.target.value) }))}
             />
@@ -309,16 +291,10 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
 
         <div className="flex justify-end gap-2 pt-3">
-          <button
-            onClick={handleClose}
-            className="px-3 py-1 rounded bg-gray-700 text-gray-200 hover:bg-gray-600"
-          >
+          <button onClick={handleClose} className="px-3 py-1 rounded bg-gray-700 text-gray-200 hover:bg-gray-600">
             Cancel
           </button>
-          <button
-            onClick={saveParams}
-            className="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700"
-          >
+          <button onClick={saveParams} className="px-3 py-1 rounded bg-green-600 text-white hover:bg-green-700">
             Save
           </button>
         </div>
