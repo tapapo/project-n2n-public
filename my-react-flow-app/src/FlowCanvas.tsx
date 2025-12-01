@@ -339,7 +339,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
           defaultEdgeOptions={defaultEdgeOptions as any}
           connectionLineType={ConnectionLineType.SmoothStep}
           fitView
-          minZoom={0.1}
+          minZoom={0.08}
           maxZoom={5}
           onNodeDragStart={() => (isDraggingRef.current = true)}
           onNodeDragStop={() => (isDraggingRef.current = false)}

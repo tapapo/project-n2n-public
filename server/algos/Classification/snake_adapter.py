@@ -18,13 +18,11 @@ except ImportError:
 def _ensure_dir(d: str):
     os.makedirs(d, exist_ok=True)
 
-
 def _read_json(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
         raise FileNotFoundError(f"JSON file not found: {path}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
-
 
 def _to_gray(img: np.ndarray) -> np.ndarray:
     if img.ndim == 2:
@@ -33,14 +31,12 @@ def _to_gray(img: np.ndarray) -> np.ndarray:
         return cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
     return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
-
 def _contour_to_mask(contour_rc: np.ndarray, shape: tuple[int, int]) -> np.ndarray:
     poly = np.round(contour_rc[:, ::-1]).astype(np.int32)
     mask = np.zeros(shape, dtype=np.uint8)
     if len(poly) >= 3:
         cv2.fillPoly(mask, [poly], 255)
     return mask
-
 
 def _draw_overlay(base: np.ndarray, contour_rc: np.ndarray, color=(0, 0, 255)) -> np.ndarray:
     if base.ndim == 2:
@@ -49,70 +45,65 @@ def _draw_overlay(base: np.ndarray, contour_rc: np.ndarray, color=(0, 0, 255)) -
         vis = base.copy()
         if vis.ndim == 3 and vis.shape[2] == 4:
             vis = vis[:, :, :3]
+            
     pts = np.round(contour_rc[:, ::-1]).astype(np.int32)
     if len(pts) >= 2:
         cv2.polylines(vis, [pts], isClosed=True, color=color, thickness=2, lineType=cv2.LINE_AA)
     return vis
 
-
 # --- Initialization Helpers ---
 
 def _init_snake_circle(h: int, w: int, cx: Optional[int], cy: Optional[int], r: Optional[int], pts: int) -> np.ndarray:
-    if cx is None:
-        cx = w // 2
-    if cy is None:
-        cy = h // 2
-    if r is None or r <= 0:
-        r = min(h, w) // 3
+    if cx is None: cx = w // 2
+    if cy is None: cy = h // 2
+    if r is None or r <= 0: r = min(h, w) // 3
 
     s = np.linspace(0, 2 * np.pi, int(max(8, pts)), endpoint=False)
     x = cx + r * np.cos(s)
     y = cy + r * np.sin(s)
     return np.stack([y, x], axis=1).astype(np.float32)
 
-
 def _init_snake_bbox(h: int, w: int, x1, y1, x2, y2, pts: int) -> np.ndarray:
-    # Default bbox: center 60%
-    if x1 is None:
-        x1 = w * 0.2
-    if y1 is None:
-        y1 = h * 0.2
-    if x2 is None:
-        x2 = w * 0.8
-    if y2 is None:
-        y2 = h * 0.8
-
-    # ✅ Generate true rectangular contour (not ellipse)
+    if x1 is None: x1 = w * 0.2
+    if y1 is None: y1 = h * 0.2
+    if x2 is None: x2 = w * 0.8
+    if y2 is None: y2 = h * 0.8
+    
+    # Create rectangular contour points
     n_side = max(4, pts // 4)
-
+    
+    # Top: x1->x2, y1
     top_x = np.linspace(x1, x2, n_side)
     top_y = np.full_like(top_x, y1)
-
+    
+    # Right: x2, y1->y2
     right_y = np.linspace(y1, y2, n_side)
     right_x = np.full_like(right_y, x2)
-
+    
+    # Bottom: x2->x1, y2
     bottom_x = np.linspace(x2, x1, n_side)
     bottom_y = np.full_like(bottom_x, y2)
-
+    
+    # Left: x1, y2->y1
     left_y = np.linspace(y2, y1, n_side)
     left_x = np.full_like(left_y, x1)
-
+    
     xs = np.concatenate([top_x, right_x, bottom_x, left_x])
     ys = np.concatenate([top_y, right_y, bottom_y, left_y])
-
+    
     return np.stack([ys, xs], axis=1).astype(np.float32)
 
 
 def _prepare_image_for_snake(gray: np.ndarray, gaussian_blur_ksize: int) -> np.ndarray:
     if not HAS_SKIMAGE:
         return gray.astype(np.float32) / 255.0
-
+        
     img_float = gray.astype(np.float32) / 255.0
-
+    
     if gaussian_blur_ksize > 0:
         sigma = max(1.0, gaussian_blur_ksize / 3.0)
         img_float = gaussian(img_float, sigma=sigma, preserve_range=True)
-
+        
     return img_float
 
 
@@ -127,29 +118,35 @@ def run(
     w_edge: float = 1.0,
     max_iterations: int = 250,
     convergence: float = 0.1,
+    
     init_mode: str = "circle",
     init_cx: Optional[int] = None,
     init_cy: Optional[int] = None,
     init_radius: Optional[int] = None,
     init_points: int = 400,
+    
     from_point_x: Optional[float] = None,
     from_point_y: Optional[float] = None,
+    
     bbox_x1: Optional[float] = None,
     bbox_y1: Optional[float] = None,
     bbox_x2: Optional[float] = None,
     bbox_y2: Optional[float] = None,
+    
     gaussian_blur_ksize: int = 5,
 ) -> Tuple[str, Optional[str], Optional[str]]:
-
+    
+    # 1. Validation & Path
     if image_path.lower().endswith(".json"):
         try:
             data = _read_json(image_path)
             if "matching_tool" in data:
                 raise ValueError("Invalid Input: Snake cannot run on Matcher Result JSON.")
+            
             image_path = (
-                data.get("image", {}).get("original_path")
-                or data.get("output", {}).get("aligned_image")
-                or image_path
+                data.get("image", {}).get("original_path") or 
+                data.get("output", {}).get("aligned_image") or
+                image_path
             )
         except (json.JSONDecodeError, FileNotFoundError):
             pass
@@ -157,21 +154,25 @@ def run(
     img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
-
+    
     gray = _to_gray(img)
     h, w = gray.shape[:2]
-
+    
+    # 2. Initialization
     pts = int(max(8, init_points))
     snake0 = None
 
     if init_mode == "point" and from_point_x is not None and from_point_y is not None:
         r = init_radius if init_radius else 20
         snake0 = _init_snake_circle(h, w, from_point_x, from_point_y, r, pts)
+        
     elif init_mode == "bbox":
         snake0 = _init_snake_bbox(h, w, bbox_x1, bbox_y1, bbox_x2, bbox_y2, pts)
+        
     else:
         snake0 = _init_snake_circle(h, w, init_cx, init_cy, init_radius, pts)
 
+    # 3. Run Snake
     warning_msg = None
     if HAS_SKIMAGE:
         fimg = _prepare_image_for_snake(gray, gaussian_blur_ksize)
@@ -197,6 +198,7 @@ def run(
         warning_msg = "scikit-image not installed. Showing initial contour only."
         snake_rc = snake0
 
+    # 4. Save
     out_dir = os.path.join(out_root, "features", "snake_outputs")
     _ensure_dir(out_dir)
     uid = uuid.uuid4().hex[:8]
@@ -213,6 +215,7 @@ def run(
 
     contour_points_xy: List[List[float]] = [[float(x), float(y)] for (y, x) in snake_rc]
 
+    # ✅ เพิ่ม parameters ให้ครบทุกตัว
     result: Dict[str, Any] = {
         "tool": "SnakeActiveContour",
         "output_type": "classification",
@@ -225,8 +228,21 @@ def run(
         "parameters": {
             "alpha": float(alpha),
             "beta": float(beta),
+            "gamma": float(gamma),
+            "w_line": float(w_line),
+            "w_edge": float(w_edge),
+            "max_iterations": int(max_iterations),
+            "convergence": float(convergence),
+            "gaussian_blur_ksize": int(gaussian_blur_ksize),
             "init_mode": init_mode,
-            "bbox": [bbox_x1, bbox_y1, bbox_x2, bbox_y2],
+            "init_points": int(pts),
+            # เก็บค่า init ตามโหมด
+            "init_cx": init_cx,
+            "init_cy": init_cy,
+            "init_radius": init_radius,
+            "from_point_x": from_point_x,
+            "from_point_y": from_point_y,
+            "bbox": [bbox_x1, bbox_y1, bbox_x2, bbox_y2]
         },
         "output": {
             "contour_points_xy": contour_points_xy,
