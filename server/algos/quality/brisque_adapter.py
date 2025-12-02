@@ -1,7 +1,7 @@
 import os
 import sys
 import json
-import uuid
+import hashlib # ✅ ใช้ Hash
 from typing import Optional, Tuple, Dict, Any
 
 import cv2
@@ -14,10 +14,10 @@ MODEL_PATH = os.path.join(PROJECT_ROOT, "server/algos/quality/brisque_models/bri
 RANGE_PATH = os.path.join(PROJECT_ROOT, "server/algos/quality/brisque_models/brisque_range_live.yml")
 
 
+def _ensure_dir(d: str):
+    os.makedirs(d, exist_ok=True)
+
 def _to_uint8_gray(img: np.ndarray, image_path: str) -> np.ndarray:
-    """
-    แปลงภาพเป็น grayscale uint8
-    """
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
 
@@ -49,27 +49,16 @@ def _to_uint8_gray(img: np.ndarray, image_path: str) -> np.ndarray:
 
 
 def _interpret_brisque(score: float) -> str:
-    """
-    แปลงคะแนน BRISQUE เป็นระดับคุณภาพ
-    """
-    if score < 15:
-        return "excellent"
-    if score < 25:
-        return "good"
-    if score < 40:
-        return "fair"
-    if score < 60:
-        return "poor"
+    if score < 15: return "excellent"
+    if score < 25: return "good"
+    if score < 40: return "fair"
+    if score < 60: return "poor"
     return "very_poor"
 
 
 def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str, Any]]:
-    """
-    ประเมินคุณภาพภาพด้วย BRISQUE (no-reference)
-    """
-    # ---------------------------------------------------------
-    # 1. VALIDATION: ป้องกันการรับไฟล์ JSON จากโหนดอื่น
-    # ---------------------------------------------------------
+    
+    # 1. Validation
     if image_path.lower().endswith(".json"):
         try:
             with open(image_path, 'r', encoding='utf-8') as f:
@@ -80,77 +69,77 @@ def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str,
                     f"Invalid Input: Received a '{tool}' result file. "
                     "BRISQUE requires an Image file, not a JSON result."
                 )
+            # Fallback path extraction
+            image_path = (
+                meta.get("image", {}).get("original_path") or 
+                meta.get("output", {}).get("aligned_image") or
+                image_path
+            )
         except (json.JSONDecodeError, FileNotFoundError, PermissionError):
             pass
 
-    # ---------------------------------------------------------
-    # 2. Resolve absolute image path correctly ✅
-    # ---------------------------------------------------------
-    abs_path = image_path
-    if not os.path.isabs(image_path):
-        # เช่น "outputs/foo.png"
-        abs_path = os.path.join(PROJECT_ROOT, image_path.lstrip("/"))
-    elif image_path.startswith("/outputs/"):
-        # เช่น "/outputs/foo.png" → ให้ชี้ไปยัง project_n2n/outputs/foo.png
-        abs_path = os.path.join(PROJECT_ROOT, image_path.lstrip("/"))
+    # 2. Resolve Path
+    abs_path = os.path.abspath(image_path)
+    if not os.path.exists(abs_path):
+         # Try resolving relative to project root if absolute check fails
+         potential_path = os.path.join(PROJECT_ROOT, image_path.lstrip("/"))
+         if os.path.exists(potential_path):
+             abs_path = potential_path
 
-    print(f"[BRISQUE] Reading image from: {abs_path}")
+    # 3. Prepare Output
+    if out_root is None:
+        out_root = os.path.join(PROJECT_ROOT, "outputs")
+        
+    out_dir = os.path.join(out_root, "features", "brisque_outputs")
+    _ensure_dir(out_dir)
 
-    # ---------------------------------------------------------
-    # 3. Load Image
-    # ---------------------------------------------------------
+    # ✅ 4. Generate Hash (Deduplication)
+    # เนื่องจาก BRISQUE ไม่มีพารามิเตอร์ปรับแต่ง เรา Hash จากชื่อรูปและ Path ของ Model
+    config_map = {
+        "img": os.path.basename(abs_path),
+        "model": "default_live",
+        "ver": "1.0"
+    }
+    config_str = json.dumps(config_map, sort_keys=True)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
+    base_name = os.path.splitext(os.path.basename(abs_path))[0]
+    stem = f"brisque_{base_name}_{param_hash}"
+    out_json = os.path.join(out_dir, f"{stem}.json")
+
+    # ✅ 5. Check Cache (ถ้ามีไฟล์แล้ว อ่านตอบกลับเลย ไม่ต้องคำนวณใหม่)
+    if os.path.exists(out_json):
+        try:
+            with open(out_json, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return out_json, data
+        except Exception:
+            pass # ถ้าไฟล์เสีย คำนวณใหม่
+
+    # 6. Compute Logic
     img = cv2.imread(abs_path, cv2.IMREAD_UNCHANGED)
-
     if img is None:
-        raise ValueError(f"Cannot read image: {abs_path} (File might not be an image or path invalid)")
+        raise ValueError(f"Cannot read image: {abs_path}")
 
     gray = _to_uint8_gray(img, abs_path)
 
-    # Guard small images (statistics may be unstable)
     h, w = gray.shape[:2]
     if min(h, w) < 48:
-        raise ValueError(f"Image too small for stable BRISQUE (got {w}x{h}); please use >= 48x48. Path={abs_path}")
+        raise ValueError(f"Image too small for stable BRISQUE (got {w}x{h}); please use >= 48x48.")
 
-    # ---------------------------------------------------------
-    # 4. Ensure model files exist
-    # ---------------------------------------------------------
     if not os.path.exists(MODEL_PATH) or not os.path.exists(RANGE_PATH):
-        raise FileNotFoundError(
-            "BRISQUE model/range files not found.\n"
-            f"MODEL_PATH={MODEL_PATH}\nRANGE_PATH={RANGE_PATH}"
-        )
+        raise FileNotFoundError(f"BRISQUE model files not found at {MODEL_PATH}")
 
-    # ---------------------------------------------------------
-    # 5. Compute BRISQUE score
-    # ---------------------------------------------------------
     try:
         scorer = cv2.quality.QualityBRISQUE_create(MODEL_PATH, RANGE_PATH)
     except AttributeError as e:
-        raise RuntimeError(
-            "OpenCV 'quality' module not available. "
-            "Please install opencv-contrib-python, not just opencv-python."
-        ) from e
+        raise RuntimeError("OpenCV 'quality' module not available.") from e
 
     score = float(scorer.compute(gray)[0])
     score_rounded = round(score, 4)
     score_bucket = _interpret_brisque(score)
 
-    # ---------------------------------------------------------
-    # 6. Prepare output
-    # ---------------------------------------------------------
-    if out_root is None:
-        out_dir = os.path.join(PROJECT_ROOT, "outputs", "features", "brisque_outputs")
-    else:
-        out_dir = os.path.join(out_root, "features", "brisque_outputs")
-    os.makedirs(out_dir, exist_ok=True)
-
-    base = os.path.splitext(os.path.basename(image_path))[0]
-    uid = uuid.uuid4().hex[:8]
-    out_json = os.path.join(out_dir, f"{base}_brisque_{uid}.json")
-
-    # ---------------------------------------------------------
     # 7. Save JSON
-    # ---------------------------------------------------------
     data: Dict[str, Any] = {
         "tool": "BRISQUE",
         "tool_version": {
@@ -171,10 +160,10 @@ def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str,
         },
         "quality_score": score_rounded,
         "quality_bucket": score_bucket,
+        "parameters_hash": config_map # เก็บค่า Hash ไว้ดูเล่น
     }
 
     with open(out_json, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
-    print(f"[BRISQUE] Done. Score={score_rounded}, Bucket={score_bucket}")
     return out_json, data

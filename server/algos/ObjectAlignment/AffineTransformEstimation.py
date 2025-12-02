@@ -2,14 +2,30 @@ import cv2
 import numpy as np
 import json
 import os
-import uuid
+import hashlib
+from typing import Dict, Any
 
-# Helper: อ่าน JSON
+# --- Config ---
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
+
+def _ensure_dir(d: str):
+    os.makedirs(d, exist_ok=True)
+
 def _read_json(path: str):
     if not os.path.exists(path):
         raise FileNotFoundError(f"JSON file not found: {path}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
+
+# Helper to resolve image paths
+def _resolve_image_path(path: str) -> str:
+    if os.path.exists(path):
+        return path
+    # Try relative to project root
+    rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
+    if os.path.exists(rel_path):
+        return rel_path
+    return path
 
 def run(
     match_json_path: str, 
@@ -24,25 +40,22 @@ def run(
     # 1. อ่านข้อมูลจาก Matcher JSON
     data = _read_json(match_json_path)
 
-    # ✅ VALIDATION: เช็คว่าเป็นไฟล์ Matcher จริงไหม
+    # Validation
     if "matching_tool" not in data:
         raise ValueError("Invalid input: Input file is not a Matcher result.")
 
-    # 2. ดึงข้อมูล Path รูปภาพ (พร้อม Fallback)
+    # 2. ดึงข้อมูล Path รูปภาพ
     details = data.get("input_features_details", {})
     img1_info = details.get("image1", {})
     img2_info = details.get("image2", {})
 
-    path1 = img1_info.get("original_path")
-    path2 = img2_info.get("original_path")
+    path1 = _resolve_image_path(img1_info.get("original_path") or img1_info.get("file_name"))
+    path2 = _resolve_image_path(img2_info.get("original_path") or img2_info.get("file_name"))
 
-    if not path1 or not path2:
-         # Fallback: ลองหาจาก file_name
-         path1 = path1 or img1_info.get("file_name")
-         path2 = path2 or img2_info.get("file_name")
-         
-         if not path1 or not path2:
-            raise ValueError("Matcher JSON missing 'original_path'. Please re-run Feature & Matcher nodes.")
+    if not path1 or not os.path.exists(path1):
+        raise FileNotFoundError(f"Cannot find image 1: {path1}")
+    if not path2 or not os.path.exists(path2):
+        raise FileNotFoundError(f"Cannot find image 2: {path2}")
 
     # 3. โหลดรูปภาพ
     img1 = cv2.imread(path1)
@@ -51,12 +64,9 @@ def run(
     if img1 is None: raise FileNotFoundError(f"Cannot read image1: {path1}")
     if img2 is None: raise FileNotFoundError(f"Cannot read image2: {path2}")
 
-    # 4. ดึงจุดที่ Match กัน (matched_points)
+    # 4. ดึงจุดที่ Match กัน
     matched_points = data.get("matched_points", [])
-    
-    # เช็คว่ามี matched_points ไหม (ถ้าไฟล์เก่าอาจจะไม่มี)
     if not matched_points:
-         # ลอง fallback ไปใช้ good_matches แบบเดิม (ถ้าจำเป็น) หรือแจ้งเตือน
          raise ValueError("JSON missing 'matched_points'. Please re-run Matcher node.")
 
     src_pts = []
@@ -65,23 +75,22 @@ def run(
     target_img = None
     source_img = None
     
-    # จัดเตรียมจุดตาม Warp Mode
+    # จัดเตรียมจุด
     for mp in matched_points:
         pt1 = mp["pt1"]
         pt2 = mp["pt2"]
         
         if warp_mode == "image2_to_image1":
-            src_pts.append(pt2) # img2 ขยับ
-            dst_pts.append(pt1) # img1 นิ่ง
+            src_pts.append(pt2)
+            dst_pts.append(pt1)
             target_img = img1
             source_img = img2
         else:
-            src_pts.append(pt1) # img1 ขยับ
-            dst_pts.append(pt2) # img2 นิ่ง
+            src_pts.append(pt1)
+            dst_pts.append(pt2)
             target_img = img2
             source_img = img1
 
-    # Affine ต้องการอย่างน้อย 3 จุด
     if len(src_pts) < 3:
         raise ValueError(f"Not enough points for Affine (need 3+, found {len(src_pts)})")
 
@@ -91,7 +100,6 @@ def run(
     # 5. คำนวณ Affine Transform
     method = cv2.RANSAC
     if model == "partial":
-        # 4 DoF (Rotation + Scale + Translation)
         M, inliers_mask = cv2.estimateAffinePartial2D(
             src_pts, dst_pts, 
             method=method, 
@@ -101,7 +109,6 @@ def run(
         )
         tool_used = "AffinePartial2D"
     else:
-        # 6 DoF (Full Affine: +Shear)
         M, inliers_mask = cv2.estimateAffine2D(
             src_pts, dst_pts, 
             method=method, 
@@ -120,23 +127,52 @@ def run(
     h, w = target_img.shape[:2]
     aligned = cv2.warpAffine(source_img, M, (w, h))
 
-    # Blend (Optional)
     if blend:
+        if aligned.shape[:2] != target_img.shape[:2]:
+             aligned = cv2.resize(aligned, (target_img.shape[1], target_img.shape[0]))
         aligned = cv2.addWeighted(target_img, 0.5, aligned, 0.5, 0)
 
     # 7. Save Result
-    # ใช้โครงสร้างโฟลเดอร์แบบเดียวกับ adapter อื่นๆ
-    out_dir = os.path.join(out_root, "alignment", "affine_outputs")
-    os.makedirs(out_dir, exist_ok=True)
+    if out_root is None:
+        out_root = os.path.join(PROJECT_ROOT, "outputs")
+        
+    # ✅ แก้ไข Path: ไปลง features/affine_outputs แทน alignment/
+    out_dir = os.path.join(out_root, "features", "affine_outputs")
+    _ensure_dir(out_dir)
     
-    unique_id = uuid.uuid4().hex[:8]
-    out_img_name = f"aligned_affine_{unique_id}.jpg"
+    # ✅ Generate Hash
+    config_map = {
+        "match_json": os.path.basename(match_json_path),
+        "model": model,
+        "warp": warp_mode,
+        "blend": blend,
+        "ransac": ransac_thresh,
+        "conf": confidence,
+        "iters": refine_iters
+    }
+    config_str = json.dumps(config_map, sort_keys=True)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
+    base_match = os.path.splitext(os.path.basename(match_json_path))[0]
+    stem = f"affine_{base_match}_{param_hash}"
+    
+    out_img_name = f"{stem}.jpg"
+    out_json_name = f"{stem}.json"
+    
     out_img_path = os.path.join(out_dir, out_img_name)
-    
-    cv2.imwrite(out_img_path, aligned)
-
-    out_json_name = f"affine_{unique_id}.json"
     out_json_path = os.path.join(out_dir, out_json_name)
+
+    # Check Cache
+    if os.path.exists(out_json_path) and os.path.exists(out_img_path):
+         try:
+            with open(out_json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # Update paths in cached json just in case
+            return {"json_path": out_json_path, **data}
+         except:
+            pass
+
+    cv2.imwrite(out_img_path, aligned)
 
     result = {
         "tool": "AffineAlignment",
@@ -147,9 +183,11 @@ def run(
         "affine_matrix": M.tolist(),
         "output": {
             "aligned_image": out_img_path,
-            # ✅ เพิ่ม URL สำหรับ Frontend
-            "aligned_url": f"/static/alignment/affine_outputs/{out_img_name}"
-        }
+            # ✅ URL แก้ให้ตรงกับ Path ใหม่ (features/)
+            "aligned_url": f"/static/features/affine_outputs/{out_img_name}",
+            "result_image_url": f"/static/features/affine_outputs/{out_img_name}"
+        },
+        "parameters_hash": config_map
     }
 
     with open(out_json_path, "w", encoding="utf-8") as f:

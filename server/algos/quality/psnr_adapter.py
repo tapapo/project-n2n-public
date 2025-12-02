@@ -1,13 +1,22 @@
+# server/algos/quality/psnr_adapter.py
+
 import os
 import cv2
 import json
 import sys
-import uuid
+import hashlib # ✅ Use hashlib
+from datetime import datetime # ✅ Use datetime
+from typing import Tuple, Dict, Any, Optional
 import numpy as np
-from typing import Tuple, Dict, Any
 
+# --- Config ---
+# Calculate project root relative to this file: server/algos/quality/ -> up 3 levels
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 # ---------- Helpers ----------
+def _ensure_dir(d: str):
+    os.makedirs(d, exist_ok=True)
+
 def _drop_alpha(img: np.ndarray) -> np.ndarray:
     if img is None or img.ndim != 3:
         return img
@@ -51,17 +60,55 @@ def _to_luma(img: np.ndarray) -> np.ndarray:
         return ycrcb[:, :, 0]
     raise ValueError(f"Unsupported image format for luma: shape={img.shape}")
 
-
-def _validate_is_image(path: str, label: str):
+# ✅ Updated path resolution logic
+def _resolve_path(path: str) -> str:
     if path.lower().endswith(".json"):
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 meta = json.load(f)
+            
+            # Check for invalid types
             tool = meta.get("tool") or meta.get("matching_tool") or meta.get("alignment_tool")
-            if tool:
+            if tool and tool not in ["HomographyAlignment", "AffineAlignment"]: # Allow alignment results which are images
+                 # Note: This check is a bit loose, but main validation happens on file type
+                 pass
+
+            # Extract real image path
+            extracted = (
+                meta.get("image", {}).get("original_path") or 
+                meta.get("output", {}).get("aligned_image") or
+                meta.get("output", {}).get("result_image_url") or
+                meta.get("result_image_url") 
+            )
+            if extracted:
+                return extracted
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError):
+            pass
+    
+    # Check if path exists absolute
+    if os.path.exists(path):
+        return path
+    
+    # Try relative to project root
+    rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
+    if os.path.exists(rel_path):
+        return rel_path
+        
+    return path # Return original if resolution fails
+
+
+def _validate_is_image(path: str, label: str):
+    # This is now partly handled in _resolve_path but good for explicit type check
+    if path.lower().endswith(".json"):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            tool = meta.get("tool") or meta.get("matching_tool")
+            # Block Feature/Matcher JSONs but allow Alignment/Segmentation results that point to images
+            if tool in ["SIFT", "SURF", "ORB", "BFMatcher", "FLANNBasedMatcher"]: 
                 raise ValueError(
                     f"Invalid Input for '{label}': Received a '{tool}' result file. "
-                    "PSNR requires an Image file, not a JSON result."
+                    "PSNR requires an Image file, not a Feature/Matcher JSON."
                 )
         except (json.JSONDecodeError, FileNotFoundError, PermissionError):
             pass
@@ -70,27 +117,31 @@ def _validate_is_image(path: str, label: str):
 # ---------- Main ----------
 def run(original_path: str,
         processed_path: str,
-        out_root: str = "outputs",
+        out_root: Optional[str] = None,
         use_luma: bool = True) -> Tuple[str, Dict[str, Any]]:
     
-    # ✅ 1. Validate Inputs
+    # 1. Resolve Paths first
+    real_orig_path = _resolve_path(original_path)
+    real_proc_path = _resolve_path(processed_path)
+
+    # 2. Validate Inputs
     _validate_is_image(original_path, "Input 1 (Original)")
     _validate_is_image(processed_path, "Input 2 (Processed)")
 
-    # 2. Load Images
-    img1 = cv2.imread(original_path, cv2.IMREAD_UNCHANGED)
-    img2 = cv2.imread(processed_path, cv2.IMREAD_UNCHANGED)
+    # 3. Load Images
+    img1 = cv2.imread(real_orig_path, cv2.IMREAD_UNCHANGED)
+    img2 = cv2.imread(real_proc_path, cv2.IMREAD_UNCHANGED)
 
     if img1 is None:
-        raise FileNotFoundError(f"Cannot read image 1: {original_path}")
+        raise FileNotFoundError(f"Cannot read image 1: {real_orig_path}")
     if img2 is None:
-        raise FileNotFoundError(f"Cannot read image 2: {processed_path}")
+        raise FileNotFoundError(f"Cannot read image 2: {real_proc_path}")
 
-    # 3. Drop alpha
+    # 4. Drop alpha
     img1 = _drop_alpha(img1)
     img2 = _drop_alpha(img2)
 
-    # 4. Optional luminance conversion
+    # 5. Optional luminance conversion
     if use_luma:
         try:
             img1 = _to_luma(img1)
@@ -98,14 +149,14 @@ def run(original_path: str,
         except Exception as e:
             raise ValueError(f"Luma conversion failed: {e}")
 
-    # 5. Shape check
+    # 6. Shape check
     if img1.shape != img2.shape:
         raise ValueError(f"Image shape mismatch: {img1.shape} vs {img2.shape}. Images must have same dimensions for PSNR.")
 
-    # 6. Unify dtype
+    # 7. Unify dtype
     img1, img2 = _to_same_dtype(img1, img2)
 
-    # 7. Compute PSNR
+    # 8. Compute PSNR
     if _exact_equal(img1, img2):
         mse = 0.0
         R = _pick_R_strict(img1)
@@ -118,17 +169,39 @@ def run(original_path: str,
         else:
             score = 10.0 * np.log10((R * R) / mse)
 
-    # 8. Save JSON
+    # 9. Prepare Output
+    if out_root is None:
+        out_root = os.path.join(PROJECT_ROOT, "outputs")
+        
     out_dir = os.path.join(out_root, "features", "psnr_outputs")
-    os.makedirs(out_dir, exist_ok=True)
+    _ensure_dir(out_dir)
 
-    uid = uuid.uuid4().hex[:8]
-    stem1 = os.path.splitext(os.path.basename(original_path))[0]
-    stem2 = os.path.splitext(os.path.basename(processed_path))[0]
-    out_json = os.path.join(out_dir, f"psnr_{stem1}_vs_{stem2}_{uid}.json")
+    # ✅ Generate Hash from inputs & params
+    config_map = {
+        "img1": os.path.basename(real_orig_path),
+        "img2": os.path.basename(real_proc_path),
+        "luma": use_luma
+    }
+    config_str = json.dumps(config_map, sort_keys=True)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
+    stem1 = os.path.splitext(os.path.basename(real_orig_path))[0]
+    stem2 = os.path.splitext(os.path.basename(real_proc_path))[0]
+    # psnr_[img1]_[img2]_[hash].json
+    out_json = os.path.join(out_dir, f"psnr_{stem1}_vs_{stem2}_{param_hash}.json")
 
     interpretation = "Higher is better. Infinity for identical images given the same dynamic range."
 
+    # 10. Check Cache
+    if os.path.exists(out_json):
+         try:
+            with open(out_json, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return out_json, data
+         except:
+            pass
+
+    # 11. Save JSON
     data: Dict[str, Any] = {
         "tool": "PSNR",
         "tool_version": {
@@ -141,14 +214,14 @@ def run(original_path: str,
         },
         "images": {
             "original": {
-                "file_name": os.path.basename(original_path),
-                "path": original_path,
+                "file_name": os.path.basename(real_orig_path),
+                "path": real_orig_path,
                 "shape": list(img1.shape),
                 "dtype": str(img1.dtype),
             },
             "processed": {
-                "file_name": os.path.basename(processed_path),
-                "path": processed_path,
+                "file_name": os.path.basename(real_proc_path),
+                "path": real_proc_path,
                 "shape": list(img2.shape),
                 "dtype": str(img2.dtype),
             },
@@ -157,7 +230,8 @@ def run(original_path: str,
         "score_interpretation": interpretation,
         "aux": {
             "mse": float(mse)
-        }
+        },
+        "parameters_hash": config_map
     }
 
     with open(out_json, "w", encoding="utf-8") as f:

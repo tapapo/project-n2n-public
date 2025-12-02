@@ -1,6 +1,7 @@
 import os
 import json
 import uuid
+import hashlib # ✅ เพิ่ม hashlib สำหรับสร้างรหัสจากพารามิเตอร์
 from typing import Dict, Any, Tuple, Optional, List
 
 import cv2
@@ -69,22 +70,17 @@ def _init_snake_bbox(h: int, w: int, x1, y1, x2, y2, pts: int) -> np.ndarray:
     if x2 is None: x2 = w * 0.8
     if y2 is None: y2 = h * 0.8
     
-    # Create rectangular contour points
     n_side = max(4, pts // 4)
     
-    # Top: x1->x2, y1
     top_x = np.linspace(x1, x2, n_side)
     top_y = np.full_like(top_x, y1)
     
-    # Right: x2, y1->y2
     right_y = np.linspace(y1, y2, n_side)
     right_x = np.full_like(right_y, x2)
     
-    # Bottom: x2->x1, y2
     bottom_x = np.linspace(x2, x1, n_side)
     bottom_y = np.full_like(bottom_x, y2)
     
-    # Left: x1, y2->y1
     left_y = np.linspace(y2, y1, n_side)
     left_x = np.full_like(left_y, x1)
     
@@ -198,24 +194,55 @@ def run(
         warning_msg = "scikit-image not installed. Showing initial contour only."
         snake_rc = snake0
 
-    # 4. Save
+    # 4. Save Outputs (✅ ใช้ Hash จาก Params เพื่อกันไฟล์ซ้ำ)
     out_dir = os.path.join(out_root, "features", "snake_outputs")
     _ensure_dir(out_dir)
-    uid = uuid.uuid4().hex[:8]
+    
+    # รวบรวมค่า Config ที่มีผลต่อการคำนวณ
+    config_to_hash = {
+        "image_filename": os.path.basename(image_path), # รูปเดียวกัน
+        "alpha": alpha,
+        "beta": beta,
+        "gamma": gamma,
+        "w_line": w_line,
+        "w_edge": w_edge,
+        "max_iterations": max_iterations,
+        "convergence": convergence,
+        "gaussian_blur_ksize": gaussian_blur_ksize,
+        "init_mode": init_mode,
+        "init_params": { # ตำแหน่งเริ่มต้นเดียวกัน
+            "cx": init_cx, "cy": init_cy, "r": init_radius,
+            "px": from_point_x, "py": from_point_y,
+            "bbox": [bbox_x1, bbox_y1, bbox_x2, bbox_y2]
+        }
+    }
+    
+    # สร้าง Hash (รหัสย่อ)
+    config_str = json.dumps(config_to_hash, sort_keys=True)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+    
+    # ชื่อไฟล์: snake_[ชื่อรูป]_[รหัสพารามิเตอร์].json
+    # ถ้าพารามิเตอร์เดิม -> รหัสเดิม -> ไฟล์เดิม (ทับของเก่า)
+    stem = f"snake_{base_name}_{param_hash}"
 
     mask = _contour_to_mask(snake_rc, shape=(h, w))
     overlay = _draw_overlay(gray, snake_rc)
 
-    json_path = os.path.join(out_dir, f"snake_{uid}.json")
-    overlay_path = os.path.join(out_dir, f"snake_overlay_{uid}.png")
-    mask_path = os.path.join(out_dir, f"snake_mask_{uid}.png")
+    json_path = os.path.join(out_dir, f"{stem}.json")
+    
+    overlay_name = f"{stem}_overlay.png"
+    mask_name = f"{stem}_mask.png"
+    
+    overlay_path = os.path.join(out_dir, overlay_name)
+    mask_path = os.path.join(out_dir, mask_name)
 
     cv2.imwrite(overlay_path, overlay)
     cv2.imwrite(mask_path, mask)
 
     contour_points_xy: List[List[float]] = [[float(x), float(y)] for (y, x) in snake_rc]
 
-    # ✅ เพิ่ม parameters ให้ครบทุกตัว
     result: Dict[str, Any] = {
         "tool": "SnakeActiveContour",
         "output_type": "classification",
@@ -236,7 +263,6 @@ def run(
             "gaussian_blur_ksize": int(gaussian_blur_ksize),
             "init_mode": init_mode,
             "init_points": int(pts),
-            # เก็บค่า init ตามโหมด
             "init_cx": init_cx,
             "init_cy": init_cy,
             "init_radius": init_radius,
@@ -249,9 +275,9 @@ def run(
             "mask_path": mask_path,
             "overlay_path": overlay_path,
             "iterations": int(max_iterations),
-            "overlay_url": f"/static/features/snake_outputs/{os.path.basename(overlay_path)}",
-            "mask_url": f"/static/features/snake_outputs/{os.path.basename(mask_path)}",
-            "result_image_url": f"/static/features/snake_outputs/{os.path.basename(overlay_path)}"
+            "overlay_url": f"/static/features/snake_outputs/{overlay_name}",
+            "mask_url": f"/static/features/snake_outputs/{mask_name}",
+            "result_image_url": f"/static/features/snake_outputs/{overlay_name}"
         },
         "warning": warning_msg
     }

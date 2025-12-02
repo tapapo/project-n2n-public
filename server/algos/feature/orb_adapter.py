@@ -1,14 +1,15 @@
 # server/algos/feature/orb_adapter.py
 
 import os, sys, json, uuid
+import hashlib # ✅ Use hashlib
 import numpy as np
 import cv2
-from typing import TYPE_CHECKING, Optional, Union, Tuple
+from typing import TYPE_CHECKING, Optional, Union, Tuple, Dict, Any
 
 if TYPE_CHECKING:
     import cv2
 
-# โฟลเดอร์เริ่มต้น
+# Default output folder
 BASE_DIR = os.getenv("N2N_OUT", "outputs")
 
 # ---------------- Utils ----------------
@@ -36,15 +37,33 @@ def run(
     **params
 ) -> Tuple[str, str]:
     
+    # 1. Validation & Path Resolution
+    image_path_str = os.fspath(image_path)
+    if image_path_str.lower().endswith(".json"):
+        try:
+            with open(image_path_str, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            
+            if "matching_tool" in meta:
+                 raise ValueError(f"Invalid Input: ORB cannot run on '{meta.get('matching_tool')}' result JSON.")
+            if "tool" in meta and meta["tool"] in ["SIFT", "SURF", "ORB"]:
+                 raise ValueError(f"Invalid Input: ORB cannot run on '{meta['tool']}' feature JSON.")
+            
+            image_path = (
+                meta.get("image", {}).get("original_path") or 
+                meta.get("output", {}).get("aligned_image") or
+                meta.get("output", {}).get("result_image_url") or
+                image_path
+            )
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError):
+            pass 
+
     # --- normalize paths ---
     image_path = os.fspath(image_path)
     base_dir = os.fspath(out_dir) if out_dir is not None else BASE_DIR
     
     algo_dir = os.path.join(base_dir, "features", "orb_outputs")
     ensure_dir(algo_dir)
-    
-    vis_dir = os.path.join(algo_dir, "visuals")
-    ensure_dir(vis_dir)
 
     # --- Read image ---
     if not os.path.exists(image_path):
@@ -54,23 +73,55 @@ def run(
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
 
+    # --- Generate Hash for Deduplication ---
+    # Create a config dictionary including image filename and parameters
+    config_map = {
+        "img": os.path.basename(image_path),
+        "nfeatures": int(params.get("nfeatures", 500)),
+        "scaleFactor": float(params.get("scaleFactor", 1.2)),
+        "nlevels": int(params.get("nlevels", 8)),
+        "edgeThreshold": int(params.get("edgeThreshold", 31)),
+        "firstLevel": int(params.get("firstLevel", 0)),
+        "WTA_K": int(params.get("WTA_K", 2)),
+        "scoreType": str(params.get("scoreType", "FAST")),
+        "patchSize": int(params.get("patchSize", 31)),
+        "fastThreshold": int(params.get("fastThreshold", 20)),
+    }
+    
+    config_str = json.dumps(config_map, sort_keys=True)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+    stem = f"orb_{base_name}_{param_hash}"
+    
+    json_path = os.path.join(algo_dir, f"{stem}.json")
+    vis_path = os.path.join(algo_dir, f"{stem}_vis.jpg")
+
+    # ✅ Check Cache: If files exist, return immediately
+    if os.path.exists(json_path) and os.path.exists(vis_path):
+        # Validate JSON integrity
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                json.load(f)
+            return json_path, vis_path
+        except:
+            pass # Re-run if corrupted
+
     # --- Run ORB ---
-    # ORB Parameters mapping
     orb = cv2.ORB_create(
-        nfeatures=int(params.get("nfeatures", 500)),
-        scaleFactor=float(params.get("scaleFactor", 1.2)),
-        nlevels=int(params.get("nlevels", 8)),
-        edgeThreshold=int(params.get("edgeThreshold", 31)),
-        firstLevel=int(params.get("firstLevel", 0)),
-        WTA_K=int(params.get("WTA_K", 2)),
-        scoreType=cv2.ORB_FAST_SCORE if str(params.get("scoreType","FAST")).upper()=="FAST" else cv2.ORB_HARRIS_SCORE,
-        patchSize=int(params.get("patchSize", 31)),
-        fastThreshold=int(params.get("fastThreshold", 20)),
+        nfeatures=config_map["nfeatures"],
+        scaleFactor=config_map["scaleFactor"],
+        nlevels=config_map["nlevels"],
+        edgeThreshold=config_map["edgeThreshold"],
+        firstLevel=config_map["firstLevel"],
+        WTA_K=config_map["WTA_K"],
+        scoreType=cv2.ORB_FAST_SCORE if config_map["scoreType"].upper()=="FAST" else cv2.ORB_HARRIS_SCORE,
+        patchSize=config_map["patchSize"],
+        fastThreshold=config_map["fastThreshold"],
     )
 
     kps, desc = orb.detectAndCompute(img, None)
     
-    # Handle descriptors (ORB uses uint8)
     if desc is None:
         desc = np.empty((0, 32), dtype=np.uint8)
 
@@ -105,21 +156,15 @@ def run(
         "num_keypoints": len(kplist),
         "descriptor_dim": 32,
         "keypoints": kplist,
-        "descriptors": desc.tolist()
+        "descriptors": desc.tolist(),
+        "parameters_hash": config_map
     }
 
-    # --- Generate Unique Filename ---
-    base = os.path.splitext(os.path.basename(image_path))[0]
-    unique_id = uuid.uuid4().hex[:8]
-    stem = f"{base}_orb_{unique_id}"
-
     # --- Save JSON ---
-    json_path = os.path.join(algo_dir, stem + ".json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
 
     # --- Save Visualization ---
-    # Prepare BGR image for drawing
     if img.ndim == 2:
         vis_src = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
     elif img.ndim == 3 and img.shape[2] == 4:
@@ -131,7 +176,6 @@ def run(
         vis_src, kps, None, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS
     )
     
-    vis_path = os.path.join(vis_dir, stem + "_vis.jpg")
     cv2.imwrite(vis_path, vis)
 
     return json_path, vis_path

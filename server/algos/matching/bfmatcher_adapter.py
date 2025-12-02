@@ -1,7 +1,13 @@
+# server/algos/matching/bfmatcher_adapter.py
+
 import os, json, cv2, sys, uuid
+import hashlib # ✅ Use hashlib
+from datetime import datetime # ✅ Use datetime
 import numpy as np
 from typing import Tuple, Optional, Any, Dict, List
 
+# --- Config ---
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 def _norm_from_str(s: Optional[str]) -> Optional[int]:
     if s is None:
@@ -37,17 +43,30 @@ def _read_json(path: str) -> Dict[str, Any]:
         raise FileNotFoundError(f"JSON file not found: {path}")
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
-
+        
+# ✅ Helper to resolve image paths
+def _resolve_image_path(path: str) -> str:
+    if not path: return path
+    if os.path.exists(path): return path
+    
+    # Try relative to project root
+    rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
+    if os.path.exists(rel_path): return rel_path
+    
+    return path
 
 def load_descriptor_data(json_path: str):
     data = _read_json(json_path)
 
-    # ✅ เพิ่ม Logic ดักจับไฟล์ผิดประเภท (จะได้ไม่ขึ้น UNKNOWN งงๆ)
+    # ✅ Validation
     if "matching_tool" in data:
         raise ValueError(f"Invalid input: Input is a '{data['matching_tool']}' result. BFMatcher requires Feature files (SIFT/SURF/ORB).")
     
     if "tool" not in data:
-        raise ValueError("Invalid input: JSON missing 'tool' field. Please check upstream connections.")
+        # Allow if it looks like a feature file but missing 'tool' (legacy check), else raise
+        if "keypoints" not in data:
+             raise ValueError("Invalid input: JSON missing 'tool' and 'keypoints'. Please check upstream connections.")
+        # If missing tool but has keypoints, proceed with caution or default to UNKNOWN
 
     tool_name = str(data.get("tool", "UNKNOWN")).upper()
     keypoints_data = data.get("keypoints", [])
@@ -98,17 +117,22 @@ def load_descriptor_data(json_path: str):
         extra["WTA_K"] = wta_k
 
     else:
-        raise ValueError(f"Unsupported descriptor tool: {tool_name}")
+        # If tool is unknown but we have data, default to L2
+        if descriptors_list:
+             descriptors = np.array(descriptors_list)
+             default_norm = cv2.NORM_L2
+        else:
+             raise ValueError(f"Unsupported descriptor tool: {tool_name}")
 
+    # Extract path
     img_path = image_dict.get("original_path")
-    # Fallback if original_path missing but file_name exists (assume same dir)
     if not img_path and image_dict.get("file_name"):
         img_path = image_dict.get("file_name")
+    
+    # Resolve path
+    if img_path:
+        img_path = _resolve_image_path(img_path)
         
-    if not img_path:
-        # Allow partial execution without image for pure math checks, but warn
-        print(f"Warning: Missing image path in {json_path}")
-
     return keypoints, descriptors, tool_name, img_path, default_norm, extra
 
 
@@ -140,11 +164,12 @@ def run(
     cross_check: Optional[bool] = None,
     draw_mode: Optional[str] = "good",
 ):
+    # 1. Load Data
     kp1, des1, tool1, img_path1, default_norm1, extra1 = load_descriptor_data(json_a)
     kp2, des2, tool2, img_path2, default_norm2, extra2 = load_descriptor_data(json_b)
 
     if tool1 != tool2:
-        raise ValueError(f"Descriptor type mismatch: {tool1} vs {tool2}")
+        raise ValueError(f"Descriptor type mismatch: {tool1} vs {tool2}. Matcher requires same feature type.")
 
     # ORB handling
     if tool1 == "ORB":
@@ -185,9 +210,9 @@ def run(
     if mode_in not in ("good", "inliers"):
         mode_in = "good"
 
+    # 2. Matching
     bf = cv2.BFMatcher(desired_norm, crossCheck=use_cross_check)
 
-    # Matching
     raw_matches, good_matches = [], []
     if use_cross_check:
         if des1.size > 0 and des2.size > 0:
@@ -206,7 +231,7 @@ def run(
                     good_matches.append(m)
             good_matches = sorted(good_matches, key=lambda x: x.distance)
 
-    # Homography
+    # 3. Homography
     inliers = 0
     inlier_mask = None
     homography_reason = None
@@ -220,48 +245,82 @@ def run(
             inliers = int(mask.sum())
             inlier_mask = mask.ravel().tolist()
             for (m, flag) in zip(good_matches, inlier_mask):
-                matched_points.append({
-                    "queryIdx": m.queryIdx,
-                    "trainIdx": m.trainIdx,
-                    "pt1": [float(kp1[m.queryIdx].pt[0]), float(kp1[m.queryIdx].pt[1])],
-                    "pt2": [float(kp2[m.trainIdx].pt[0]), float(kp2[m.trainIdx].pt[1])],
-                    "distance": round(float(m.distance), 4),
-                    "inlier": bool(flag)
-                })
+                # Only keep points that are inliers for Alignment usage
+                if flag: 
+                    matched_points.append({
+                        "pt1": [float(kp1[m.queryIdx].pt[0]), float(kp1[m.queryIdx].pt[1])],
+                        "pt2": [float(kp2[m.trainIdx].pt[0]), float(kp2[m.trainIdx].pt[1])],
+                    })
         else:
             homography_reason = "findHomography_failed"
     else:
         homography_reason = "not_enough_good_matches"
 
-    # Image info
+    # 4. Prepare Output Dir
+    if out_root is None:
+        out_root = os.path.join(PROJECT_ROOT, "outputs")
+        
+    out_dir = os.path.join(out_root, "features", "bfmatcher_outputs")
+    # Ensure output directory exists
+    def _ensure_dir(path: str):
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+    _ensure_dir(out_dir)
+    
+    # ✅ Generate Hash for deduplication
+    config_map = {
+        "json1": os.path.basename(json_a),
+        "json2": os.path.basename(json_b),
+        "norm": desired_norm,
+        "cross": use_cross_check,
+        "lowe": effective_lowe_ratio,
+        "ransac": ransac_thresh,
+        "mode": mode_in
+    }
+    config_str = json.dumps(config_map, sort_keys=True, default=str)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
+    stem = f"bf_{param_hash}"
+    
+    out_json_path = os.path.join(out_dir, f"{stem}.json")
+    out_vis_path = os.path.join(out_dir, f"{stem}_vis.jpg")
+
+    # Check Cache
+    if os.path.exists(out_json_path) and os.path.exists(out_vis_path):
+         try:
+            with open(out_json_path, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            d["json_path"] = out_json_path
+            return d
+         except:
+            pass
+
+    # 5. Visualization (Save if not cached)
     w1, h1, c1 = _image_size(img_path1)
     w2, h2, c2 = _image_size(img_path2)
-
-    # Visualization
-    vis_path = None
+    
+    vis_path_rel = None
     if img_path1 and img_path2 and os.path.exists(img_path1) and os.path.exists(img_path2):
         img1 = cv2.imread(img_path1)
         img2 = cv2.imread(img_path2)
         if img1 is not None and img2 is not None and len(good_matches) > 0:
             draw_list = good_matches
-            if mode_in == "inliers" and inlier_mask is not None:
-                draw_list = [m for m, flag in zip(good_matches, inlier_mask) if flag]
+            # Draw only inliers if mode is 'inliers' and we have a mask
+            matches_mask = inlier_mask if (mode_in == "inliers" and inlier_mask) else None
             
-            if len(draw_list) > 0:
-                vis = cv2.drawMatches(
-                    img1, kp1, img2, kp2, draw_list[:100], None, # Limit draw count for speed
-                    flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
-                )
-                out_vis_dir = os.path.join(out_root, "features", "bfmatcher_outputs", "visuals")
-                os.makedirs(out_vis_dir, exist_ok=True)
-                vis_path = os.path.join(out_vis_dir, f"bf_vis_{uuid.uuid4().hex[:8]}.jpg")
-                cv2.imwrite(vis_path, vis)
+            # If mode is inliers but no mask (failed homography), draw nothing or fallback to good? 
+            # Usually good matches are drawn.
+            
+            vis = cv2.drawMatches(
+                img1, kp1, img2, kp2, draw_list[:200], None, # Limit to 200 for performance
+                matchesMask=matches_mask[:200] if matches_mask else None,
+                flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+            )
+            
+            cv2.imwrite(out_vis_path, vis)
+            vis_path_rel = f"/static/features/bfmatcher_outputs/{stem}_vis.jpg"
 
-    # Output JSON
-    out_dir = os.path.join(out_root, "features", "bfmatcher_outputs")
-    os.makedirs(out_dir, exist_ok=True)
-    out_json = os.path.join(out_dir, f"bfmatcher_{tool1.lower()}_{uuid.uuid4().hex[:8]}.json")
-
+    # 6. Save JSON
     result = {
         "matching_tool": "BFMatcher",
         "tool_version": {"opencv": cv2.__version__, "python": sys.version.split()[0]},
@@ -278,14 +337,12 @@ def run(
                 "file_name": os.path.basename(img_path1) if img_path1 else "unknown",
                 "feature_tool": tool1,
                 "num_keypoints": len(kp1),
-                "descriptor_shape": list(des1.shape),
             },
             "image2": {
                 "original_path": img_path2,
                 "file_name": os.path.basename(img_path2) if img_path2 else "unknown",
                 "feature_tool": tool2,
                 "num_keypoints": len(kp2),
-                "descriptor_shape": list(des2.shape),
             },
         },
         "inputs": {
@@ -300,18 +357,14 @@ def run(
             "homography_reason": homography_reason,
         },
         "inliers": inliers,
-        "inlier_mask": inlier_mask,
-        # ย่อข้อมูล Good Matches ให้เหลือเฉพาะที่จำเป็นเพื่อลดขนาดไฟล์
-        "good_matches": [
-            {"queryIdx": m.queryIdx, "trainIdx": m.trainIdx, "distance": round(float(m.distance), 4)}
-            for m in good_matches
-        ],
+        # Don't save raw 'inlier_mask' list to keep JSON small, use matched_points instead
         "matched_points": matched_points, 
-        "vis_url": vis_path,
+        "vis_url": vis_path_rel,
+        "parameters_hash": config_map
     }
 
-    with open(out_json, "w", encoding="utf-8") as f:
+    with open(out_json_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
 
-    result["json_path"] = out_json
+    result["json_path"] = out_json_path
     return result

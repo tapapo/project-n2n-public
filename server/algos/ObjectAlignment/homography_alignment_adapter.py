@@ -1,8 +1,15 @@
+# server/algos/ObjectAlignment/homography_alignment_adapter.py
+
 import cv2
 import numpy as np
 import json
 import os
-import uuid
+import hashlib # ✅ Use hashlib
+from datetime import datetime # ✅ Use datetime
+from typing import Dict, Any
+
+# --- Config ---
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 def _read_json(path: str):
     if not os.path.exists(path):
@@ -10,7 +17,22 @@ def _read_json(path: str):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def run(match_json_path: str, out_root: str, warp_mode: str = "image2_to_image1", blend: bool = False):
+# Helper to resolve image paths
+def _resolve_image_path(path: str) -> str:
+    if os.path.exists(path):
+        return path
+    # Try relative to project root
+    rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
+    if os.path.exists(rel_path):
+        return rel_path
+    return path
+
+def run(
+    match_json_path: str, 
+    out_root: str, 
+    warp_mode: str = "image2_to_image1", 
+    blend: bool = False
+):
     # 1. อ่านข้อมูลจาก Matcher JSON
     data = _read_json(match_json_path)
 
@@ -23,21 +45,18 @@ def run(match_json_path: str, out_root: str, warp_mode: str = "image2_to_image1"
     img1_info = details.get("image1", {})
     img2_info = details.get("image2", {})
 
-    path1 = img1_info.get("original_path")
-    path2 = img2_info.get("original_path")
+    path1 = _resolve_image_path(img1_info.get("original_path") or img1_info.get("file_name"))
+    path2 = _resolve_image_path(img2_info.get("original_path") or img2_info.get("file_name"))
 
-    if not path1 or not path2:
-        # Fallback
-        path1 = path1 or img1_info.get("file_name")
-        path2 = path2 or img2_info.get("file_name")
-        
-        if not path1 or not path2:
-            raise ValueError("Matcher JSON missing 'original_path'. Please re-run Feature & Matcher nodes.")
+    if not path1 or not os.path.exists(path1):
+        raise FileNotFoundError(f"Cannot find image 1: {path1}")
+    if not path2 or not os.path.exists(path2):
+        raise FileNotFoundError(f"Cannot find image 2: {path2}")
 
     # 3. โหลดรูปภาพ
     img1 = cv2.imread(path1)
     img2 = cv2.imread(path2)
-
+    
     if img1 is None: raise FileNotFoundError(f"Cannot read image1: {path1}")
     if img2 is None: raise FileNotFoundError(f"Cannot read image2: {path2}")
 
@@ -49,9 +68,8 @@ def run(match_json_path: str, out_root: str, warp_mode: str = "image2_to_image1"
     src_pts = []
     dst_pts = []
     
-    # กำหนดค่าเริ่มต้นกัน Pylance บ่น
-    target_img = img1 
-    source_img = img2 
+    target_img = None
+    source_img = None
     
     for mp in matched_points:
         pt1 = mp["pt1"]
@@ -83,7 +101,6 @@ def run(match_json_path: str, out_root: str, warp_mode: str = "image2_to_image1"
          raise RuntimeError("Cannot compute homography matrix.")
 
     # 6. Warp Image
-    # ✅ กำหนดค่าเริ่มต้นกัน error 'not defined'
     base_for_blend = target_img 
 
     if warp_mode == "image2_to_image1":
@@ -91,7 +108,6 @@ def run(match_json_path: str, out_root: str, warp_mode: str = "image2_to_image1"
         aligned = cv2.warpPerspective(img2, H, (w, h))
         base_for_blend = img1
     else:
-        # image1 -> image2 (Inverse)
         try:
             H_inv = np.linalg.inv(H)
         except np.linalg.LinAlgError:
@@ -101,26 +117,48 @@ def run(match_json_path: str, out_root: str, warp_mode: str = "image2_to_image1"
         aligned = cv2.warpPerspective(img1, H_inv, (w2, h2))
         base_for_blend = img2
 
-    # Blend
     if blend:
         if aligned.shape[:2] != base_for_blend.shape[:2]:
-             # Resize aligned to match base (เผื่อมีเศษ pixel ต่างกัน)
              aligned = cv2.resize(aligned, (base_for_blend.shape[1], base_for_blend.shape[0]))
-             
         aligned = cv2.addWeighted(base_for_blend, 0.5, aligned, 0.5, 0)
 
     # 7. Save Result
-    out_dir = os.path.join(out_root, "alignment", "homography_outputs")
+    if out_root is None:
+        out_root = os.path.join(PROJECT_ROOT, "outputs")
+        
+    # ✅ Save to features/homography_outputs
+    out_dir = os.path.join(out_root, "features", "homography_outputs")
     os.makedirs(out_dir, exist_ok=True)
     
-    unique_id = uuid.uuid4().hex[:8]
-    out_img_name = f"aligned_homo_{unique_id}.jpg"
+    # ✅ Generate Hash
+    config_map = {
+        "match_json": os.path.basename(match_json_path),
+        "warp": warp_mode,
+        "blend": blend
+    }
+    config_str = json.dumps(config_map, sort_keys=True)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
+    base_match = os.path.splitext(os.path.basename(match_json_path))[0]
+    stem = f"homo_{base_match}_{param_hash}"
+    
+    out_img_name = f"{stem}.jpg"
+    out_json_name = f"{stem}.json"
+    
     out_img_path = os.path.join(out_dir, out_img_name)
+    out_json_path = os.path.join(out_dir, out_json_name)
+
+    # Check Cache
+    if os.path.exists(out_json_path) and os.path.exists(out_img_path):
+         try:
+            with open(out_json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            data["json_path"] = out_json_path
+            return data
+         except:
+            pass
     
     cv2.imwrite(out_img_path, aligned)
-
-    out_json_name = f"homography_{unique_id}.json"
-    out_json_path = os.path.join(out_dir, out_json_name)
 
     result = {
         "tool": "HomographyAlignment",
@@ -130,8 +168,11 @@ def run(match_json_path: str, out_root: str, warp_mode: str = "image2_to_image1"
         "homography_matrix": H.tolist(),
         "output": {
             "aligned_image": out_img_path,
-            "aligned_url": f"/static/alignment/homography_outputs/{out_img_name}"
-        }
+            # ✅ URL pointing to features/homography_outputs
+            "aligned_url": f"/static/features/homography_outputs/{out_img_name}",
+            "result_image_url": f"/static/features/homography_outputs/{out_img_name}"
+        },
+        "parameters_hash": config_map
     }
 
     with open(out_json_path, "w", encoding="utf-8") as f:

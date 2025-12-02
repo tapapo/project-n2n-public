@@ -1,6 +1,6 @@
 import os
 import json
-import uuid
+import hashlib # ✅ ใช้ Hash เพื่อป้องกันไฟล์ซ้ำ
 from typing import Dict, Any, Tuple, Optional
 
 import cv2
@@ -10,10 +10,18 @@ import numpy as np
 def _ensure_dir(d: str):
     os.makedirs(d, exist_ok=True)
 
+def _read_json(path: str) -> Dict[str, Any]:
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"JSON file not found: {path}")
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
 
 def _to_gray(img: np.ndarray) -> np.ndarray:
     if img.ndim == 2:
         return img
+    if img.ndim == 3 and img.shape[2] == 4: # Handle BGRA
+        return cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
     return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
 
@@ -60,19 +68,48 @@ def run(
     morph_close: bool = False,
     morph_kernel: int = 3,
     show_histogram: bool = False,
+    **kwargs
 ) -> Tuple[str, Optional[str]]:
-    """
-    เขียนผลลัพธ์ไปที่:
-    out_root / features / otsu_outputs
-    คืนค่า: (json_path, binary_path)
-    """
+    
+    # 1. Validation & Path Resolution
+    if image_path.lower().endswith(".json"):
+        try:
+            data = _read_json(image_path)
+            if "matching_tool" in data:
+                 raise ValueError(f"Invalid Input: Otsu cannot run on '{data.get('matching_tool')}' result JSON.")
+            if "tool" in data and data["tool"] in ["SIFT", "SURF", "ORB"]:
+                 raise ValueError(f"Invalid Input: Otsu cannot run on '{data['tool']}' feature JSON.")
+
+            image_path = (
+                data.get("image", {}).get("original_path") or 
+                data.get("output", {}).get("aligned_image") or
+                image_path
+            )
+        except (json.JSONDecodeError, FileNotFoundError):
+            pass 
+
     out_dir = os.path.join(out_root, "features", "otsu_outputs")
     _ensure_dir(out_dir)
-    uid = uuid.uuid4().hex[:8]
+    
+    # ✅ 2. สร้าง Hash จาก Parameters (เหมือน Snake)
+    config_map = {
+        "img": os.path.basename(image_path),
+        "blur": gaussian_blur, "k": blur_ksize,
+        "inv": invert,
+        "open": morph_open, "close": morph_close, "mk": morph_kernel,
+        "hist": show_histogram
+    }
+    
+    config_str = json.dumps(config_map, sort_keys=True, default=str)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
+    base_name = os.path.splitext(os.path.basename(image_path))[0]
+    stem = f"otsu_{base_name}_{param_hash}"
 
     img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
+    
     gray = _to_gray(img)
 
     if gaussian_blur:
@@ -88,51 +125,54 @@ def run(
     if morph_open or morph_close:
         binary = _apply_morph(binary, morph_open, morph_close, morph_kernel)
 
-    bin_name = f"otsu_binary_{uid}.png"
-    json_name = f"otsu_result_{uid}.json"
-    hist_name = f"otsu_hist_{uid}.png"
+    # ✅ 3. ตั้งชื่อไฟล์และเช็คว่ามีอยู่แล้วหรือไม่
+    bin_name = f"{stem}_binary.png"
+    json_name = f"{stem}.json"
+    hist_name = f"{stem}_hist.png"
 
     bin_path = os.path.join(out_dir, bin_name)
     json_path = os.path.join(out_dir, json_name)
     hist_path = os.path.join(out_dir, hist_name)
 
-    cv2.imwrite(bin_path, binary)
+    # ถ้ามีไฟล์อยู่แล้ว (Hash ตรงกัน) ไม่ต้องคำนวณซ้ำ
+    if not (os.path.exists(json_path) and os.path.exists(bin_path)):
+        cv2.imwrite(bin_path, binary)
 
-    hist_path_out = None
-    if show_histogram:
-        _draw_histogram(gray_blur, tval, hist_path)
-        if os.path.exists(hist_path):
-            hist_path_out = hist_path
+        hist_path_out = None
+        if show_histogram:
+            _draw_histogram(gray_blur, tval, hist_path)
+            if os.path.exists(hist_path):
+                hist_path_out = hist_path
 
-    H, W = int(gray.shape[0]), int(gray.shape[1])
-    result: Dict[str, Any] = {
-        "tool": "OtsuThreshold",
-        "output_type": "classification",  # ✅ ป้ายบอกว่าเป็น Classification
-        "tool_version": cv2.__version__,
-        "input_image": {
-            "path": image_path,
-            "shape": [H, W],
-            "dtype": str(gray.dtype),
-        },
-        "parameters": {
-            "gaussian_blur": bool(gaussian_blur),
-            "blur_ksize": int(blur_ksize),
-            "invert": bool(invert),
-            "morph_open": bool(morph_open),
-            "morph_close": bool(morph_close),
-            "morph_kernel": int(morph_kernel),
-            "show_histogram": bool(show_histogram),
-        },
-        "threshold_value": tval,
-        "output": {
-            "binary_mask_path": bin_path,
-            "binary_mask_shape": [int(binary.shape[0]), int(binary.shape[1])],
-            "histogram_path": hist_path_out,
-        },
-        "notes": "Binary image is 0/255 (uint8).",
-    }
+        H, W = int(gray.shape[0]), int(gray.shape[1])
+        
+        binary_url = f"/static/features/otsu_outputs/{bin_name}"
+        histogram_url = f"/static/features/otsu_outputs/{hist_name}" if hist_path_out else None
 
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, indent=2, ensure_ascii=False)
+        result: Dict[str, Any] = {
+            "tool": "OtsuThreshold",
+            "output_type": "classification",
+            "tool_version": cv2.__version__,
+            "input_image": {
+                "path": image_path,
+                "shape": [H, W],
+                "dtype": str(gray.dtype),
+            },
+            "parameters": config_map, # เก็บค่าที่ใช้ Hash
+            "threshold_value": tval,
+            "output": {
+                "binary_mask_path": bin_path,
+                "binary_mask_shape": [int(binary.shape[0]), int(binary.shape[1])],
+                "histogram_path": hist_path_out,
+                "binary_url": binary_url,
+                "histogram_url": histogram_url,
+                "result_image_url": binary_url 
+            },
+            "binary_url": binary_url,
+            "notes": "Binary image is 0/255 (uint8).",
+        }
+
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
 
     return json_path, bin_path

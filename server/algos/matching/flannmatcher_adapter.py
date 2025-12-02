@@ -1,7 +1,13 @@
+# server/algos/matching/flannmatcher_adapter.py
+
 import os, json, cv2, sys, uuid
+import hashlib # ✅ Use hashlib
+from datetime import datetime # ✅ Use datetime
 import numpy as np
 from typing import Optional, Dict, Any, List, Tuple
 
+# --- Config ---
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 # ---------- utils ----------
 def _read_json(path: str) -> Dict[str, Any]:
@@ -10,6 +16,16 @@ def _read_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
+# ✅ Helper to resolve image paths
+def _resolve_image_path(path: str) -> str:
+    if not path: return path
+    if os.path.exists(path): return path
+    
+    # Try relative to project root
+    rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
+    if os.path.exists(rel_path): return rel_path
+    
+    return path
 
 def _image_size(img_path: str) -> Tuple[Optional[int], Optional[int], Optional[int]]:
     if not img_path or not os.path.exists(img_path):
@@ -30,20 +46,23 @@ def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray
     """
     data = _read_json(json_path)
 
-    # ✅ VALIDATION: ดักจับไฟล์ผิดประเภท (Pattern เดียวกับ BFMatcher)
+    # ✅ VALIDATION
     if "matching_tool" in data:
         raise ValueError(f"Invalid input: Input is a '{data['matching_tool']}' result. FLANN requires Feature files (SIFT/SURF/ORB).")
     
-    if "tool" not in data:
-        raise ValueError("Invalid input: JSON missing 'tool' field. Please check upstream connections.")
-
+    # Allow files without 'tool' if they have keypoints (legacy/custom), but warn/default
     tool = str(data.get("tool", "UNKNOWN")).upper()
-    kps_raw = data.get("keypoints", [])
-    img_path = data.get("image", {}).get("original_path")
     
-    # Fallback path check
+    kps_raw = data.get("keypoints", [])
+    
+    # Path extraction with priority
+    img_path = data.get("image", {}).get("original_path")
     if not img_path and data.get("image", {}).get("file_name"):
          img_path = data.get("image", {}).get("file_name")
+    
+    # Resolve Path
+    if img_path:
+        img_path = _resolve_image_path(img_path)
 
     keypoints: List[cv2.KeyPoint] = []
     desc_list: List[Any] = []
@@ -78,11 +97,12 @@ def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray
         except Exception:
             extra["WTA_K"] = None
     else:
-        raise ValueError(f"Unsupported descriptor tool: {tool}")
-
-    if not img_path:
-         # อนุญาตให้ทำงานต่อได้แม้ไม่มี path รูป (แต่จะวาดรูปไม่ได้)
-         pass
+        # Fallback for unknown tools: assume float/L2 if not empty
+        if desc_list:
+             descriptors = np.array(desc_list)
+        else:
+             # If empty and unknown, maybe raise error or just warn
+             descriptors = np.empty((0, 0))
 
     return keypoints, descriptors, tool, img_path, extra
 
@@ -132,7 +152,7 @@ def run(
     kp1, des1, tool1, img1_path, extra1 = load_descriptor_data(json_a)
     kp2, des2, tool2, img2_path, extra2 = load_descriptor_data(json_b)
 
-    if tool1 != tool2:
+    if tool1 != tool2 and tool1 != "UNKNOWN" and tool2 != "UNKNOWN":
         raise ValueError(f"Descriptor type mismatch: {tool1} vs {tool2}")
 
     # --- select & validate index ---
@@ -185,6 +205,43 @@ def run(
     if mode_in not in ("good", "inliers"):
         mode_in = "good"
 
+    # --- Output Dir ---
+    if out_root is None:
+        out_root = os.path.join(PROJECT_ROOT, "outputs")
+        
+    out_dir = os.path.join(out_root, "features", "flannmatcher_outputs")
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+
+    # ✅ Generate Hash for deduplication
+    config_map = {
+        "json1": os.path.basename(json_a),
+        "json2": os.path.basename(json_b),
+        "index": index_params,
+        "search": search_params,
+        "lowe": eff_ratio,
+        "ransac": ransac_thresh,
+        "mode": mode_in,
+        "draw": max_draw
+    }
+    config_str = json.dumps(config_map, sort_keys=True, default=str)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
+    stem = f"flann_{param_hash}"
+    
+    out_json_path = os.path.join(out_dir, f"{stem}.json")
+    out_vis_path = os.path.join(out_dir, f"{stem}_vis.jpg")
+
+    # Check Cache
+    if os.path.exists(out_json_path) and os.path.exists(out_vis_path):
+         try:
+            with open(out_json_path, "r", encoding="utf-8") as f:
+                d = json.load(f)
+            d["json_path"] = out_json_path
+            return d
+         except:
+            pass
+
     # --- flann matching ---
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     raw_matches: List[Any] = []
@@ -219,36 +276,34 @@ def run(
             inliers = int(mask.sum())
             inlier_mask = mask.ravel().tolist()
             for i, m in enumerate(good_matches):
-                pt1 = [float(kp1[m.queryIdx].pt[0]), float(kp1[m.queryIdx].pt[1])]
-                pt2 = [float(kp2[m.trainIdx].pt[0]), float(kp2[m.trainIdx].pt[1])]
-                # เช็ค index mask ให้ปลอดภัย
                 inlier_flag = bool(inlier_mask[i]) if i < len(inlier_mask) else False
-                
-                matched_points.append({
-                    "queryIdx": m.queryIdx,
-                    "trainIdx": m.trainIdx,
-                    "pt1": pt1,
-                    "pt2": pt2,
-                    "distance": round(float(m.distance), 4),
-                    "inlier": inlier_flag
-                })
+                # ✅ เก็บจุดสำหรับ Alignment
+                if inlier_flag:
+                    matched_points.append({
+                        "queryIdx": m.queryIdx,
+                        "trainIdx": m.trainIdx,
+                        "pt1": [float(kp1[m.queryIdx].pt[0]), float(kp1[m.queryIdx].pt[1])],
+                        "pt2": [float(kp2[m.trainIdx].pt[0]), float(kp2[m.trainIdx].pt[1])],
+                        "distance": round(float(m.distance), 4),
+                        "inlier": True
+                    })
         else:
             homography_reason = "findHomography_failed"
     else:
         homography_reason = "not_enough_good_matches"
 
     # --- visualization ---
-    vis_path = None
+    w1, h1, c1 = _image_size(img1_path)
+    w2, h2, c2 = _image_size(img2_path)
+
     img1 = None
     img2 = None
+    vis_path_rel = None
     
     if img1_path and os.path.exists(img1_path):
         img1 = cv2.imread(img1_path)
     if img2_path and os.path.exists(img2_path):
         img2 = cv2.imread(img2_path)
-        
-    w1, h1, c1 = _image_size(img1_path)
-    w2, h2, c2 = _image_size(img2_path)
 
     if img1 is not None and img2 is not None and len(good_matches) > 0:
         draw_list = good_matches
@@ -263,17 +318,13 @@ def run(
                 img1, kp1, img2, kp2, draw_list, None,
                 flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
             )
-            vis_dir = os.path.join(out_root, "features", "flannmatcher_outputs", "visuals")
-            os.makedirs(vis_dir, exist_ok=True)
-            vis_path = os.path.join(vis_dir, f"flann_vis_{uuid.uuid4().hex[:8]}.jpg")
-            cv2.imwrite(vis_path, vis)
+            
+            # ✅ Save without subfolder
+            cv2.imwrite(out_vis_path, vis)
+            vis_path_rel = f"/static/features/flannmatcher_outputs/{stem}_vis.jpg"
 
     # --- json output ---
-    out_dir = os.path.join(out_root, "features", "flannmatcher_outputs")
-    os.makedirs(out_dir, exist_ok=True)
-    out_json = os.path.join(out_dir, f"flannmatcher_{tool1.lower()}_{uuid.uuid4().hex[:8]}.json")
-
-    # ลดขนาด JSON
+    # ลดขนาด JSON output
     matches_output_data = [
         {"queryIdx": m.queryIdx, "trainIdx": m.trainIdx, "distance": round(float(m.distance), 4)}
         for m in good_matches
@@ -324,12 +375,13 @@ def run(
         "inliers": inliers,
         "inlier_mask": inlier_mask,
         "good_matches": matches_output_data,
-        "matched_points": matched_points,  # ✅
-        "vis_url": vis_path,
+        "matched_points": matched_points,
+        "vis_url": vis_path_rel,
+        "parameters_hash": config_map
     }
 
-    with open(out_json, "w", encoding="utf-8") as f:
+    with open(out_json_path, "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False)
 
-    result["json_path"] = out_json
+    result["json_path"] = out_json_path
     return result

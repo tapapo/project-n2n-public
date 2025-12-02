@@ -1,16 +1,25 @@
 # server/algos/quality/ssim_adapter.py
+
 import os
 import cv2
 import json
 import sys
 import uuid
+import hashlib # ✅ Use hashlib
+from datetime import datetime # ✅ Use datetime
 import numpy as np
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Tuple, Optional
 
 import skimage.metrics
 
+# --- Config ---
+# Calculate project root relative to this file
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 # ---------- Helpers ----------
+def _ensure_dir(d: str):
+    os.makedirs(d, exist_ok=True)
+
 def is_color(img: np.ndarray) -> bool:
     return (img.ndim == 3) and (img.shape[2] in (3, 4))
 
@@ -42,6 +51,50 @@ def _ensure_valid_win_size(h: int, w: int, win_size: int | None) -> int:
         ws = max(3, ws - 1)
     return ws
 
+# ✅ Updated path resolution logic (consistent with PSNR)
+def _resolve_path(path: str) -> str:
+    if path.lower().endswith(".json"):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            
+            # Allow alignment/segmentation image results, but try to extract path
+            extracted = (
+                meta.get("image", {}).get("original_path") or 
+                meta.get("output", {}).get("aligned_image") or
+                meta.get("output", {}).get("result_image_url") or
+                meta.get("result_image_url") 
+            )
+            if extracted:
+                return extracted
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError):
+            pass
+    
+    if os.path.exists(path):
+        return path
+    
+    rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
+    if os.path.exists(rel_path):
+        return rel_path
+        
+    return path 
+
+
+def _validate_is_image(path: str, label: str):
+    if path.lower().endswith(".json"):
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                meta = json.load(f)
+            tool = meta.get("tool") or meta.get("matching_tool")
+            # Block Feature/Matcher JSONs
+            if tool in ["SIFT", "SURF", "ORB", "BFMatcher", "FLANNBasedMatcher"]: 
+                raise ValueError(
+                    f"Invalid Input for '{label}': Received a '{tool}' result file. "
+                    "SSIM requires an Image file, not a Feature/Matcher JSON."
+                )
+        except (json.JSONDecodeError, FileNotFoundError, PermissionError):
+            pass
+
 
 def _serialize(
     original_image_path: str,
@@ -50,10 +103,11 @@ def _serialize(
     params_used: Dict[str, Any],
     color_mode_used: str,
     message: str,
-    is_color_input: bool
+    is_color_input: bool,
+    config_hash: dict # Add hash map to output for reference
 ) -> Dict[str, Any]:
     try:
-        import skimage  # type: ignore
+        import skimage
         skimage_version = skimage.__version__
     except Exception:
         skimage_version = "N/A"
@@ -80,7 +134,8 @@ def _serialize(
         "score": round(float(ssim_score), 6),
         "score_interpretation": "Higher score (closer to 1.0) indicates better structural similarity.",
         "message": message,
-        "is_color_input": is_color_input
+        "is_color_input": is_color_input,
+        "parameters_hash": config_hash
     }
 
 
@@ -93,6 +148,11 @@ def run_ssim_assessment(
     auto_switch: bool = True,
     **ssim_params
 ) -> Tuple[float, str, str, bool]:
+    
+    # 1. Validate Inputs
+    _validate_is_image(original_img_path, "Input 1 (Original)")
+    _validate_is_image(processed_img_path, "Input 2 (Processed)")
+
     original_img_raw = cv2.imread(original_img_path, cv2.IMREAD_UNCHANGED)
     processed_img_raw = cv2.imread(processed_img_path, cv2.IMREAD_UNCHANGED)
 
@@ -103,11 +163,10 @@ def run_ssim_assessment(
     original_img = _drop_alpha(original_img_raw)
     processed_img = _drop_alpha(processed_img_raw)
 
-    # Determine input color status (only treat as color if both are 3-channel BGR)
+    # Determine input color status
     both_color = is_color(original_img) and is_color(processed_img) and \
                  (original_img.shape[2] == processed_img.shape[2] == 3)
 
-    # Auto-switch to color mode if desired and applicable
     if auto_switch and both_color:
         calculate_on_color = True
 
@@ -156,6 +215,11 @@ def compute_ssim(
     auto_switch: bool = True,
     **override_params
 ) -> Dict[str, Any]:
+    
+    # Resolve paths first
+    real_orig_path = _resolve_path(original_file)
+    real_proc_path = _resolve_path(processed_file)
+
     ssim_parameters: Dict[str, Any] = {
         "data_range": None,         
         "win_size": 11,              
@@ -167,9 +231,10 @@ def compute_ssim(
     }
     ssim_parameters.update(override_params or {})
 
+    # Run Core Logic
     score, color_mode, message, is_color_input = run_ssim_assessment(
-        original_file,
-        processed_file,
+        real_orig_path,
+        real_proc_path,
         calculate_on_color=calculate_on_color,
         auto_switch=auto_switch,
         **ssim_parameters
@@ -177,36 +242,62 @@ def compute_ssim(
 
     # Prepare JSON payload
     params_for_json = dict(ssim_parameters)
+    # Fill data_range for record if it was None
     if params_for_json.get("data_range") is None:
-        img1 = _drop_alpha(cv2.imread(original_file, cv2.IMREAD_UNCHANGED))
-        img2 = _drop_alpha(cv2.imread(processed_file, cv2.IMREAD_UNCHANGED))
+        # Re-read roughly just to get range (inefficient but accurate for record)
+        # In production, we might pass the range back from run_ssim_assessment
+        img1 = _drop_alpha(cv2.imread(real_orig_path, cv2.IMREAD_UNCHANGED))
+        img2 = _drop_alpha(cv2.imread(real_proc_path, cv2.IMREAD_UNCHANGED))
         if color_mode == "Grayscale":
             img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY) if is_color(img1) else img1
             img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY) if is_color(img2) else img2
         params_for_json["data_range"] = float(_auto_data_range(img1, img2))
 
+    # ✅ Generate Hash from inputs & params
+    config_map = {
+        "img1": os.path.basename(real_orig_path),
+        "img2": os.path.basename(real_proc_path),
+        "color": calculate_on_color,
+        "auto": auto_switch,
+        "params": ssim_parameters
+    }
+    config_str = json.dumps(config_map, sort_keys=True, default=str)
+    param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
+    
     json_result = _serialize(
-        original_file,
-        processed_file,
+        real_orig_path,
+        real_proc_path,
         score,
         params_for_json,
         color_mode,
         message,
-        is_color_input
+        is_color_input,
+        config_map
     )
 
     # Save JSON
     if out_root is None:
-        out_root = "outputs"
+        out_root = os.path.join(PROJECT_ROOT, "outputs")
 
     out_dir = os.path.join(out_root, "features", "ssim_outputs")
     os.makedirs(out_dir, exist_ok=True)
 
-    uid = uuid.uuid4().hex[:8]
-    stem_a = os.path.splitext(os.path.basename(original_file))[0]
-    stem_b = os.path.splitext(os.path.basename(processed_file))[0]
+    stem_a = os.path.splitext(os.path.basename(real_orig_path))[0]
+    stem_b = os.path.splitext(os.path.basename(real_proc_path))[0]
 
-    json_path = os.path.join(out_dir, f"ssim_{stem_a}_vs_{stem_b}_{uid}.json")
+    # ssim_[img1]_[img2]_[hash].json
+    json_path = os.path.join(out_dir, f"ssim_{stem_a}_vs_{stem_b}_{param_hash}.json")
+    
+    # Check Cache
+    if os.path.exists(json_path):
+         try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                # Verify it's valid JSON
+                json.load(f)
+            return {"score": score, "json": json_result, "json_path": json_path}
+         except:
+            pass # Overwrite if invalid
+
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(json_result, f, indent=2, ensure_ascii=False)
 
