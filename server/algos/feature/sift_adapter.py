@@ -99,7 +99,6 @@ def run(
         "num_keypoints": len(kplist),
         "descriptor_dim": 128,
         "keypoints": kplist,
-        # descriptors ไม่ต้องใส่ใน JSON หลักถ้าไฟล์ใหญ่เกินไป แต่ใส่ไว้เพื่อความสมบูรณ์ของ Flow
         "descriptors": desc.tolist()
     }
 

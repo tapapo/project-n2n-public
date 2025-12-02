@@ -1,3 +1,5 @@
+// src/types.ts
+
 // สถานะของ Node
 export type NodeStatus = 'idle' | 'start' | 'running' | 'success' | 'fault';
 
@@ -9,20 +11,28 @@ export interface PortDef {
 
 // ข้อมูลหลักของ Node (Data)
 export interface CustomNodeData {
-  [x: string]: any; // ยอมรับ key อื่นๆ เพิ่มเติม (เช่น onRunNode)
   label: string;
   description?: string;
   status?: NodeStatus;
+  
+  // ฟังก์ชันสำหรับกดปุ่ม Run (ใส่ไว้เพื่อให้ TS รู้จัก)
+  onRunNode?: (id: string) => void;
+
   inputs?: PortDef[];
   outputs?: PortDef[];
-  payload?: Record<string, any>; // เก็บผลลัพธ์จาก Backend (เช่น json, urls)
+  
+  // เก็บผลลัพธ์จาก Backend (เช่น json, urls, params)
+  payload?: Record<string, any>; 
+
+  // ยอมรับ key อื่นๆ เพิ่มเติม
+  [key: string]: any; 
 }
 
-// ✅ เพิ่มส่วนนี้สำหรับระบบ Log Panel
+// ✅ ส่วนสำหรับระบบ Log Panel
 export interface LogEntry {
-  id: string;          // ID ของ Log (ใช้เป็น key ใน list)
+  id: string;          // ID ของ Log
   timestamp: string;   // เวลาที่เกิด Log
-  type: 'info' | 'success' | 'error' | 'warning'; // ประเภทของ Log (เพื่อเปลี่ยนสี)
-  message: string;     // ข้อความที่จะแสดง
-  nodeId?: string;     // (Optional) ID ของ Node ที่เกี่ยวข้อง เผื่อคลิกแล้ววิ่งไปหา
+  type: 'info' | 'success' | 'error' | 'warning'; // ประเภท
+  message: string;     // ข้อความ
+  nodeId?: string;     // ID ของ Node ที่เกี่ยวข้อง
 }
