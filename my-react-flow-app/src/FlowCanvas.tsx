@@ -80,7 +80,7 @@ const STORAGE_KEY_NODES = 'n2n_nodes';
 const STORAGE_KEY_EDGES = 'n2n_edges';
 const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
-// ✅ Helper: ทำความสะอาดข้อความ Error
+// Helper: ทำความสะอาดข้อความ Error
 function cleanErrorMessage(rawMsg: string): string {
   if (!rawMsg) return 'Unknown Error';
 
@@ -133,6 +133,9 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
   const [nodes, setNodes, onNodesChange] = useNodesState<CustomNodeData>(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+
+  // ตัวติดตามสถานะการยกเลิก (ใช้ควบคุม Loop หลักเท่านั้น)
+  const isCanceledRef = useRef(false);
 
   const addLog = useCallback((message: string, type: LogEntry['type'] = 'info', nodeId?: string) => {
     const newLog: LogEntry = {
@@ -194,6 +197,8 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
 
   const runNodeById = useCallback(
     async (nodeId: string) => {
+      // Logic การยกเลิกถูกลบออก เพื่อให้รัน Node เดี่ยวได้
+      
       const node = nodesRef.current.find((n) => n.id === nodeId);
       if (!node?.type) return;
 
@@ -238,12 +243,15 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
 
         addLog(`[${nodeName}] ✅ Completed`, 'success', nodeId);
       } catch (err: any) {
+        // เมื่อเกิด Error เราจะแสดง Log และโยน Error ให้ Pipeline Run หลักจับได้
         const cleanMsg = cleanErrorMessage(err.message || 'Unknown Error');
         addLog(`[${nodeName}] 💥 Error: ${cleanMsg}`, 'error', nodeId);
+        
         setNodes((nds) =>
           nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n))
         );
         setIncomingEdgesStatus(nodeId, 'error');
+        throw err; // โยน Error เพื่อให้ Pipeline Run หลักจับได้
       }
     },
     [setNodes, addLog, setIncomingEdgesStatus]
@@ -263,15 +271,64 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     });
   }, [nodes, runNodeById, setNodes]);
 
+  // Logic การรัน Pipeline หลัก (Fail Soft + Sorted Priority)
   useEffect(() => {
-    if (!isRunning) return;
+    if (!isRunning) {
+        // 1. ถ้า isRunning เปลี่ยนเป็น false (ผู้ใช้กด Stop), ให้ส่งสัญญาณยกเลิก
+        isCanceledRef.current = true;
+        return;
+    }
+    
+    // เริ่มต้นรัน: รีเซ็ตสัญญาณยกเลิก
+    isCanceledRef.current = false;
+    
     const runAllNodes = async () => {
       addLog('Starting Pipeline', 'info');
-      for (const node of nodesRef.current) {
+      
+      // ✅ 1. กำหนดลำดับความสำคัญ (Sorting Priority)
+      const executionPriority = {
+          'image-input': 1,           // 1. Source (ต้องรันก่อนเสมอ)
+          'brisque': 10, 'psnr': 10, 'ssim': 10, // 2. Quality
+          'sift': 20, 'surf': 20, 'orb': 20, // 3. Feature Extraction
+          'otsu': 30, 'snake': 30, // 4. Classification
+          'bfmatcher': 40, 'flannmatcher': 40, // 5. Matching
+          'homography-align': 50, 'affine-align': 50, // 6. Alignment
+          'save-image': 99, 'save-json': 99, // 7. Utility
+      };
+      
+      // จัดเรียง Nodes
+      const sortedNodes = nodesRef.current
+        .slice() 
+        .sort((a, b) => {
+            const priorityA = executionPriority[a.type as keyof typeof executionPriority] || 100;
+            const priorityB = executionPriority[b.type as keyof typeof executionPriority] || 100;
+            return priorityA - priorityB;
+        });
+
+      // 2. วนลูปตาม Nodes ที่ถูกจัดเรียงแล้ว (Fail Soft Logic)
+      for (const node of sortedNodes) {
+        
+        // ตรวจสอบการยกเลิกโดยผู้ใช้
+        if (isCanceledRef.current) {
+            addLog('Pipeline stopped by user.', 'warning');
+            break; 
+        }
+
         if (!node?.id || !node?.type) continue;
-        try { await runNodeById(node.id); } catch (e) { }
+        
+        try { 
+            await runNodeById(node.id); 
+        } catch (e) { 
+            // เมื่อเจอ Fault, เราจะ continue ไป Node ถัดไปแทน (Fail Soft)
+            console.warn(`Node ${node.id} failed, skipping to next node.`);
+            continue; 
+        }
       }
-      addLog('Pipeline Finished', 'success');
+      
+      // 3. สั่งหยุดสถานะ Running และเรียก onPipelineDone
+      if (!isCanceledRef.current) {
+          addLog('Pipeline Finished', 'success');
+      }
       onPipelineDone?.();
     };
     runAllNodes();
