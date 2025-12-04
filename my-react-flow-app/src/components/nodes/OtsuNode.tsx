@@ -1,15 +1,13 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; // ✅ เพิ่ม useNodes
+import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
-import { abs } from '../../lib/api';
+import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
-// ✅ Import Helper เพื่อดึงรูป
 import { getNodeImageUrl } from '../../lib/runners/utils';
 
 const dot = (active: boolean, cls: string) => 
   `h-4 w-4 rounded-full ${active ? cls : 'bg-gray-600'} flex-shrink-0`;
 
-// Helper: ป้องกัน Event ทะลุ
 const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
 type Params = {
@@ -27,14 +25,14 @@ const DEFAULT_PARAMS: Params = {
 const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
-  const nodes = useNodes<CustomNodeData>(); // ✅ ใช้ useNodes
+  const nodes = useNodes<CustomNodeData>(); 
 
   const [open, setOpen] = useState(false);
   
-  // ✅ State เก็บขนาดรูป
+  const imgRef = useRef<HTMLImageElement>(null); 
   const [imgSize, setImgSize] = useState<{w: number, h: number} | null>(null);
 
-  // ✅ Logic หา URL รูปภาพจากโหนดแม่ (Auto Preview)
+  // Logic หา URL รูปภาพจากโหนดแม่ (Auto Preview)
   const upstreamImage = useMemo(() => {
     const incoming = edges.find(e => e.target === id);
     if (!incoming) return null;
@@ -57,33 +55,47 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
   
-  const onSave = () => {
+  const onSave = useCallback(() => {
     const k = Math.max(3, Math.floor(form.blur_ksize));
     const oddK = k % 2 === 0 ? k + 1 : k;
     rf.setNodes((nds) =>
       nds.map((n) =>
         n.id === id
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                payload: { ...(n.data?.payload || {}), params: { ...form, blur_ksize: oddK } },
-              },
-            }
+          ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form, blur_ksize: oddK } } } }
           : n
       )
     );
     setOpen(false);
-  };
+  }, [rf, id, form]);
 
   const resp = data?.payload?.json as any | undefined;
   const resultImage = data?.payload?.result_image_url || data?.payload?.preview_url || resp?.binary_url;
   const thr = resp?.threshold;
 
-  // ✅ Priority: รูปผลลัพธ์ > รูปต้นทาง
-  const displayImage = resultImage || upstreamImage;
+  const rawUrl = resultImage || upstreamImage;
+  
+  // ✅ FIX: Cache Busting URL + Absolute URL
+  // ใช้ Date.now() เพื่อบังคับให้ Browser โหลดรูปใหม่เสมอ
+  const displayImage = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
 
-  // ✅ Theme: Pink
+  const caption =
+    resultImage 
+    ? `Threshold = ${thr ?? '?'}` 
+    : 'Connect Image Input and run';
+
+  // ✅ FIX KEY: ปรับปรุง onImgLoad เพื่อหยุด Infinite Loop
+  const onImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+    const img = e.currentTarget;
+    const newWidth = img.naturalWidth;
+    const newHeight = img.naturalHeight;
+    
+    // หยุดการอัปเดต State ถ้าขนาดภาพไม่ได้เปลี่ยน (เพื่อป้องกัน Loop)
+    if (imgSize === null || imgSize.w !== newWidth || imgSize.h !== newHeight) {
+        setImgSize({ w: newWidth, h: newHeight });
+    }
+  }, [imgSize]); // Dependency includes imgSize
+
+  // Theme, Handles, JSX...
   let borderColor = 'border-pink-500';
   if (selected) {
     borderColor = 'border-pink-400 ring-2 ring-pink-500';
@@ -91,19 +103,8 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
   }
 
-  // ✅ Handle Class
-  const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
-    isFault && !isConnected
-      ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
-      : 'bg-white border-gray-500'
-  }`;
+  const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${isFault && !isConnected ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' : 'bg-white border-gray-500'}`;
   const sourceHandleClass = 'w-2 h-2 rounded-full border-2 transition-all duration-300 bg-white border-gray-500';
-
-  // ✅ Event เมื่อรูปโหลดเสร็จ (เพื่อเก็บขนาด)
-  const onImgLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
-    const img = e.currentTarget;
-    setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
-  };
 
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
@@ -126,7 +127,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ✅ 1. แสดงขนาดรูปด้านบน */}
         {imgSize && (
             <div className="text-[10px] text-gray-400">
                 Input: {imgSize.w}x{imgSize.h}px
@@ -134,16 +134,18 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         )}
 
         <p className="text-sm text-gray-300">
-          {resultImage ? `Threshold = ${thr ?? '?'}` : 'Connect Image Input and run'}
+          {caption}
         </p>
 
         {displayImage && (
           <img
-            src={abs(displayImage)}
+            ref={imgRef}
+            src={displayImage}
             alt="otsu"
-            onLoad={onImgLoad} // ✅ จับ event
+            onLoad={onImgLoad} 
             className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56"
             draggable={false}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         )}
       </div>
@@ -182,4 +184,4 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   );
 });
 
-export default OtsuNode;
+export default memo(OtsuNode);

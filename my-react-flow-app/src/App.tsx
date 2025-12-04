@@ -1,3 +1,4 @@
+// App.tsx (ต้องใช้เวอร์ชันนี้เท่านั้น)
 import { useState } from 'react';
 import { ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -5,9 +6,14 @@ import Sidebar from './components/sidebar';
 import FlowCanvas from './FlowCanvas';
 import WorkflowControls from './components/WorkflowControls';
 import './index.css';
+import type { WorkflowTemplate } from './lib/workflowTemplates'; 
 
 export default function App() {
   const [isRunning, setIsRunning] = useState(false);
+  
+  // ✅ State นี้จำเป็นต้องมี
+  const [loadTemplateCallback, setLoadTemplateCallback] = useState<((template: WorkflowTemplate) => void) | null>(null);
+  
   const handleStart = () => setIsRunning(true);
   const handleStop = () => setIsRunning(false);
 
@@ -17,15 +23,18 @@ export default function App() {
         N2N Image Processing
       </h1>
 
-      {/* ทำให้ WorkflowControls เป็น "controlled component" */}
       <WorkflowControls isRunning={isRunning} onStart={handleStart} onStop={handleStop} />
 
       <div className="flex flex-grow overflow-hidden">
         <ReactFlowProvider>
-          <Sidebar />
+          {/* ✅ ส่ง loadTemplateCallback (state) */}
+          <Sidebar onLoadTemplate={loadTemplateCallback} /> 
+          
+          {/* ✅ ส่ง setLoadTemplateCallback (setter) */}
           <FlowCanvas
             isRunning={isRunning}
-            onPipelineDone={handleStop}   // ให้ FlowCanvas เรียกเมื่อรันเสร็จ หรือพัง
+            onPipelineDone={handleStop}
+            setLoadTemplateCallback={setLoadTemplateCallback} 
           />
         </ReactFlowProvider>
       </div>

@@ -1,0 +1,652 @@
+{
+  "matching_tool": "FLANNBasedMatcher",
+  "tool_version": {
+    "opencv": "4.8.0",
+    "python": "3.11.0"
+  },
+  "flann_parameters_used": {
+    "index_mode_requested": "AUTO",
+    "index_selected": "KD_TREE",
+    "index_selected_reason": "auto_by_tool",
+    "index_params": {
+      "algorithm": 1,
+      "trees": 5
+    },
+    "index_name": "KD-Tree (trees=5)",
+    "search_params": {
+      "checks": 50
+    },
+    "search_name": "checks=50",
+    "lowes_ratio_threshold": 0.4,
+    "ransac_thresh": 5.0,
+    "draw_mode": "good"
+  },
+  "input_features_details": {
+    "image1": {
+      "original_path": "/Users/pop/Desktop/project_n2n/outputs/uploads/fe537a2f74344c74ba9355183c315987.png",
+      "file_name": "fe537a2f74344c74ba9355183c315987.png",
+      "feature_tool": "SIFT",
+      "num_keypoints": 500
+    },
+    "image2": {
+      "original_path": "/Users/pop/Desktop/project_n2n/outputs/uploads/f4964d93212e497b98106975a5b4ac5d.png",
+      "file_name": "f4964d93212e497b98106975a5b4ac5d.png",
+      "feature_tool": "SIFT",
+      "num_keypoints": 89
+    }
+  },
+  "inputs": {
+    "image1": {
+      "width": 512,
+      "height": 288,
+      "channels": 3
+    },
+    "image2": {
+      "width": 310,
+      "height": 240,
+      "channels": 4
+    }
+  },
+  "matching_statistics": {
+    "num_raw_matches": 500,
+    "num_good_matches": 30,
+    "num_inliers": 28,
+    "summary": "28 inliers / 30 good matches (FLANN)",
+    "homography_reason": null
+  },
+  "inliers": 28,
+  "inlier_mask": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    0,
+    1,
+    1,
+    1,
+    1
+  ],
+  "good_matches": [
+    {
+      "queryIdx": 352,
+      "trainIdx": 38,
+      "distance": 11.7047
+    },
+    {
+      "queryIdx": 370,
+      "trainIdx": 33,
+      "distance": 12.7671
+    },
+    {
+      "queryIdx": 371,
+      "trainIdx": 32,
+      "distance": 13.3041
+    },
+    {
+      "queryIdx": 415,
+      "trainIdx": 25,
+      "distance": 14.0357
+    },
+    {
+      "queryIdx": 286,
+      "trainIdx": 66,
+      "distance": 16.8819
+    },
+    {
+      "queryIdx": 402,
+      "trainIdx": 27,
+      "distance": 17.3205
+    },
+    {
+      "queryIdx": 288,
+      "trainIdx": 62,
+      "distance": 18.1384
+    },
+    {
+      "queryIdx": 247,
+      "trainIdx": 73,
+      "distance": 20.1742
+    },
+    {
+      "queryIdx": 360,
+      "trainIdx": 36,
+      "distance": 20.9523
+    },
+    {
+      "queryIdx": 271,
+      "trainIdx": 72,
+      "distance": 21.4709
+    },
+    {
+      "queryIdx": 246,
+      "trainIdx": 74,
+      "distance": 22.6053
+    },
+    {
+      "queryIdx": 397,
+      "trainIdx": 12,
+      "distance": 23.5372
+    },
+    {
+      "queryIdx": 405,
+      "trainIdx": 18,
+      "distance": 23.6432
+    },
+    {
+      "queryIdx": 324,
+      "trainIdx": 45,
+      "distance": 24.5357
+    },
+    {
+      "queryIdx": 362,
+      "trainIdx": 35,
+      "distance": 24.5967
+    },
+    {
+      "queryIdx": 386,
+      "trainIdx": 9,
+      "distance": 24.9399
+    },
+    {
+      "queryIdx": 329,
+      "trainIdx": 44,
+      "distance": 27.1293
+    },
+    {
+      "queryIdx": 410,
+      "trainIdx": 19,
+      "distance": 33.3467
+    },
+    {
+      "queryIdx": 400,
+      "trainIdx": 28,
+      "distance": 41.7493
+    },
+    {
+      "queryIdx": 396,
+      "trainIdx": 11,
+      "distance": 42.2137
+    },
+    {
+      "queryIdx": 403,
+      "trainIdx": 17,
+      "distance": 42.7902
+    },
+    {
+      "queryIdx": 383,
+      "trainIdx": 7,
+      "distance": 57.8619
+    },
+    {
+      "queryIdx": 318,
+      "trainIdx": 49,
+      "distance": 58.6856
+    },
+    {
+      "queryIdx": 351,
+      "trainIdx": 40,
+      "distance": 85.1822
+    },
+    {
+      "queryIdx": 302,
+      "trainIdx": 56,
+      "distance": 86.5852
+    },
+    {
+      "queryIdx": 294,
+      "trainIdx": 57,
+      "distance": 99.2522
+    },
+    {
+      "queryIdx": 416,
+      "trainIdx": 23,
+      "distance": 103.0582
+    },
+    {
+      "queryIdx": 224,
+      "trainIdx": 78,
+      "distance": 135.9375
+    },
+    {
+      "queryIdx": 385,
+      "trainIdx": 9,
+      "distance": 139.56
+    },
+    {
+      "queryIdx": 394,
+      "trainIdx": 10,
+      "distance": 157.943
+    }
+  ],
+  "matched_points": [
+    {
+      "queryIdx": 352,
+      "trainIdx": 38,
+      "pt1": [
+        411.3728942871094,
+        154.71429443359375
+      ],
+      "pt2": [
+        163.07339477539062,
+        121.27559661865234
+      ],
+      "distance": 11.7047,
+      "inlier": true
+    },
+    {
+      "queryIdx": 370,
+      "trainIdx": 33,
+      "pt1": [
+        403.83209228515625,
+        131.76370239257812
+      ],
+      "pt2": [
+        147.8511962890625,
+        75.72859954833984
+      ],
+      "distance": 12.7671,
+      "inlier": true
+    },
+    {
+      "queryIdx": 371,
+      "trainIdx": 32,
+      "pt1": [
+        403.83209228515625,
+        131.76370239257812
+      ],
+      "pt2": [
+        147.8511962890625,
+        75.72859954833984
+      ],
+      "distance": 13.3041,
+      "inlier": true
+    },
+    {
+      "queryIdx": 415,
+      "trainIdx": 25,
+      "pt1": [
+        391.6875,
+        138.37899780273438
+      ],
+      "pt2": [
+        123.61100006103516,
+        89.1001968383789
+      ],
+      "distance": 14.0357,
+      "inlier": true
+    },
+    {
+      "queryIdx": 286,
+      "trainIdx": 66,
+      "pt1": [
+        438.30108642578125,
+        132.35789489746094
+      ],
+      "pt2": [
+        216.7803955078125,
+        76.9614028930664
+      ],
+      "distance": 16.8819,
+      "inlier": true
+    },
+    {
+      "queryIdx": 402,
+      "trainIdx": 27,
+      "pt1": [
+        394.7351989746094,
+        156.55169677734375
+      ],
+      "pt2": [
+        129.75880432128906,
+        125.375
+      ],
+      "distance": 17.3205,
+      "inlier": true
+    },
+    {
+      "queryIdx": 288,
+      "trainIdx": 62,
+      "pt1": [
+        435.59588623046875,
+        158.81080627441406
+      ],
+      "pt2": [
+        211.50579833984375,
+        129.7310028076172
+      ],
+      "distance": 18.1384,
+      "inlier": true
+    },
+    {
+      "queryIdx": 247,
+      "trainIdx": 73,
+      "pt1": [
+        449.1195068359375,
+        131.6092987060547
+      ],
+      "pt2": [
+        238.37559509277344,
+        75.3561019897461
+      ],
+      "distance": 20.1742,
+      "inlier": true
+    },
+    {
+      "queryIdx": 360,
+      "trainIdx": 36,
+      "pt1": [
+        406.16839599609375,
+        123.82620239257812
+      ],
+      "pt2": [
+        152.76480102539062,
+        59.96590042114258
+      ],
+      "distance": 20.9523,
+      "inlier": true
+    },
+    {
+      "queryIdx": 271,
+      "trainIdx": 72,
+      "pt1": [
+        446.3174133300781,
+        115.27290344238281
+      ],
+      "pt2": [
+        232.96859741210938,
+        42.754398345947266
+      ],
+      "distance": 21.4709,
+      "inlier": true
+    },
+    {
+      "queryIdx": 246,
+      "trainIdx": 74,
+      "pt1": [
+        449.1195068359375,
+        131.6092987060547
+      ],
+      "pt2": [
+        238.37559509277344,
+        75.3561019897461
+      ],
+      "distance": 22.6053,
+      "inlier": true
+    },
+    {
+      "queryIdx": 397,
+      "trainIdx": 12,
+      "pt1": [
+        357.2633056640625,
+        156.98919677734375
+      ],
+      "pt2": [
+        54.70119857788086,
+        125.66419982910156
+      ],
+      "distance": 23.5372,
+      "inlier": true
+    },
+    {
+      "queryIdx": 405,
+      "trainIdx": 18,
+      "pt1": [
+        371.8283996582031,
+        130.22959899902344
+      ],
+      "pt2": [
+        84.01010131835938,
+        72.63629913330078
+      ],
+      "distance": 23.6432,
+      "inlier": true
+    },
+    {
+      "queryIdx": 324,
+      "trainIdx": 45,
+      "pt1": [
+        424.089599609375,
+        123.74970245361328
+      ],
+      "pt2": [
+        188.18089294433594,
+        59.868099212646484
+      ],
+      "distance": 24.5357,
+      "inlier": true
+    },
+    {
+      "queryIdx": 362,
+      "trainIdx": 35,
+      "pt1": [
+        406.16839599609375,
+        123.82620239257812
+      ],
+      "pt2": [
+        152.76480102539062,
+        59.96590042114258
+      ],
+      "distance": 24.5967,
+      "inlier": true
+    },
+    {
+      "queryIdx": 386,
+      "trainIdx": 9,
+      "pt1": [
+        349.0130920410156,
+        153.19329833984375
+      ],
+      "pt2": [
+        38.173500061035156,
+        118.64910125732422
+      ],
+      "distance": 24.9399,
+      "inlier": true
+    },
+    {
+      "queryIdx": 329,
+      "trainIdx": 44,
+      "pt1": [
+        424.089599609375,
+        123.74970245361328
+      ],
+      "pt2": [
+        188.18089294433594,
+        59.868099212646484
+      ],
+      "distance": 27.1293,
+      "inlier": true
+    },
+    {
+      "queryIdx": 410,
+      "trainIdx": 19,
+      "pt1": [
+        376.88189697265625,
+        134.71429443359375
+      ],
+      "pt2": [
+        94.09459686279297,
+        81.6281967163086
+      ],
+      "distance": 33.3467,
+      "inlier": true
+    },
+    {
+      "queryIdx": 400,
+      "trainIdx": 28,
+      "pt1": [
+        394.7351989746094,
+        156.55169677734375
+      ],
+      "pt2": [
+        129.75880432128906,
+        125.375
+      ],
+      "distance": 41.7493,
+      "inlier": true
+    },
+    {
+      "queryIdx": 396,
+      "trainIdx": 11,
+      "pt1": [
+        357.2633056640625,
+        156.98919677734375
+      ],
+      "pt2": [
+        54.70119857788086,
+        125.66419982910156
+      ],
+      "distance": 42.2137,
+      "inlier": true
+    },
+    {
+      "queryIdx": 403,
+      "trainIdx": 17,
+      "pt1": [
+        371.8283996582031,
+        130.22959899902344
+      ],
+      "pt2": [
+        84.01010131835938,
+        72.63629913330078
+      ],
+      "distance": 42.7902,
+      "inlier": true
+    },
+    {
+      "queryIdx": 383,
+      "trainIdx": 7,
+      "pt1": [
+        346.5398864746094,
+        148.3778076171875
+      ],
+      "pt2": [
+        33.9359016418457,
+        108.5813980102539
+      ],
+      "distance": 57.8619,
+      "inlier": true
+    },
+    {
+      "queryIdx": 318,
+      "trainIdx": 49,
+      "pt1": [
+        425.4085998535156,
+        132.24609375
+      ],
+      "pt2": [
+        191.23599243164062,
+        76.5779037475586
+      ],
+      "distance": 58.6856,
+      "inlier": true
+    },
+    {
+      "queryIdx": 351,
+      "trainIdx": 40,
+      "pt1": [
+        414.2702941894531,
+        136.42239379882812
+      ],
+      "pt2": [
+        168.15440368652344,
+        85.73780059814453
+      ],
+      "distance": 85.1822,
+      "inlier": true
+    },
+    {
+      "queryIdx": 416,
+      "trainIdx": 23,
+      "pt1": [
+        386.4652099609375,
+        158.5906982421875
+      ],
+      "pt2": [
+        113.18399810791016,
+        129.36239624023438
+      ],
+      "distance": 103.0582,
+      "inlier": true
+    },
+    {
+      "queryIdx": 224,
+      "trainIdx": 78,
+      "pt1": [
+        454.22210693359375,
+        120.52559661865234
+      ],
+      "pt2": [
+        248.7187042236328,
+        53.28390121459961
+      ],
+      "distance": 135.9375,
+      "inlier": true
+    },
+    {
+      "queryIdx": 385,
+      "trainIdx": 9,
+      "pt1": [
+        348.8429870605469,
+        152.5334930419922
+      ],
+      "pt2": [
+        38.173500061035156,
+        118.64910125732422
+      ],
+      "distance": 139.56,
+      "inlier": true
+    },
+    {
+      "queryIdx": 394,
+      "trainIdx": 10,
+      "pt1": [
+        355.07000732421875,
+        144.7366943359375
+      ],
+      "pt2": [
+        50.38010025024414,
+        101.73200225830078
+      ],
+      "distance": 157.943,
+      "inlier": true
+    }
+  ],
+  "vis_url": "/static/features/flannmatcher_outputs/flann_54036ade_vis.jpg",
+  "parameters_hash": {
+    "json1": "sift_fe537a2f74344c74ba9355183c315987_f72fdb78.json",
+    "json2": "sift_f4964d93212e497b98106975a5b4ac5d_5d07fa0d.json",
+    "index": {
+      "algorithm": 1,
+      "trees": 5
+    },
+    "search": {
+      "checks": 50
+    },
+    "lowe": 0.4,
+    "ransac": 5.0,
+    "mode": "good",
+    "draw": 50
+  }
+}

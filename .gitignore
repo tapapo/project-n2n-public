@@ -1,35 +1,55 @@
-.venv/
-build-opencv/
-__pycache__/
-*.pyc
-my-react-flow-app/node_modules/
-outputs/
-Image-to-Descriptor/image/
-# Python
-__pycache__/
-*.pyc
-
-# Virtual env
-.venv/
-
-# Build / cache ที่ไม่อยากขึ้น repo
-build-opencv/
-outputs/
-Image-to-Descriptor/image/
-# Python cache
-__pycache__/
-*.pyc
-
-# macOS
+# ---------------------------------------
+# 1. System & Environment
+# ---------------------------------------
 .DS_Store
+Thumbs.db
+.env
+.env.local
+.env.production
 
-# Virtual env
-.venv/
-
-# runtime outputs (ถ้าไม่อยาก push)
-outputs/
-Image-to-Descriptor/image/
-build-opencv/
+# ---------------------------------------
+# 2. Python (Backend)
+# ---------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
 venv/
 .venv/
-__pycache__/
+pip-log.txt
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build specific
+build-opencv/
+*.egg-info/
+
+# ---------------------------------------
+# 3. Node.js / React (Frontend)
+# ---------------------------------------
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dist/
+build/
+.eslintcache
+
+# ---------------------------------------
+# 4. Project Outputs (Logic สำคัญ!)
+# ---------------------------------------
+
+# A. ปิดกั้นทุกไฟล์ใน outputs ไว้ก่อน (เช่น ไฟล์ที่ user อัปโหลดเล่นๆ)
+outputs/*
+
+# B. ข้อยกเว้น: "ห้ามเมิน" โฟลเดอร์ samples 
+# (เพราะเราเก็บ Mario, Coin และ JSON Results ไว้ทำ Template Tutorial)
+!outputs/samples/
+!outputs/samples/**
+
+# (Optional) ถ้าอยากเก็บโครงสร้างโฟลเดอร์ uploads ไว้แต่ไม่เอาไฟล์ข้างใน
+# ให้สร้างไฟล์เปล่าชื่อ .gitkeep ไว้ใน uploads แล้วเปิดบรรทัดนี้
+# !outputs/uploads/.gitkeep

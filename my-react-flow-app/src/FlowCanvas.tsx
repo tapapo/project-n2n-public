@@ -34,6 +34,7 @@ import SaveImageNode from './components/nodes/SaveImageNode';
 import SaveJsonNode from './components/nodes/SaveJsonNode';
 
 import type { CustomNodeData, LogEntry } from './types';
+import type { WorkflowTemplate } from './lib/workflowTemplates'; 
 
 // ---------- Runners ----------
 import { runFeature } from './lib/runners/features';
@@ -55,6 +56,8 @@ import LogPanel from './components/LogPanel';
 interface FlowCanvasProps {
   isRunning: boolean;
   onPipelineDone: () => void;
+  // 🔑 Prop สำหรับส่ง Callback Setter กลับไป
+  setLoadTemplateCallback: (callback: (template: WorkflowTemplate) => void) => void; 
 }
 
 // ---------- Node Types ----------
@@ -99,8 +102,8 @@ function cleanErrorMessage(rawMsg: string): string {
     .trim();
 }
 
-export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProps) {
-  const { screenToFlowPosition, getNode } = useReactFlow();
+export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateCallback }: FlowCanvasProps) {
+  const { screenToFlowPosition, getNode, fitView } = useReactFlow(); 
 
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const onMouseMove = useCallback(
@@ -134,7 +137,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  // ตัวติดตามสถานะการยกเลิก (ใช้ควบคุม Loop หลักเท่านั้น)
   const isCanceledRef = useRef(false);
 
   const addLog = useCallback((message: string, type: LogEntry['type'] = 'info', nodeId?: string) => {
@@ -197,10 +199,13 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
 
   const runNodeById = useCallback(
     async (nodeId: string) => {
-      // Logic การยกเลิกถูกลบออก เพื่อให้รัน Node เดี่ยวได้
       
       const node = nodesRef.current.find((n) => n.id === nodeId);
-      if (!node?.type) return;
+      // ✅ Check null แบบปลอดภัย
+      if (!node || !node.type) {
+         console.warn(`Attempted to run unknown node ID: ${nodeId}`);
+         return;
+      }
 
       const nodeName = node.data.label || node.type.toUpperCase();
       setIncomingEdgesStatus(nodeId, 'default');
@@ -243,7 +248,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
 
         addLog(`[${nodeName}] ✅ Completed`, 'success', nodeId);
       } catch (err: any) {
-        // เมื่อเกิด Error เราจะแสดง Log และโยน Error ให้ Pipeline Run หลักจับได้
         const cleanMsg = cleanErrorMessage(err.message || 'Unknown Error');
         addLog(`[${nodeName}] 💥 Error: ${cleanMsg}`, 'error', nodeId);
         
@@ -251,7 +255,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
           nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n))
         );
         setIncomingEdgesStatus(nodeId, 'error');
-        throw err; // โยน Error เพื่อให้ Pipeline Run หลักจับได้
+        throw err;
       }
     },
     [setNodes, addLog, setIncomingEdgesStatus]
@@ -271,32 +275,68 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
     });
   }, [nodes, runNodeById, setNodes]);
 
-  // Logic การรัน Pipeline หลัก (Fail Soft + Sorted Priority)
+  // 🔑 ฟังก์ชันโหลด Template
+  const handleLoadTemplate = useCallback((template: WorkflowTemplate) => {
+    // ✅ เพิ่ม Safety Check: ถ้า template เป็น null ไม่ต้องทำอะไร
+    if (!template) return;
+
+    addLog(`Loading template: ${template.name}`, 'info');
+
+    // 1. Pause History
+    if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as boolean) = true;
+
+    // 2. Map และเตรียม Nodes/Edges (เพิ่ม Safety)
+    const loadedNodes = template.nodes.map(n => ({
+        ...n,
+        data: { 
+            ...(n.data || {}), 
+            onRunNode: (id: string) => runNodeById(id)
+        }
+    }));
+    
+    // 3. ตั้งค่า Nodes/Edges State
+    setNodes(() => loadedNodes);
+    setEdges(() => template.edges);
+
+    // 4. จัดมุมมอง (Fit View)
+    setTimeout(() => {
+        window.requestAnimationFrame(() => {
+            fitView({ padding: 0.2, duration: 800 }); 
+        });
+        
+        if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as boolean) = false;
+    }, 50);
+    
+  }, [addLog, setNodes, setEdges, fitView, isApplyingHistoryRef, runNodeById]);
+
+  // ✅ FIX KEY: ส่ง function updater แทนตัว function เพื่อแก้ปัญหา React Functional Update
+  useEffect(() => {
+      setLoadTemplateCallback(() => handleLoadTemplate);
+  }, [setLoadTemplateCallback, handleLoadTemplate]);
+
+
+  // Logic การรัน Pipeline หลัก
   useEffect(() => {
     if (!isRunning) {
-        // 1. ถ้า isRunning เปลี่ยนเป็น false (ผู้ใช้กด Stop), ให้ส่งสัญญาณยกเลิก
         isCanceledRef.current = true;
         return;
     }
     
-    // เริ่มต้นรัน: รีเซ็ตสัญญาณยกเลิก
     isCanceledRef.current = false;
     
     const runAllNodes = async () => {
       addLog('Starting Pipeline', 'info');
       
-      // ✅ 1. กำหนดลำดับความสำคัญ (Sorting Priority)
       const executionPriority = {
-          'image-input': 1,           // 1. Source (ต้องรันก่อนเสมอ)
-          'brisque': 10, 'psnr': 10, 'ssim': 10, // 2. Quality
-          'sift': 20, 'surf': 20, 'orb': 20, // 3. Feature Extraction
-          'otsu': 30, 'snake': 30, // 4. Classification
-          'bfmatcher': 40, 'flannmatcher': 40, // 5. Matching
-          'homography-align': 50, 'affine-align': 50, // 6. Alignment
-          'save-image': 99, 'save-json': 99, // 7. Utility
+          'image-input': 1,           
+          'brisque': 10, 'psnr': 10, 'ssim': 10, 
+          'sift': 20, 'surf': 20, 'orb': 20, 
+          'otsu': 30, 'snake': 30, 
+          'bfmatcher': 40, 'flannmatcher': 40, 
+          'homography-align': 50, 'affine-align': 50, 
+          'save-image': 99, 'save-json': 99, 
       };
       
-      // จัดเรียง Nodes
       const sortedNodes = nodesRef.current
         .slice() 
         .sort((a, b) => {
@@ -305,10 +345,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
             return priorityA - priorityB;
         });
 
-      // 2. วนลูปตาม Nodes ที่ถูกจัดเรียงแล้ว (Fail Soft Logic)
       for (const node of sortedNodes) {
-        
-        // ตรวจสอบการยกเลิกโดยผู้ใช้
         if (isCanceledRef.current) {
             addLog('Pipeline stopped by user.', 'warning');
             break; 
@@ -319,13 +356,11 @@ export default function FlowCanvas({ isRunning, onPipelineDone }: FlowCanvasProp
         try { 
             await runNodeById(node.id); 
         } catch (e) { 
-            // เมื่อเจอ Fault, เราจะ continue ไป Node ถัดไปแทน (Fail Soft)
             console.warn(`Node ${node.id} failed, skipping to next node.`);
             continue; 
         }
       }
       
-      // 3. สั่งหยุดสถานะ Running และเรียก onPipelineDone
       if (!isCanceledRef.current) {
           addLog('Pipeline Finished', 'success');
       }

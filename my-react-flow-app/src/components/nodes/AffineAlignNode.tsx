@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useStore } from 'reactflow'; // ✅ ใช้ useStore
+import { Handle, Position, type NodeProps, useReactFlow, useStore } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
@@ -29,7 +29,7 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
 
-  // ✅ FIX: ใช้ useStore เพื่อเช็คเส้นแบบ Real-time
+  // ✅ Check connection
   const isConnected = useStore(
     useCallback((s: any) => s.edges.some((e: any) => e.target === id), [id])
   );
@@ -67,25 +67,39 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
+  // ---------------------------------------------------------
+  // 🖼️ LOGIC การดึงรูปภาพ (เหมือน Homography)
+  // ---------------------------------------------------------
   const resp = data?.payload?.json as any | undefined;
-  const alignedUrl: string | undefined =
-    (data?.payload?.aligned_url as string | undefined) ||
-    (resp?.output?.aligned_url as string | undefined);
+
+  // 1. ลองดึง URL ที่พร้อมใช้จาก payload
+  const payloadUrl = data?.payload?.aligned_url || data?.payload?.result_image_url;
+
+  // 2. ถ้าไม่มี ให้ลองดึงจาก JSON output (ค่าดิบจาก Backend)
+  const jsonPath = resp?.output?.aligned_url || resp?.output?.aligned_image;
+
+  // 3. เลือกอันที่มีค่า
+  const rawUrl = payloadUrl || jsonPath;
+
+  // 4. ✅ FIX: แปลงเป็น Absolute URL และเติม Timestamp เสมอ เพื่อแก้ Browser Cache
+  const alignedUrl = rawUrl 
+    ? `${abs(rawUrl)}?t=${Date.now()}` 
+    : undefined;
 
   const inliers = resp?.num_inliers;
   const model = (resp?.model as Params['model'] | undefined) ?? savedParams.model;
   const warpMode = (resp?.warp_mode as Params['warp_mode'] | undefined) ?? savedParams.warp_mode;
   const blend = typeof resp?.blend === 'boolean' ? resp.blend : savedParams.blend;
 
-  // ✅ Theme: Purple (ม่วงเสมอ)
+  // Theme: Purple
   let borderColor = 'border-purple-500';
   if (selected) {
-    borderColor = 'border-purple-400 ring-2 ring-purple-500'; // Selected
+    borderColor = 'border-purple-400 ring-2 ring-purple-500';
   } else if (isRunning) {
-    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50'; // Running
+    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
   }
 
-  // ✅ Handle Class Logic
+  // Handle Logic
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
@@ -97,7 +111,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 max-w-sm text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
       
-      {/* Input Handle (Left) */}
       <Handle 
         type="target" 
         position={Position.Left} 
@@ -105,7 +118,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
         style={{ top: '50%', transform: 'translateY(-50%)' }} 
       />
       
-      {/* Output Handle (Right) */}
       <Handle 
         type="source" 
         position={Position.Right} 
@@ -129,7 +141,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
 
-          {/* ✅ Settings Button with Tooltip */}
           <span className="relative inline-flex items-center group">
             <button
               aria-label="Open Affine settings"
@@ -156,15 +167,17 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
           {alignedUrl ? `Alignment complete — ${inliers ?? '?'} inliers` : 'Connect a Matcher node and run'}
         </p>
 
-        {/* ✅ แสดงรูปผลลัพธ์และ Parameters เฉพาะเมื่อรันเสร็จแล้ว (alignedUrl มีค่า) */}
         {alignedUrl && (
           <>
-            <img
-              src={abs(alignedUrl)}
-              alt="affine-aligned"
-              className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56"
-              draggable={false}
-            />
+            <a href={alignedUrl} target="_blank" rel="noreferrer">
+              <img
+                src={alignedUrl}
+                alt="affine-aligned"
+                className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56 bg-black/20"
+                draggable={false}
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            </a>
 
             <div className="mt-1 text-[11px] text-gray-300">
               <div className="mb-1">

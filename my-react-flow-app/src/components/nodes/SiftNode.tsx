@@ -2,6 +2,7 @@ import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
+import { abs } from '../../lib/api'; // 1. ✅ อย่าลืม Import abs
 
 const statusDot = (active: boolean, color: string) => 
   `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`;
@@ -95,17 +96,16 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
-  const resultUrl = data?.payload?.result_image_url || data?.payload?.vis_url || data?.payload?.sift_vis_url;
+  const rawUrl = data?.payload?.result_image_url || data?.payload?.vis_url || data?.payload?.sift_vis_url;
   
-  // ✅ เพิ่มข้อความ Default ถ้ายังไม่มีผลลัพธ์
+  // 2. ✅ FIX: แปลง Path เป็น URL เต็ม และใส่ timestamp กัน cache
+  const displayUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
   
   const caption =
   (data?.description &&
     !/(running|start)/i.test(data?.description)) 
     ? data.description
-    : (resultUrl ? 'Result preview' : 'Connect Image Input and run');
-
-  
+    : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
 
   let borderColor = 'border-green-500';
   if (selected) borderColor = 'border-green-400 ring-2 ring-green-500';
@@ -174,18 +174,19 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
           <div className="text-[11px] text-gray-400">Processed: {fmtSize(processed.w!, processed.h!)}</div>
         )}
 
-        {resultUrl && (
+        {/* 3. ✅ ใช้ displayUrl ที่ผ่าน abs() แล้ว */}
+        {displayUrl && (
           <img
-            src={resultUrl}
+            src={displayUrl}
             alt="sift-result"
             className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56"
             draggable={false}
           />
         )}
-        {/* ✅ แสดงข้อความ (ถ้าไม่มีรูปจะเป็น "Connect...") */}
         {caption && <p className="text-xs text-white-400 break-words">{caption}</p>}
       </div>
 
+      {/* Footer & Modal (เหมือนเดิม) */}
       <div className="border-t-2 border-gray-700 p-2 text-sm">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
@@ -194,50 +195,12 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <Modal open={open} title="SIFT Settings" onClose={handleClose}>
-        <div className="grid grid-cols-2 gap-3 text-xs text-gray-300">
-          <label>nFeatures
-            <input
-              type="number" min={0}
-              className="w-full bg-gray-900 rounded border border-gray-700"
-              value={form.nfeatures}
-              onChange={(e) => setForm((s: any) => ({ ...s, nfeatures: Number(e.target.value) }))}
-            />
-          </label>
-          <label>Octaves
-            <input
-              type="number" step={1} min={1} max={8}
-              className="w-full bg-gray-900 rounded border border-gray-700"
-              value={form.nOctaveLayers}
-              onChange={(e) => {
-                const v = Math.max(1, parseInt(e.target.value || '1', 10));
-                setForm((s: any) => ({ ...s, nOctaveLayers: v }));
-              }}
-            />
-          </label>
-          <label>Contrast
-            <input
-              type="number" step="0.001" min={0}
-              className="w-full bg-gray-900 rounded border border-gray-700"
-              value={form.contrastThreshold}
-              onChange={(e) => setForm((s: any) => ({ ...s, contrastThreshold: Number(e.target.value) }))}
-            />
-          </label>
-          <label>Edge
-            <input
-              type="number" min={0}
-              className="w-full bg-gray-900 rounded border border-gray-700"
-              value={form.edgeThreshold}
-              onChange={(e) => setForm((s: any) => ({ ...s, edgeThreshold: Number(e.target.value) }))}
-            />
-          </label>
-          <label>Sigma
-            <input
-              type="number" step="0.1" min={0}
-              className="w-full bg-gray-900 rounded border border-gray-700"
-              value={form.sigma}
-              onChange={(e) => setForm((s: any) => ({ ...s, sigma: Number(e.target.value) }))}
-            />
-          </label>
+         <div className="grid grid-cols-2 gap-3 text-xs text-gray-300">
+          <label>nFeatures <input type="number" min={0} className="w-full bg-gray-900 rounded border border-gray-700" value={form.nfeatures} onChange={(e) => setForm((s: any) => ({ ...s, nfeatures: Number(e.target.value) }))} /></label>
+          <label>Octaves <input type="number" step={1} min={1} max={8} className="w-full bg-gray-900 rounded border border-gray-700" value={form.nOctaveLayers} onChange={(e) => { const v = Math.max(1, parseInt(e.target.value || '1', 10)); setForm((s: any) => ({ ...s, nOctaveLayers: v })); }} /></label>
+          <label>Contrast <input type="number" step="0.001" min={0} className="w-full bg-gray-900 rounded border border-gray-700" value={form.contrastThreshold} onChange={(e) => setForm((s: any) => ({ ...s, contrastThreshold: Number(e.target.value) }))} /></label>
+          <label>Edge <input type="number" min={0} className="w-full bg-gray-900 rounded border border-gray-700" value={form.edgeThreshold} onChange={(e) => setForm((s: any) => ({ ...s, edgeThreshold: Number(e.target.value) }))} /></label>
+          <label>Sigma <input type="number" step="0.1" min={0} className="w-full bg-gray-900 rounded border border-gray-700" value={form.sigma} onChange={(e) => setForm((s: any) => ({ ...s, sigma: Number(e.target.value) }))} /></label>
         </div>
         <div className="flex justify-end gap-2 pt-3">
           <button onClick={handleClose} className="px-3 py-1 rounded bg-gray-700">Cancel</button>

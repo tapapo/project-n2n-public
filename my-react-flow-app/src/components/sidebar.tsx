@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { TEMPLATES, type WorkflowTemplate } from '../lib/workflowTemplates';
 
 interface SidebarProps {
-  onLoadTemplate?: (template: WorkflowTemplate) => void;
+  // ✅ FIX: เปลี่ยน Type ให้รองรับ null อย่างชัดเจน (เพื่อให้เข้ากับ State ของ App.tsx)
+  onLoadTemplate: ((template: WorkflowTemplate) => void) | null;
 }
 
 // --- Icons Collection (เก็บไว้ใช้กับปุ่ม Tab ตอนกางออก) ---
@@ -195,6 +196,7 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
                     return (
                         <div 
                             key={idx} 
+                            // 🔑 เรียกใช้ onLoadTemplate โดยใช้ Optional Chaining
                             onClick={() => onLoadTemplate?.(t)}
                             className={`group p-3 rounded-lg border border-gray-700 bg-gray-800/50 hover:bg-gray-800 ${style.border} cursor-pointer transition-all duration-200 relative overflow-hidden`}
                         >

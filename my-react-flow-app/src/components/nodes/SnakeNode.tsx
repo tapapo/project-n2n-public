@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow';
+import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
-import { abs } from '../../lib/api';
+import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
 import { getNodeImageUrl } from '../../lib/runners/utils';
 
@@ -92,7 +92,7 @@ const DEFAULT_PARAMS: Params = {
 const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
-  const nodes = useNodes<CustomNodeData>();
+  const nodes = useNodes<CustomNodeData>(); 
   
   const [open, setOpen] = useState(false);
   const [showAdv, setShowAdv] = useState(false);
@@ -117,7 +117,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     const incoming = edges.find(e => e.target === id);
     if (!incoming) return null;
     const parent = nodes.find(n => n.id === incoming.source);
-    if (!parent) return null;
     return getNodeImageUrl(parent);
   }, [edges, nodes, id]);
 
@@ -126,7 +125,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     if (upstreamImage !== prevInputRef.current) {
       rf.setNodes((nds) => nds.map((n) => {
         if (n.id === id) {
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { result_image_url, preview_url, overlay_url, mask_url, contour_points, iterations, json, ...cleanPayload } = n.data.payload || {};
           return {
             ...n,
@@ -164,7 +162,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ));
   };
 
-  const onSave = () => {
+  const onSave = useCallback(() => {
     const cleanParams: Params = {
       ...form,
       alpha: toFloat(form.alpha, 0.2), beta: toFloat(form.beta, 0.2), gamma: toFloat(form.gamma, 0.1),
@@ -178,15 +176,17 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     };
     updateNodeData(cleanParams);
     setOpen(false);
-  };
+  }, [form, imgSize, updateNodeData]);
 
   const resp = data?.payload?.json as any;
   const resultImage = data?.payload?.result_image_url || data?.payload?.preview_url || resp?.overlay_url || resp?.mask_url;
   
-  const displayImage = (isEditing || !resultImage) ? upstreamImage : resultImage;
+  const rawUrl = (!isEditing && resultImage) ? resultImage : upstreamImage;
+
+  const displayImage = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined; // ✅ Cache Busting URL
+
   const iterText = resp?.iterations ?? data?.payload?.iterations;
 
-  // ✅ Logic ข้อความสถานะใหม่: รวม Mode + Done
   let statusText = '';
   if (!displayImage) {
       statusText = 'Connect Image Input and run';
@@ -197,6 +197,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       }
   }
 
+  // Theme: Pink
   let borderColor = 'border-pink-500';
   if (selected) borderColor = 'border-pink-400 ring-2 ring-pink-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -213,10 +214,17 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     };
   };
 
-  const onImgLoad = (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+  // ✅ FIX: ปรับปรุง onImgLoad เพื่อหยุด Infinite Loop
+  const onImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const img = e.currentTarget;
-    setImgSize({ w: img.naturalWidth, h: img.naturalHeight });
-  };
+    const newWidth = img.naturalWidth;
+    const newHeight = img.naturalHeight;
+    
+    // หยุดการอัปเดต State ถ้าขนาดภาพไม่ได้เปลี่ยน
+    if (imgSize === null || imgSize.w !== newWidth || imgSize.h !== newHeight) {
+        setImgSize({ w: newWidth, h: newHeight });
+    }
+  }, [imgSize]); // Dependency includes imgSize
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (form.init_mode !== 'bbox') return;
@@ -291,14 +299,17 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             <button onClick={onRun} disabled={isRunning} className={['ml-1 px-3 py-1 rounded text-xs font-semibold transition-colors', isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-pink-600 hover:bg-pink-700 text-white'].join(' ')}>▶ Run</button>
             <span className="relative inline-flex items-center group">
             <button aria-label="Open Snake settings" onClick={() => setOpen(true)} className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80" title="Settings"><svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="black"><g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}><path d="M3 7h18" /><circle cx="9" cy="7" r="3.4" fill="white" /><path d="M3 17h18" /><circle cx="15" cy="17" r="3.4" fill="white" /></g></svg></button>
-            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 shadow-lg transition-opacity duration-200">Settings<span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900"></span></span>
+            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 shadow-lg transition-opacity duration-200">Settings<span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" /></span>
             </span>
         </div>
       </div>
 
       <div 
         className="p-4 space-y-3 relative group nodrag" 
-        onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onClick={handleClick}
       >
         {imgSize && (
             <div className="text-[10px] text-gray-400">
@@ -311,18 +322,18 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         {displayImage && (
           <div 
              className="relative w-full cursor-crosshair border border-gray-700 rounded-lg overflow-hidden select-none"
-             onMouseDown={handleMouseDown}
-             onMouseMove={handleMouseMove}
-             onMouseUp={handleMouseUp}
-             onClick={handleClick}
+             // เราต้องหยุด Event propagation ที่นี่
+             onMouseDown={e => { e.stopPropagation(); }} 
+             onClick={e => { e.stopPropagation(); }} 
           >
             <img 
                 ref={imgRef}
-                src={abs(displayImage)} 
+                src={displayImage} 
                 alt="snake" 
                 onLoad={onImgLoad} 
                 className="w-full h-auto object-contain max-h-56 block pointer-events-none" 
                 draggable={false} 
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
 
             {/* Point Overlay */}

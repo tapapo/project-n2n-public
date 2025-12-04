@@ -1,8 +1,8 @@
-// src/components/nodes/SurfNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; // ✅ เพิ่ม useEdges
+import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; // ✅ เพิ่ม useNodes
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
+import { abs } from '../../lib/api'; // ✅ Import abs
 
 const statusDot = (active: boolean, color: string) =>
   `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`;
@@ -26,21 +26,30 @@ const DEFAULT_SURF = {
   upright: false,
 };
 
-const fmtSize = (w?: number | null, h?: number | null) => (w && h) ? `${w}×${h}px` : undefined;
-function shapeToWH(shape?: any): { w?: number, h?: number } {
-  if (!Array.isArray(shape) || shape.length < 2) return {};
-  const h = Number(shape[0]);
-  const w = Number(shape[1]);
-  if (Number.isFinite(w) && Number.isFinite(h)) return { w, h };
-  return {};
+// Helpers
+function toNum(v: any): number | undefined {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+function fmtSize(w?: any, h?: any) {
+  const wn = toNum(w);
+  const hn = toNum(h);
+  if (wn !== undefined && hn !== undefined) return `${wn} x ${hn}px`;
+  return undefined;
+}
+
+function shapeToText(sh?: any) {
+  if (Array.isArray(sh) && sh.length >= 2) return fmtSize(sh[1], sh[0]);
+  return undefined;
 }
 
 const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
-  const edges = useEdges(); // ✅ ใช้ useEdges
+  const edges = useEdges();
+  const nodes = useNodes<CustomNodeData>(); // ✅ ใช้ useNodes
   const [open, setOpen] = useState(false);
 
-  // ✅ Check Connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
   const params = useMemo(
@@ -51,27 +60,22 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const [form, setForm] = useState(params);
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
 
-  const upstream = useMemo(() => {
-    const incoming = rf.getEdges().filter((e) => e.target === id);
-    for (const e of incoming) {
-      const node = rf.getNodes().find((n) => n.id === e.source);
-      if (node?.type === 'image-input') {
-        const w = Number(node.data?.payload?.width);
-        const h = Number(node.data?.payload?.height);
-        if (Number.isFinite(w) && Number.isFinite(h)) return { w, h };
-      }
-    }
-    return { w: undefined, h: undefined };
-  }, [id, rf]);
+  // ✅ Logic การดึง Input Size จากโหนดแม่
+  const upstreamSize = useMemo(() => {
+    const incoming = edges.find(e => e.target === id);
+    if (!incoming) return undefined;
+    const parent = nodes.find(n => n.id === incoming.source);
+    if (!parent) return undefined;
+    
+    const p = parent.data.payload;
+    const w = p?.width || p?.image_shape?.[1];
+    const h = p?.height || p?.image_shape?.[0];
+    
+    return fmtSize(w, h);
+  }, [edges, nodes, id]);
 
-  const processed = useMemo(() => {
-    const { w, h } = shapeToWH(data?.payload?.image_shape);
-    return { w, h };
-  }, [data?.payload?.image_shape]);
-
-  const showProcessed =
-    processed.w && processed.h &&
-    (processed.w !== upstream.w || processed.h !== upstream.h);
+  const processedText = shapeToText(data?.payload?.image_shape);
+  const showProcessed = processedText && upstreamSize && processedText !== upstreamSize;
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
@@ -102,18 +106,20 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const isBusy = isRunning;
 
-  const resultUrl =
+  // ✅ FIX: Cache Busting URL
+  const rawUrl =
     (data?.payload && (data.payload.result_image_url as string)) ||
-    (data?.payload && (data.payload.vis_url as string)) ||
-    undefined;
+    (data?.payload && (data.payload.vis_url as string));
+
+  const displayUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
 
   const caption =
   (data?.description &&
     !/(running|start)/i.test(data?.description)) 
     ? data.description
-    : (resultUrl ? 'Result preview' : 'Connect Image Input and run');
+    : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
 
-  // ✅ Theme: Green (สีเขียวเสมอ)
+  // Theme: Green
   let borderColor = 'border-green-500';
   if (selected) {
     borderColor = 'border-green-400 ring-2 ring-green-500';
@@ -121,7 +127,6 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
   }
 
-  // ✅ Handle Class Logic
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
@@ -132,20 +137,8 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
-      {/* ✅ แยก Class */}
-      <Handle 
-        type="target" 
-        position={Position.Left} 
-        className={targetHandleClass} 
-        style={{ top: '50%', transform: 'translateY(-50%)' }} 
-      />
-      
-      <Handle 
-        type="source" 
-        position={Position.Right} 
-        className={sourceHandleClass} 
-        style={{ top: '50%', transform: 'translateY(-50%)' }} 
-      />
+      <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+      <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
       <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
         <div className="font-bold">SURF</div>
@@ -155,7 +148,6 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             title="Run this node"
             onClick={handleRun}
             disabled={isBusy}
-            // ✅ ปุ่มเขียวเสมอ
             className={[
               'px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white',
               isBusy ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700',
@@ -190,22 +182,25 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
-        {fmtSize(upstream.w, upstream.h) && (
-          <div className="text-[11px] text-gray-400">Input: {fmtSize(upstream.w, upstream.h)}</div>
+        {/* ✅ แสดงขนาด Input */}
+        {upstreamSize && (
+          <div className="text-[11px] text-gray-400">Input: {upstreamSize}</div>
         )}
         {typeof data?.payload?.num_keypoints === 'number' && (
           <div className="text-[11px] text-gray-400">Keypoints: {data.payload.num_keypoints}</div>
         )}
         {showProcessed && (
-          <div className="text-[11px] text-gray-400">Processed: {fmtSize(processed.w!, processed.h!)}</div>
+          <div className="text-[11px] text-gray-400">Processed: {processedText}</div>
         )}
 
-        {resultUrl && (
+        {/* ✅ แสดงรูป (Cache Busting) */}
+        {displayUrl && (
           <img
-            src={resultUrl}
+            src={displayUrl}
             alt="surf-result"
             className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56"
             draggable={false}
+            onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         )}
         {caption && <p className="text-xs text-white-400 break-words">{caption}</p>}

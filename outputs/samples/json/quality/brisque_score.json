@@ -1,0 +1,29 @@
+{
+  "tool": "BRISQUE",
+  "tool_version": {
+    "opencv": "4.8.0",
+    "python": "3.11.0"
+  },
+  "image": {
+    "original_path": "/Users/pop/Desktop/project_n2n/outputs/uploads/8422aa2ab6a8440fa70af65d787f4932.jpg",
+    "file_name": "8422aa2ab6a8440fa70af65d787f4932.jpg",
+    "processed_shape": [
+      570,
+      600
+    ],
+    "dtype": "uint8",
+    "channels": 1
+  },
+  "brisque_parameters_used": {
+    "model_file": "brisque_model_live.yml",
+    "range_file": "brisque_range_live.yml",
+    "note": "Lower score = better perceptual quality"
+  },
+  "quality_score": 33.5977,
+  "quality_bucket": "fair",
+  "parameters_hash": {
+    "img": "8422aa2ab6a8440fa70af65d787f4932.jpg",
+    "model": "default_live",
+    "ver": "1.0"
+  }
+}

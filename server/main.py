@@ -62,7 +62,7 @@ def _as_count(x) -> int:
     try: return int(x)
     except: return 0
 
-# แปลง URL (/static/... หรือ http...) -> Local Path
+# ✅ ฟังก์ชันพระเอก: แปลง URL (/static/... หรือ http...) -> Local Path
 def resolve_image_path(p: str) -> str:
     if not p: return p
     
@@ -72,9 +72,12 @@ def resolve_image_path(p: str) -> str:
     else:
         path_part = p
 
+    # ⚠️ NEW: Logic นี้สำคัญมากสำหรับ Template!
+    # แปลง /static/samples/xyz.jpg -> .../outputs/samples/xyz.jpg
     if path_part.startswith("/static/"):
         rel = path_part[len("/static/"):] 
-        return str(Path(OUT, rel))
+        full_path = os.path.join(OUT, rel.lstrip("/"))
+        return str(full_path)
 
     if "/uploads/" in path_part:
         name = Path(path_part).name
@@ -271,10 +274,14 @@ class MatchReq(BaseModel):
 
 @app.post("/api/match/bf")
 def match_bf(req: MatchReq):
+    # ✅ FIX: ใช้ resolve_image_path
+    json_a = resolve_image_path(req.json_a)
+    json_b = resolve_image_path(req.json_b)
+
     try:
         result = bf_run(
-            req.json_a,
-            req.json_b,
+            json_a,
+            json_b,
             OUT,
             lowe_ratio=req.lowe_ratio,
             ransac_thresh=req.ransac_thresh,
@@ -299,9 +306,13 @@ def match_bf(req: MatchReq):
 
 @app.post("/api/match/flann")
 def match_flann(req: MatchReq):
+    # ✅ FIX: ใช้ resolve_image_path
+    json_a = resolve_image_path(req.json_a)
+    json_b = resolve_image_path(req.json_b)
+
     try:
         result = flann_run(
-            req.json_a, req.json_b, OUT,
+            json_a, json_b, OUT,
             lowe_ratio=req.lowe_ratio or 0.75,
             ransac_thresh=req.ransac_thresh or 5.0,
             index_mode=req.index_mode,
@@ -339,9 +350,12 @@ class HomographyReq(BaseModel):
 
 @app.post("/api/alignment/homography")
 def alignment_homography(req: HomographyReq):
+    # ✅ FIX: ใช้ resolve_image_path
+    match_json = resolve_image_path(req.match_json)
+    
     try:
         result = homography_run(
-            req.match_json,
+            match_json,
             out_root=OUT,
             warp_mode=req.warp_mode,
             blend=req.blend,
@@ -366,9 +380,12 @@ class AffineReq(BaseModel):
 
 @app.post("/api/alignment/affine")
 def alignment_affine(req: AffineReq):
+    # ✅ FIX: ใช้ resolve_image_path
+    match_json = resolve_image_path(req.match_json)
+    
     try:
         result = affine_run(
-            match_json_path=req.match_json,
+            match_json_path=match_json,
             out_root=OUT,
             model=req.model,
             warp_mode=req.warp_mode,
