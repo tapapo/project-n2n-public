@@ -1,3 +1,4 @@
+// src/FlowCanvas.tsx
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
   MiniMap,
@@ -6,32 +7,17 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   addEdge,
-  MarkerType,
-  type NodeTypes,
-  type Edge,
-  type Connection,
   ConnectionLineType,
   useReactFlow,
   type Node as RFNode,
+  type Edge,
+  type Connection,
+  BackgroundVariant,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// ---------- Node Components ----------
-import ImageInputNode from './components/nodes/ImageInputNode';
-import SiftNode from './components/nodes/SiftNode';
-import SurfNode from './components/nodes/SurfNode';
-import OrbNode from './components/nodes/OrbNode';
-import BrisqueNode from './components/nodes/BrisqueNode';
-import PsnrNode from './components/nodes/PsnrNode';
-import SsimNode from './components/nodes/SsimNode';
-import BFMatcherNode from './components/nodes/BFMatcherNode';
-import FLANNMatcherNode from './components/nodes/FLANNMatcherNode';
-import HomographyAlignNode from './components/nodes/HomographyAlignNode';
-import AffineAlignNode from './components/nodes/AffineAlignNode';
-import OtsuNode from './components/nodes/OtsuNode';
-import SnakeNode from './components/nodes/SnakeNode';
-import SaveImageNode from './components/nodes/SaveImageNode';
-import SaveJsonNode from './components/nodes/SaveJsonNode';
+// ✅ Import Config จากไฟล์ใหม่ (แก้ปัญหา React Flow Warning)
+import { nodeTypes, defaultEdgeOptions } from './lib/flowConfig';
 
 import type { CustomNodeData, LogEntry } from './types';
 import type { WorkflowTemplate } from './lib/workflowTemplates'; 
@@ -52,41 +38,18 @@ import { useWorkflowFile } from './hooks/useWorkflowFile';
 import { validateNodeInput } from './lib/validation';
 import LogPanel from './components/LogPanel';
 
-// ---------- Props ----------
 interface FlowCanvasProps {
   isRunning: boolean;
   onPipelineDone: () => void;
-  // 🔑 Prop สำหรับส่ง Callback Setter กลับไป
   setLoadTemplateCallback: (callback: (template: WorkflowTemplate) => void) => void; 
 }
-
-// ---------- Node Types ----------
-const nodeTypes: NodeTypes = {
-  'image-input': ImageInputNode,
-  sift: SiftNode,
-  surf: SurfNode,
-  orb: OrbNode,
-  brisque: BrisqueNode,
-  psnr: PsnrNode,
-  ssim: SsimNode,
-  bfmatcher: BFMatcherNode,
-  flannmatcher: FLANNMatcherNode,
-  'homography-align': HomographyAlignNode,
-  'affine-align': AffineAlignNode,
-  otsu: OtsuNode,
-  snake: SnakeNode,
-  'save-image': SaveImageNode,
-  'save-json': SaveJsonNode,
-};
 
 const STORAGE_KEY_NODES = 'n2n_nodes';
 const STORAGE_KEY_EDGES = 'n2n_edges';
 const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
-// Helper: ทำความสะอาดข้อความ Error
 function cleanErrorMessage(rawMsg: string): string {
   if (!rawMsg) return 'Unknown Error';
-
   try {
     const jsonStartIndex = rawMsg.indexOf('{');
     if (jsonStartIndex !== -1) {
@@ -95,15 +58,11 @@ function cleanErrorMessage(rawMsg: string): string {
       if (parsed.detail) return parsed.detail;
     }
   } catch (e) { }
-
-  return rawMsg
-    .replace(/^HTTP \d+ [a-zA-Z ]+ - /, '')
-    .replace(/^Error: /, '')
-    .trim();
+  return rawMsg.replace(/^HTTP \d+ [a-zA-Z ]+ - /, '').replace(/^Error: /, '').trim();
 }
 
 export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateCallback }: FlowCanvasProps) {
-  const { screenToFlowPosition, getNode, fitView } = useReactFlow(); 
+  const { screenToFlowPosition, fitView, getNode } = useReactFlow(); 
 
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const onMouseMove = useCallback(
@@ -119,18 +78,15 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
       const raw = localStorage.getItem(STORAGE_KEY_NODES);
       const parsed = raw ? JSON.parse(raw) : [];
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    } catch { return []; }
   }, []);
+  
   const initialEdges = useMemo(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_EDGES);
       const parsed = raw ? JSON.parse(raw) : [];
       return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
+    } catch { return []; }
   }, []);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<CustomNodeData>(initialNodes);
@@ -177,17 +133,9 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
         eds.map((e) => {
           if (e.target === nodeId) {
             if (status === 'error') {
-              return {
-                ...e,
-                animated: true,
-                style: { ...e.style, stroke: '#ef4444', strokeWidth: 3 },
-              };
+              return { ...e, animated: true, style: { ...e.style, stroke: '#ef4444', strokeWidth: 3 } };
             } else {
-              return {
-                ...e,
-                animated: false,
-                style: { ...e.style, stroke: '#64748b', strokeWidth: 2 },
-              };
+              return { ...e, animated: false, style: { ...e.style, stroke: '#64748b', strokeWidth: 2 } };
             }
           }
           return e;
@@ -199,9 +147,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
 
   const runNodeById = useCallback(
     async (nodeId: string) => {
-      
       const node = nodesRef.current.find((n) => n.id === nodeId);
-      // ✅ Check null แบบปลอดภัย
       if (!node || !node.type) {
          console.warn(`Attempted to run unknown node ID: ${nodeId}`);
          return;
@@ -210,22 +156,26 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
       const nodeName = node.data.label || node.type.toUpperCase();
       setIncomingEdgesStatus(nodeId, 'default');
 
+      // 1. Validation Check
       const check = validateNodeInput(nodeId, nodesRef.current, edgesRef.current);
       if (!check.isValid) {
         const cleanMsg = cleanErrorMessage(check.message || '');
         addLog(`[${nodeName}] ❌ Validation: ${cleanMsg}`, 'error', nodeId);
-        setNodes((nds) =>
-          nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n))
-        );
+        setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n)));
         setIncomingEdgesStatus(nodeId, 'error');
         return;
       }
 
+      // 2. Start Running
       addLog(`[${nodeName}] ⏳ Processing...`, 'info', nodeId);
       await markStartThenRunning(nodeId, node.type.toUpperCase(), setNodes);
 
       try {
         switch (node.type) {
+          // ✅ FIX: เพิ่ม case 'image-input' เพื่อแก้ Warning Unknown Type
+          case 'image-input':
+            break; // ไม่ต้องทำอะไร ผ่านไปเลย
+
           case 'sift': case 'surf': case 'orb':
             await runFeature(node, setNodes, nodesRef.current, edgesRef.current); break;
           case 'brisque': case 'psnr': case 'ssim':
@@ -242,18 +192,19 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
             await runSaveImage(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           case 'save-json':
             await runSaveJson(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
+          
           default:
             console.warn(`Unknown type: ${node.type}`);
         }
 
+        // 3. Mark Completed
         addLog(`[${nodeName}] ✅ Completed`, 'success', nodeId);
+        // (สำหรับ image-input สถานะ success มีอยู่แล้วจากตอนอัปโหลด หรือจะสั่ง set อีกทีก็ได้ถ้าต้องการ)
+        
       } catch (err: any) {
         const cleanMsg = cleanErrorMessage(err.message || 'Unknown Error');
         addLog(`[${nodeName}] 💥 Error: ${cleanMsg}`, 'error', nodeId);
-        
-        setNodes((nds) =>
-          nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n))
-        );
+        setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n)));
         setIncomingEdgesStatus(nodeId, 'error');
         throw err;
       }
@@ -275,71 +226,45 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
     });
   }, [nodes, runNodeById, setNodes]);
 
-  // 🔑 ฟังก์ชันโหลด Template
   const handleLoadTemplate = useCallback((template: WorkflowTemplate) => {
-    // ✅ เพิ่ม Safety Check: ถ้า template เป็น null ไม่ต้องทำอะไร
     if (!template) return;
-
     addLog(`Loading template: ${template.name}`, 'info');
-
-    // 1. Pause History
     if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as boolean) = true;
 
-    // 2. Map และเตรียม Nodes/Edges (เพิ่ม Safety)
     const loadedNodes = template.nodes.map(n => ({
         ...n,
-        data: { 
-            ...(n.data || {}), 
-            onRunNode: (id: string) => runNodeById(id)
-        }
+        data: { ...(n.data || {}), onRunNode: (id: string) => runNodeById(id) }
     }));
     
-    // 3. ตั้งค่า Nodes/Edges State
     setNodes(() => loadedNodes);
     setEdges(() => template.edges);
 
-    // 4. จัดมุมมอง (Fit View)
     setTimeout(() => {
-        window.requestAnimationFrame(() => {
-            fitView({ padding: 0.2, duration: 800 }); 
-        });
-        
+        window.requestAnimationFrame(() => { fitView({ padding: 0.2, duration: 800 }); });
         if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as boolean) = false;
     }, 50);
-    
   }, [addLog, setNodes, setEdges, fitView, isApplyingHistoryRef, runNodeById]);
 
-  // ✅ FIX KEY: ส่ง function updater แทนตัว function เพื่อแก้ปัญหา React Functional Update
   useEffect(() => {
       setLoadTemplateCallback(() => handleLoadTemplate);
   }, [setLoadTemplateCallback, handleLoadTemplate]);
 
-
-  // Logic การรัน Pipeline หลัก
   useEffect(() => {
     if (!isRunning) {
         isCanceledRef.current = true;
         return;
     }
-    
     isCanceledRef.current = false;
     
     const runAllNodes = async () => {
       addLog('Starting Pipeline', 'info');
-      
       const executionPriority = {
-          'image-input': 1,           
-          'brisque': 10, 'psnr': 10, 'ssim': 10, 
-          'sift': 20, 'surf': 20, 'orb': 20, 
-          'otsu': 30, 'snake': 30, 
-          'bfmatcher': 40, 'flannmatcher': 40, 
-          'homography-align': 50, 'affine-align': 50, 
-          'save-image': 99, 'save-json': 99, 
+          'image-input': 1, 'brisque': 10, 'psnr': 10, 'ssim': 10, 'sift': 20, 'surf': 20, 'orb': 20, 
+          'otsu': 30, 'snake': 30, 'bfmatcher': 40, 'flannmatcher': 40, 'homography-align': 50, 
+          'affine-align': 50, 'save-image': 99, 'save-json': 99, 
       };
       
-      const sortedNodes = nodesRef.current
-        .slice() 
-        .sort((a, b) => {
+      const sortedNodes = nodesRef.current.slice().sort((a, b) => {
             const priorityA = executionPriority[a.type as keyof typeof executionPriority] || 100;
             const priorityB = executionPriority[b.type as keyof typeof executionPriority] || 100;
             return priorityA - priorityB;
@@ -350,27 +275,16 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
             addLog('Pipeline stopped by user.', 'warning');
             break; 
         }
-
         if (!node?.id || !node?.type) continue;
-        
-        try { 
-            await runNodeById(node.id); 
-        } catch (e) { 
-            console.warn(`Node ${node.id} failed, skipping to next node.`);
-            continue; 
-        }
+        try { await runNodeById(node.id); } catch (e) { console.warn(`Node ${node.id} failed, skipping.`); continue; }
       }
-      
-      if (!isCanceledRef.current) {
-          addLog('Pipeline Finished', 'success');
-      }
+      if (!isCanceledRef.current) addLog('Pipeline Finished', 'success');
       onPipelineDone?.();
     };
     runAllNodes();
   }, [isRunning, onPipelineDone, runNodeById, addLog]);
 
-  const isValidConnection = useCallback(
-    (connection: Connection) => {
+  const isValidConnection = useCallback((connection: Connection) => {
       if (connection.source === connection.target) return false;
       const sourceNode = getNode(connection.source!);
       const targetNode = getNode(connection.target!);
@@ -378,36 +292,23 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
       if (targetNode.type === 'image-input') return false;
       if (sourceNode.type?.startsWith('save-')) return false;
       return true;
-    },
-    [getNode]
-  );
+    }, [getNode]);
 
   const onConnect = useCallback((conn: Edge | Connection) => setEdges((eds) => addEdge(conn, eds)), [setEdges]);
   const onDragOver = useCallback((event: React.DragEvent) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }, []);
-  const onDrop = useCallback(
-    (event: React.DragEvent) => {
+  const onDrop = useCallback((event: React.DragEvent) => {
       event.preventDefault();
       const type = event.dataTransfer.getData('application/reactflow') || event.dataTransfer.getData('text/plain');
       if (!type) return;
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
       const id = getId();
       const newNode: RFNode<CustomNodeData> = {
-        id,
-        type,
-        position,
-        data: {
-          label: type.toUpperCase(),
-          status: 'idle',
-          onRunNode: (id: string) => runNodeById(id),
-        },
+        id, type, position,
+        data: { label: type.toUpperCase(), status: 'idle', onRunNode: (id: string) => runNodeById(id) },
       };
       setNodes((nds) => nds.concat(newNode));
       addLog(`Added ${type}`, 'info', id);
-    },
-    [screenToFlowPosition, setNodes, runNodeById, addLog]
-  );
-
-  const defaultEdgeOptions = useMemo(() => ({ type: 'smoothstep', markerEnd: { type: MarkerType.ArrowClosed }, style: { strokeWidth: 2, stroke: '#64748b' } }), []);
+    }, [screenToFlowPosition, setNodes, runNodeById, addLog]);
 
   return (
     <div className="relative flex-1 h-full flex flex-col">
@@ -427,8 +328,11 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
           onDrop={onDrop}
           onDragOver={onDragOver}
           onMouseMove={onMouseMove}
+          
+          // ✅ ใช้อันที่ Import มาจากไฟล์นอก (เสถียรที่สุด)
           nodeTypes={nodeTypes}
-          defaultEdgeOptions={defaultEdgeOptions as any}
+          defaultEdgeOptions={defaultEdgeOptions}
+          
           connectionLineType={ConnectionLineType.SmoothStep}
           fitView
           minZoom={0.08}
@@ -439,30 +343,14 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
           isValidConnection={isValidConnection}
         >
           <MiniMap
-            style={{
-              position: 'absolute',
-              bottom: 0,   
-              left: 50,     
-              width: 200,
-              height: 140,
-              borderRadius: 8,
-              background: 'rgba(15,23,42,0.9)', 
-              border: '1px solid #475569',
-            }}
+            style={{ position: 'absolute', bottom: 0, left: 50, width: 200, height: 140, borderRadius: 8, background: 'rgba(15,23,42,0.9)', border: '1px solid #475569' }}
             maskColor="rgba(0,0,0,0.6)"
-            nodeColor={(n) =>
-              n.data?.status === 'fault'
-                ? '#ef4444'
-                : n.data?.status === 'success'
-                  ? '#22c55e'
-                  : '#94a3b8'
-            }
+            nodeColor={(n) => n.data?.status === 'fault' ? '#ef4444' : n.data?.status === 'success' ? '#22c55e' : '#94a3b8'}
           />
           <Controls />
-          <Background />
+          <Background variant={BackgroundVariant.Dots} gap={12} size={1} color="#334155" />
         </ReactFlow>
       </div>
-
       <LogPanel logs={logs} onClear={() => setLogs([])} />
     </div>
   );

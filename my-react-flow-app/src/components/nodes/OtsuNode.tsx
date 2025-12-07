@@ -1,3 +1,4 @@
+//src/components/nodes/OtsuNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
@@ -32,7 +33,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const imgRef = useRef<HTMLImageElement>(null); 
   const [imgSize, setImgSize] = useState<{w: number, h: number} | null>(null);
 
-  // Logic หา URL รูปภาพจากโหนดแม่ (Auto Preview)
   const upstreamImage = useMemo(() => {
     const incoming = edges.find(e => e.target === id);
     if (!incoming) return null;
@@ -70,12 +70,12 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const resp = data?.payload?.json as any | undefined;
   const resultImage = data?.payload?.result_image_url || data?.payload?.preview_url || resp?.binary_url;
-  const thr = resp?.threshold;
+  
+  // ✅ FIX FINAL: ดึงค่า Threshold จาก Key ที่ถูกต้อง (จาก JSON หรือ Payload หลัก)
+  const thr = resp?.threshold_value || resp?.threshold || resp?.output?.threshold_value || resp?.output?.threshold || data?.payload?.threshold_value;
 
   const rawUrl = resultImage || upstreamImage;
   
-  // ✅ FIX: Cache Busting URL + Absolute URL
-  // ใช้ Date.now() เพื่อบังคับให้ Browser โหลดรูปใหม่เสมอ
   const displayImage = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
 
   const caption =
@@ -89,11 +89,10 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     const newWidth = img.naturalWidth;
     const newHeight = img.naturalHeight;
     
-    // หยุดการอัปเดต State ถ้าขนาดภาพไม่ได้เปลี่ยน (เพื่อป้องกัน Loop)
     if (imgSize === null || imgSize.w !== newWidth || imgSize.h !== newHeight) {
         setImgSize({ w: newWidth, h: newHeight });
     }
-  }, [imgSize]); // Dependency includes imgSize
+  }, [imgSize]); 
 
   // Theme, Handles, JSX...
   let borderColor = 'border-pink-500';
@@ -103,7 +102,11 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
   }
 
-  const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${isFault && !isConnected ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' : 'bg-white border-gray-500'}`;
+  const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
+    isFault && !isConnected
+      ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
+      : 'bg-white border-gray-500'
+  }`;
   const sourceHandleClass = 'w-2 h-2 rounded-full border-2 transition-all duration-300 bg-white border-gray-500';
 
   return (

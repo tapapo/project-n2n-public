@@ -1,3 +1,4 @@
+//src/components/nodes/BFMatcherNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; // ✅ เพิ่ม useNodes
 import type { CustomNodeData } from '../../types';

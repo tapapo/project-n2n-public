@@ -1,4 +1,4 @@
-// App.tsx (ต้องใช้เวอร์ชันนี้เท่านั้น)
+//src/App.tsx
 import { useState } from 'react';
 import { ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';

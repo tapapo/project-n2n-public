@@ -1,3 +1,4 @@
+//src/components/nodes/HomographyAlignNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useStore } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';

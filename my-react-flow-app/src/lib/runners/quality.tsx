@@ -1,3 +1,4 @@
+//src/lib/runners/quality.tsx
 import { runBrisque, runPsnr, runSsim } from '../api';
 import { markStartThenRunning, getNodeImageUrl, updateNodeStatus, findInputImage } from './utils';
 import type { Edge } from 'reactflow';

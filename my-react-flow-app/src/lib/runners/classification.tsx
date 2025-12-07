@@ -1,3 +1,4 @@
+//src/lib/runners/classification.tsx
 import React from 'react';
 // ✅ Import Edge จาก reactflow โดยตรง (ลบ AnyEdge ทิ้ง)
 import type { Node as RFNode, Edge } from 'reactflow';

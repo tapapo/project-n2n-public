@@ -102,6 +102,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const [imgSize, setImgSize] = useState<{w: number, h: number} | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{x: number, y: number} | null>(null);
+  const frameRef = useRef(0); // 🔑 NEW: Ref สำหรับ Animation Frame ID (สำหรับ rAF)
   
   const [isEditing, setIsEditing] = useState(true);
 
@@ -156,11 +157,11 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const onRun = useCallback(() => { if (!isRunning) data?.onRunNode?.(id); }, [data, id, isRunning]);
   const onClose = () => { setForm(savedParams); setOpen(false); };
 
-  const updateNodeData = (newParams: Params) => {
+  const updateNodeData = useCallback((newParams: Params) => { 
     rf.setNodes((nds) => nds.map((n) => 
       n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: newParams } } } : n
     ));
-  };
+  }, [rf, id]);
 
   const onSave = useCallback(() => {
     const cleanParams: Params = {
@@ -214,60 +215,84 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     };
   };
 
-  // ✅ FIX: ปรับปรุง onImgLoad เพื่อหยุด Infinite Loop
+  // ✅ FIX 1: onImgLoad Guard (Loop Fix)
   const onImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const img = e.currentTarget;
     const newWidth = img.naturalWidth;
     const newHeight = img.naturalHeight;
     
-    // หยุดการอัปเดต State ถ้าขนาดภาพไม่ได้เปลี่ยน
     if (imgSize === null || imgSize.w !== newWidth || imgSize.h !== newHeight) {
         setImgSize({ w: newWidth, h: newHeight });
     }
-  }, [imgSize]); // Dependency includes imgSize
+  }, [imgSize]); 
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    if (form.init_mode !== 'bbox') return;
-    e.preventDefault(); e.stopPropagation();
-    setIsEditing(true); 
-    const coords = getImgCoords(e);
-    if (coords) {
-      setIsDragging(true);
-      setDragStart(coords);
-      const newParams = { ...form, bbox_x1: coords.x, bbox_y1: coords.y, bbox_x2: coords.x, bbox_y2: coords.y };
-      setForm(newParams);
-      updateNodeData(newParams);
+  // 🟢 FIX 3: handleMouseDown (Drag Start) - แก้ให้หยุด Node Drag และ Browser Default Selection
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation(); // 1. หยุดไม่ให้ Node ลาก
+
+    // 🔑 FIX CRITICAL: ป้องกันการเลือกข้อความและการลากโหนดในทุกโหมด
+    if (form.init_mode === 'bbox' || form.init_mode === 'point') {
+        e.preventDefault(); 
     }
-  };
 
-  const handleMouseMove = (e: React.MouseEvent) => {
+    if (form.init_mode === 'bbox') {
+        setIsEditing(true); 
+        const coords = getImgCoords(e);
+        if (coords) {
+          setIsDragging(true);
+          setDragStart(coords);
+          const newParams = { ...form, bbox_x1: coords.x, bbox_y1: coords.y, bbox_x2: coords.x, bbox_y2: coords.y };
+          setForm(newParams);
+          updateNodeData(newParams);
+        }
+    }
+  }, [form, getImgCoords, updateNodeData]);
+
+  // 🟢 FIX 5: handleMouseMove (Performance Fix with rAF)
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging || !dragStart || form.init_mode !== 'bbox') return;
     e.preventDefault(); e.stopPropagation();
-    const coords = getImgCoords(e);
-    if (coords) {
-      const newParams = {
-        ...form,
-        bbox_x1: Math.min(dragStart.x, coords.x),
-        bbox_y1: Math.min(dragStart.y, coords.y),
-        bbox_x2: Math.max(dragStart.x, coords.x),
-        bbox_y2: Math.max(dragStart.y, coords.y)
-      };
-      setForm(newParams);
+    
+    // 🔑 FIX: ใช้ requestAnimationFrame เพื่อลดความถี่การ Render
+    if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
     }
-  };
+    
+    frameRef.current = requestAnimationFrame(() => {
+        const coords = getImgCoords(e);
+        if (coords) {
+          const newParams = {
+            ...form,
+            bbox_x1: Math.min(dragStart.x, coords.x),
+            bbox_y1: Math.min(dragStart.y, coords.y),
+            bbox_x2: Math.max(dragStart.x, coords.x),
+            bbox_y2: Math.max(dragStart.y, coords.y)
+          };
+          setForm(newParams);
+        }
+    });
+  }, [isDragging, dragStart, form, getImgCoords]);
 
-  const handleMouseUp = (e: React.MouseEvent) => {
+  const handleMouseUp = useCallback((e: React.MouseEvent) => {
     if (isDragging) {
         e.stopPropagation();
         setIsDragging(false);
         setDragStart(null);
         updateNodeData(form);
     }
-  };
+    // 🔑 FIX: Clear animation frame on mouse up
+    if (frameRef.current) {
+        cancelAnimationFrame(frameRef.current);
+        frameRef.current = 0;
+    }
+  }, [isDragging, form, updateNodeData]);
 
-  const handleClick = (e: React.MouseEvent) => {
+  // 🟢 FIX 6: handleClick (Point Set)
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation(); // 1. หยุดไม่ให้ Node ถูกเลือก
+    e.preventDefault(); // 2. หยุด Browser Default Click Action
+
     if (form.init_mode === 'point') {
-      e.stopPropagation();
       setIsEditing(true);
       const coords = getImgCoords(e);
       if (coords) {
@@ -276,7 +301,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         updateNodeData(newParams);
       }
     }
-  };
+  }, [form, getImgCoords, updateNodeData]);
 
   const getPercent = (val: Numish, dim: 'w' | 'h') => {
       if (val === null || val === undefined || !imgSize) return 0;
@@ -322,9 +347,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         {displayImage && (
           <div 
              className="relative w-full cursor-crosshair border border-gray-700 rounded-lg overflow-hidden select-none"
-             // เราต้องหยุด Event propagation ที่นี่
-             onMouseDown={e => { e.stopPropagation(); }} 
-             onClick={e => { e.stopPropagation(); }} 
           >
             <img 
                 ref={imgRef}
@@ -337,7 +359,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             />
 
             {/* Point Overlay */}
-            {isEditing && form.init_mode === 'point' && form.from_point_x && form.from_point_y && imgSize && (
+            {isEditing && form.init_mode === 'point' && form.from_point_x != null && form.from_point_y != null && imgSize && (
                 <div 
                     className="absolute w-3 h-3 bg-red-500 rounded-full border-2 border-white transform -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow-sm"
                     style={{ 
@@ -348,7 +370,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             )}
 
             {/* BBox Overlay */}
-            {isEditing && form.init_mode === 'bbox' && form.bbox_x1 && imgSize && (
+            {isEditing && form.init_mode === 'bbox' && form.bbox_x1 != null && form.bbox_y1 != null && imgSize && (
                 <div 
                     className="absolute border-2 border-red-500 bg-red-500/20 pointer-events-none"
                     style={{

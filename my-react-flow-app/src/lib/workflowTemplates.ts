@@ -1,40 +1,70 @@
+// src/lib/workflowTemplates.ts
 import type { Edge, Node } from 'reactflow';
 import type { CustomNodeData } from '../types';
 
+// ============================================================
+// Workflow Template Type (FINAL UPDATED VERSION)
+// ============================================================
 export type WorkflowTemplate = {
+  desc?: any;
   name: string;
+  descriptor?: { en: string; th: string }; // 👈 เพิ่มตรงนี้
   description: string;
+  longDescription?: { en: string; th: string }; // 👈 เปลี่ยนเป็น object
+
   color: string;
+
   nodes: Node<CustomNodeData>[];
   edges: Edge[];
 };
 
-// 1. นำเข้า Template ย่อยทั้งหมด (รวมถึงไฟล์ที่แก้ใหม่)
-import { FEATURE_EXTRACTION_SINGLE } from './templates/feature'; 
-import { FEATURE_MATCHING_PIPELINE } from './templates/matching'; 
-import { MOON_CLASSIFICATION } from './templates/classification'; 
-import { OBJECT_ALIGNMENT_HOMOGRAPHY } from './templates/alignment'; 
+// ------------------------------------------------------------
+// Import Template Groups
+// ------------------------------------------------------------
 
-// 🔑 FIX: Import เฉพาะชื่อ QUALITY_ASSESSMENT ที่ถูก Export แล้ว
-import { QUALITY_ASSESSMENT } from './templates/quality'; 
+// Feature & Matching
+import { FEATURE_EXTRACTION_SINGLE } from './templates/feature';
+import { FEATURE_MATCHING_PIPELINE } from './templates/matching';
 
+// Classification (Separated)
+import {
+  OTSU_CLASSIFICATION_TEMPLATE,
+  SNAKE_CLASSIFICATION_TEMPLATE,
+} from './templates/classification';
 
-// 2. รวมทั้งหมดใน Array TEMPLATES หลัก (ใช้ชื่อเดียวเท่านั้นสำหรับ Quality)
+// Alignment
+import { OBJECT_ALIGNMENT_HOMOGRAPHY } from './templates/alignment';
+
+// Quality (Separated)
+import {
+  PSNR_ASSESSMENT_TEMPLATE,
+  BRISQUE_ASSESSMENT_TEMPLATE,
+} from './templates/quality';
+
+// ------------------------------------------------------------
+//  FINAL TEMPLATE LIST (EXPORT)
+// ------------------------------------------------------------
 export const TEMPLATES: WorkflowTemplate[] = [
-    // ----------------------------------------------------
-    // กลุ่ม Feature & Matching
-    // ----------------------------------------------------
-    FEATURE_EXTRACTION_SINGLE, 
-    FEATURE_MATCHING_PIPELINE, 
+  // ====================================
+  // Feature Extraction & Matching
+  // ====================================
+  FEATURE_EXTRACTION_SINGLE,
+  FEATURE_MATCHING_PIPELINE,
 
-    // ----------------------------------------------------
-    // กลุ่ม Quality Assessment (ตอนนี้รวมเป็น Lesson 5 เพียงอันเดียว)
-    // ----------------------------------------------------
-    QUALITY_ASSESSMENT,      // ✅ ใช้ชื่อที่ถูกต้อง
-    
-    // ----------------------------------------------------
-    // กลุ่ม Classification & Alignment
-    // ----------------------------------------------------
-    MOON_CLASSIFICATION,     
-    OBJECT_ALIGNMENT_HOMOGRAPHY, 
+  // ====================================
+  // Quality Assessment (Separated)
+  // ====================================
+  PSNR_ASSESSMENT_TEMPLATE,
+  BRISQUE_ASSESSMENT_TEMPLATE,
+
+  // ====================================
+  // Classification (Separated)
+  // ====================================
+  OTSU_CLASSIFICATION_TEMPLATE,
+  SNAKE_CLASSIFICATION_TEMPLATE,
+
+  // ====================================
+  // Alignment
+  // ====================================
+  OBJECT_ALIGNMENT_HOMOGRAPHY,
 ];

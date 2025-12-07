@@ -1,4 +1,5 @@
 
+//src/lib/validation.ts
 import type { Node, Edge } from 'reactflow';
 import type { CustomNodeData } from '../types';
 
