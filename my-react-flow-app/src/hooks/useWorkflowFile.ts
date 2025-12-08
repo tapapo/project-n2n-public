@@ -1,8 +1,7 @@
 // src/hooks/useWorkflowFile.ts
-import { useCallback, useRef } from 'react';
-import { useReactFlow, type Node, type Edge } from 'reactflow'; // เพิ่ม useReactFlow
+import { useCallback, useRef, type MutableRefObject } from 'react';
+import { useReactFlow, type Node, type Edge } from 'reactflow';
 import type { CustomNodeData, NodeStatus } from '../types';
-import type { MutableRefObject } from 'react';
 
 // ---------- Types ----------
 type RFNode = Node<CustomNodeData>;
@@ -13,6 +12,7 @@ export type UseWorkflowFileArgs = {
   setNodes: (updater: (prev: RFNode[]) => RFNode[]) => void;
   setEdges: (updater: (prev: Edge[]) => Edge[]) => void;
   isApplyingHistoryRef?: MutableRefObject<unknown>;
+  flowName: string;
 };
 
 type SavedWorkflow = {
@@ -29,18 +29,17 @@ export function useWorkflowFile({
   setNodes,
   setEdges,
   isApplyingHistoryRef,
+  flowName,
 }: UseWorkflowFileArgs) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   
-  // เรียกใช้ fitView เพื่อจัดมุมกล้องหลังโหลด
   const { fitView } = useReactFlow();
 
   // ---------- Save ----------
   const saveWorkflow = useCallback(() => {
-    // ... (ส่วนนี้ของคุณดีอยู่แล้ว ไม่ต้องแก้) ...
     const payload: SavedWorkflow = {
       version: 1,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString(), // เก็บเวลาไว้ข้างใน JSON (เผื่อใช้ debug) แต่ไม่เอามาตั้งชื่อไฟล์
       nodes,
       edges,
     };
@@ -49,19 +48,26 @@ export function useWorkflowFile({
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
-    const a = document.createElement('a');
-    const defaultName = `workflow-${new Date()
-      .toISOString()
-      .replace(/[:.]/g, '-')}.json`;
+    // ✅ แก้ไขตรงนี้: ลบการสร้าง Timestamp ออก
+    
+    // Sanitize ชื่อ: ตัดช่องว่างเป็น _, ยอมให้มีภาษาไทย, อังกฤษ, ตัวเลข
+    const safeName = flowName
+      .trim()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9_\u0E00-\u0E7F-]/g, '');
 
+    // ใช้ชื่อเพียวๆ เลย
+    const finalName = `${safeName || 'workflow'}.json`;
+
+    const a = document.createElement('a');
     a.href = url;
-    a.download = defaultName;
+    a.download = finalName;
     document.body.appendChild(a);
     a.click();
     a.remove();
 
     URL.revokeObjectURL(url);
-  }, [nodes, edges]);
+  }, [nodes, edges, flowName]);
 
   // ---------- Load ----------
   const handleFileChange = useCallback(
@@ -79,14 +85,12 @@ export function useWorkflowFile({
 
           const parsed = JSON.parse(text) as Partial<SavedWorkflow>;
 
-          // ✅ Validation: เช็คว่าเป็น Array จริงๆ
+          // Validation
           if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
             throw new Error('Invalid workflow JSON structure');
           }
 
-          // ✅ Normalize: Reset status เป็น 'idle'
-          // ⚠️ หมายเหตุ: functions (เช่น onRunNode) จะหายไปจากการ save/load
-          // แต่ FlowCanvas.tsx ของคุณมี useEffect ที่คอยเติม onRunNode ให้อยู่แล้ว ดังนั้นตรงนี้ปลอดภัยครับ
+          // Normalize
           const loadedNodes: RFNode[] = parsed.nodes.map((n) => ({
             ...n,
             data: {
@@ -105,10 +109,10 @@ export function useWorkflowFile({
           setNodes(() => loadedNodes);
           setEdges(() => loadedEdges);
 
-          // ✅ Fit View: รอสักนิดให้ Render เสร็จ แล้วขยับกล้องให้เห็นครบทุกโหนด
+          // Fit View
           setTimeout(() => {
             window.requestAnimationFrame(() => {
-                fitView({ padding: 0.2, duration: 800 }); // มี animation นุ่มๆ
+                fitView({ padding: 0.2, duration: 800 });
             });
             
             // Resume History

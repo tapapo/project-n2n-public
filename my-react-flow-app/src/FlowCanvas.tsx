@@ -1,5 +1,5 @@
 // src/FlowCanvas.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import ReactFlow, {
   MiniMap,
   Controls,
@@ -13,14 +13,14 @@ import ReactFlow, {
   type Edge,
   type Connection,
   BackgroundVariant,
+  type Viewport
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// ✅ Import Config จากไฟล์ใหม่ (แก้ปัญหา React Flow Warning)
+// ✅ Import Config
 import { nodeTypes, defaultEdgeOptions } from './lib/flowConfig';
 
 import type { CustomNodeData, LogEntry } from './types';
-import type { WorkflowTemplate } from './lib/workflowTemplates'; 
 
 // ---------- Runners ----------
 import { runFeature } from './lib/runners/features';
@@ -38,16 +38,25 @@ import { useWorkflowFile } from './hooks/useWorkflowFile';
 import { validateNodeInput } from './lib/validation';
 import LogPanel from './components/LogPanel';
 
+// Interface สำหรับให้ App เรียกใช้
+export interface FlowCanvasHandle {
+  getSnapshot: () => { nodes: RFNode[]; edges: Edge[]; viewport: Viewport };
+  restoreSnapshot: (nodes: RFNode[], edges: Edge[], viewport: Viewport) => void;
+  fitView: () => void;
+}
+
 interface FlowCanvasProps {
   isRunning: boolean;
   onPipelineDone: () => void;
-  setLoadTemplateCallback: (callback: (template: WorkflowTemplate) => void) => void; 
+  // Callback เพื่อส่งข้อมูลกลับไปบันทึกที่ App
+  onFlowChange?: (changes: { nodes: RFNode[]; edges: Edge[]; viewport: Viewport }) => void;
+  // ✅ รับชื่อ Tab ปัจจุบันมาจาก App (เพื่อเอาไปตั้งชื่อไฟล์ตอน Save)
+  currentTabName: string; 
 }
 
-const STORAGE_KEY_NODES = 'n2n_nodes';
-const STORAGE_KEY_EDGES = 'n2n_edges';
 const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
+// Helper: ทำความสะอาดข้อความ Error
 function cleanErrorMessage(rawMsg: string): string {
   if (!rawMsg) return 'Unknown Error';
   try {
@@ -61,8 +70,10 @@ function cleanErrorMessage(rawMsg: string): string {
   return rawMsg.replace(/^HTTP \d+ [a-zA-Z ]+ - /, '').replace(/^Error: /, '').trim();
 }
 
-export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateCallback }: FlowCanvasProps) {
-  const { screenToFlowPosition, fitView, getNode } = useReactFlow(); 
+const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
+  ({ isRunning, onPipelineDone, onFlowChange, currentTabName }, ref) => {
+  
+  const { screenToFlowPosition, fitView, getViewport, setViewport, getNode } = useReactFlow(); 
 
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const onMouseMove = useCallback(
@@ -73,27 +84,55 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
     [screenToFlowPosition]
   );
 
-  const initialNodes = useMemo(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_NODES);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
-  }, []);
-  
-  const initialEdges = useMemo(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_EDGES);
-      const parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch { return []; }
-  }, []);
-
-  const [nodes, setNodes, onNodesChange] = useNodesState<CustomNodeData>(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  // เริ่มต้นด้วยว่างเปล่า (รอ App ส่งข้อมูลมาให้)
+  const [nodes, setNodes, onNodesChange] = useNodesState<CustomNodeData>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
+  const isDraggingRef = useRef(false);
   const isCanceledRef = useRef(false);
+
+  // ✅ Auto-save trigger
+  useEffect(() => {
+    if (!onFlowChange) return;
+    const timer = setTimeout(() => {
+      onFlowChange({ nodes, edges, viewport: getViewport() });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [nodes, edges, onFlowChange, getViewport]);
+
+  // ✅ API สำหรับให้ App เรียกใช้
+  useImperativeHandle(ref, () => ({
+    getSnapshot: () => ({
+      nodes: nodes,
+      edges: edges,
+      viewport: getViewport(),
+    }),
+    restoreSnapshot: (newNodes, newEdges, newViewport) => {
+      if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as boolean) = true;
+      
+      const nodesWithFunc = newNodes.map(n => ({
+        ...n,
+        data: {
+          ...n.data,
+          onRunNode: (id: string) => runNodeById(id)
+        }
+      }));
+
+      setNodes(nodesWithFunc);
+      setEdges(newEdges);
+      
+      setTimeout(() => {
+         setViewport(newViewport);
+         if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as boolean) = false;
+      }, 50);
+    },
+    fitView: () => {
+        window.requestAnimationFrame(() => {
+            fitView({ padding: 0.2, duration: 800 });
+        });
+    }
+  }));
 
   const addLog = useCallback((message: string, type: LogEntry['type'] = 'info', nodeId?: string) => {
     const newLog: LogEntry = {
@@ -110,21 +149,17 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
   const edgesRef = useRef(edges);
   useEffect(() => { nodesRef.current = nodes; }, [nodes]);
   useEffect(() => { edgesRef.current = edges; }, [edges]);
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_NODES, JSON.stringify(nodes));
-      localStorage.setItem(STORAGE_KEY_EDGES, JSON.stringify(edges));
-    } catch (e) { }
-  }, [nodes, edges]);
 
-  const isDraggingRef = useRef(false);
   const { undo, redo, isApplyingHistoryRef } = useFlowHistory({ nodes, edges, setNodes, setEdges, isDraggingRef });
+  
+  // ✅ ส่งชื่อ flowName ไปให้ Hook ใช้งาน
   const { saveWorkflow, triggerLoadWorkflow, fileInputRef, handleFileChange } = useWorkflowFile({
     nodes,
     edges,
     setNodes,
     setEdges,
     isApplyingHistoryRef,
+    flowName: currentTabName // <--- ส่งต่อตรงนี้ครับ
   });
 
   const setIncomingEdgesStatus = useCallback(
@@ -156,7 +191,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
       const nodeName = node.data.label || node.type.toUpperCase();
       setIncomingEdgesStatus(nodeId, 'default');
 
-      // 1. Validation Check
       const check = validateNodeInput(nodeId, nodesRef.current, edgesRef.current);
       if (!check.isValid) {
         const cleanMsg = cleanErrorMessage(check.message || '');
@@ -166,16 +200,12 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
         return;
       }
 
-      // 2. Start Running
       addLog(`[${nodeName}] ⏳ Processing...`, 'info', nodeId);
       await markStartThenRunning(nodeId, node.type.toUpperCase(), setNodes);
 
       try {
         switch (node.type) {
-          // ✅ FIX: เพิ่ม case 'image-input' เพื่อแก้ Warning Unknown Type
-          case 'image-input':
-            break; // ไม่ต้องทำอะไร ผ่านไปเลย
-
+          case 'image-input': break; 
           case 'sift': case 'surf': case 'orb':
             await runFeature(node, setNodes, nodesRef.current, edgesRef.current); break;
           case 'brisque': case 'psnr': case 'ssim':
@@ -192,15 +222,10 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
             await runSaveImage(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           case 'save-json':
             await runSaveJson(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
-          
           default:
             console.warn(`Unknown type: ${node.type}`);
         }
-
-        // 3. Mark Completed
         addLog(`[${nodeName}] ✅ Completed`, 'success', nodeId);
-        // (สำหรับ image-input สถานะ success มีอยู่แล้วจากตอนอัปโหลด หรือจะสั่ง set อีกทีก็ได้ถ้าต้องการ)
-        
       } catch (err: any) {
         const cleanMsg = cleanErrorMessage(err.message || 'Unknown Error');
         addLog(`[${nodeName}] 💥 Error: ${cleanMsg}`, 'error', nodeId);
@@ -214,6 +239,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
 
   useFlowHotkeys({ getPastePosition: () => lastMousePosRef.current, runNodeById, undo, redo });
 
+  // Update onRunNode callback when nodes change
   useEffect(() => {
     setNodes((nds) => {
       let changed = false;
@@ -226,29 +252,7 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
     });
   }, [nodes, runNodeById, setNodes]);
 
-  const handleLoadTemplate = useCallback((template: WorkflowTemplate) => {
-    if (!template) return;
-    addLog(`Loading template: ${template.name}`, 'info');
-    if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as boolean) = true;
-
-    const loadedNodes = template.nodes.map(n => ({
-        ...n,
-        data: { ...(n.data || {}), onRunNode: (id: string) => runNodeById(id) }
-    }));
-    
-    setNodes(() => loadedNodes);
-    setEdges(() => template.edges);
-
-    setTimeout(() => {
-        window.requestAnimationFrame(() => { fitView({ padding: 0.2, duration: 800 }); });
-        if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as boolean) = false;
-    }, 50);
-  }, [addLog, setNodes, setEdges, fitView, isApplyingHistoryRef, runNodeById]);
-
-  useEffect(() => {
-      setLoadTemplateCallback(() => handleLoadTemplate);
-  }, [setLoadTemplateCallback, handleLoadTemplate]);
-
+  // Run Pipeline Logic
   useEffect(() => {
     if (!isRunning) {
         isCanceledRef.current = true;
@@ -329,7 +333,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
           onDragOver={onDragOver}
           onMouseMove={onMouseMove}
           
-          // ✅ ใช้อันที่ Import มาจากไฟล์นอก (เสถียรที่สุด)
           nodeTypes={nodeTypes}
           defaultEdgeOptions={defaultEdgeOptions}
           
@@ -354,4 +357,6 @@ export default function FlowCanvas({ isRunning, onPipelineDone, setLoadTemplateC
       <LogPanel logs={logs} onClear={() => setLogs([])} />
     </div>
   );
-}
+});
+
+export default FlowCanvas;

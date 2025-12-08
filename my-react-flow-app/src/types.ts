@@ -1,4 +1,5 @@
 // src/types.ts
+import type { Node, Edge, Viewport } from 'reactflow'; // ✅ 1. Import ของที่ต้องใช้เพิ่ม
 
 // สถานะของ Node
 export type NodeStatus = 'idle' | 'start' | 'running' | 'success' | 'fault';
@@ -35,4 +36,14 @@ export interface LogEntry {
   type: 'info' | 'success' | 'error' | 'warning'; // ประเภท
   message: string;     // ข้อความ
   nodeId?: string;     // ID ของ Node ที่เกี่ยวข้อง
+}
+
+// ✅ ส่วนสำหรับระบบ Multi-Tab Workflow (เพิ่มใหม่)
+export interface WorkflowTab {
+  id: string;
+  name: string;
+  nodes: Node<CustomNodeData>[]; // เก็บ Nodes ของหน้านั้นๆ
+  edges: Edge[];                 // เก็บ Edges ของหน้านั้นๆ
+  viewport: Viewport;            // เก็บตำแหน่ง Zoom/Pan ของหน้านั้นๆ
+  isDirty?: boolean;             // (เผื่อใช้) เช็คว่ามีการแก้ไขแล้วยังไม่เซฟหรือไม่
 }
