@@ -59,7 +59,7 @@ export async function runOrb(image_path: string, params?: Record<string, any>, s
   return await resp.json();
 }
 
-// ---------- Quality (แก้ตรงนี้!) ----------
+// ---------- Quality ----------
 export async function runBrisque(image_path: string, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/quality/brisque`, {
     method: "POST",
@@ -71,7 +71,6 @@ export async function runBrisque(image_path: string, signal?: AbortSignal) {
   return await resp.json();
 }
 
-// ✅ แก้ PSNR: รับ Path String และส่ง JSON
 export async function runPsnr(originalPath: string, processedPath: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/quality/psnr`, {
     method: "POST",
@@ -87,7 +86,6 @@ export async function runPsnr(originalPath: string, processedPath: string, param
   return await resp.json();
 }
 
-// ✅ แก้ SSIM: รับ Path String และส่ง JSON
 export async function runSsim(originalPath: string, processedPath: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/quality/ssim`, {
     method: "POST",
@@ -211,7 +209,6 @@ export async function runOtsuClassification(image_path: string, params?: any, si
   return await resp.json();
 }
 
-// ... (Snake code คงเดิม) ...
 export type SnakeInitMode = "circle" | "point" | "bbox" | "auto_circle" | "auto_rect" | "from_points" | "from_point";
 export type SnakeRequest = { image_path: string; [key: string]: any };
 export type SnakeResponse = { tool: string; json_path: string; json_url: string; overlay_url?: string; mask_url?: string; iterations?: number; contour_points?: number[][]; };
@@ -219,7 +216,6 @@ export type SnakeResponse = { tool: string; json_path: string; json_url: string;
 function normalizeSnakeRequest(req: SnakeRequest): SnakeRequest {
   const n = { ...req };
   if (n.max_iterations !== undefined) n.max_iterations = Math.max(1, Math.floor(Number(n.max_iterations) || 1));
-  // ... (Logic เดิม)
   return n;
 }
 

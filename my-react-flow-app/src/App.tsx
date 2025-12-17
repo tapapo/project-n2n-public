@@ -4,6 +4,7 @@ import { ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 
 // Components
+// ✅ แนะนำให้แก้ import เป็น Sidebar (ตัวใหญ่) ให้ตรงกับชื่อไฟล์ Component เพื่อเลี่ยงปัญหา Case Sensitivity
 import Sidebar from './components/sidebar';
 import FlowCanvas, { type FlowCanvasHandle } from './FlowCanvas';
 import WorkflowControls from './components/WorkflowControls';
@@ -103,6 +104,7 @@ export default function App() {
     );
   }, [activeTabId]);
 
+  // ✅ แก้ไข: แยกจังหวะการโหลดและจัดหน้าจอ เพื่อแก้ปัญหา Race Condition
   const handleLoadTemplate = useCallback((template: WorkflowTemplate) => {
     syncCanvasToCurrentTab();
 
@@ -118,10 +120,15 @@ export default function App() {
     setTabs((prev) => [...prev, newTab]);
     setActiveTabId(newId);
 
+    // จังหวะที่ 1: สั่งโหลดข้อมูล (ทันที)
     setTimeout(() => {
         canvasRef.current?.restoreSnapshot(template.nodes, template.edges, { x: 0, y: 0, zoom: 1 });
+    }, 0);
+
+    // จังหวะที่ 2: รอให้ Render เสร็จแล้วค่อยสั่งจัดกึ่งกลาง (หน่วงเวลา 200ms)
+    setTimeout(() => {
         canvasRef.current?.fitView(); 
-    }, 50);
+    }, 200);
 
   }, [syncCanvasToCurrentTab]);
 
@@ -190,7 +197,7 @@ export default function App() {
   const handleStart = () => setIsRunning(true);
   const handleStop = () => setIsRunning(false);
 
-  // ✅ หาชื่อ Tab ปัจจุบันเพื่อส่งลงไป
+  // หาชื่อ Tab ปัจจุบันเพื่อส่งลงไป
   const activeTabName = tabs.find(t => t.id === activeTabId)?.name || 'Untitled';
 
   return (
@@ -220,7 +227,7 @@ export default function App() {
               isRunning={isRunning}
               onPipelineDone={handleStop}
               onFlowChange={handleFlowChange}
-              currentTabName={activeTabName} // ✅ ส่งชื่อ Tab ลงไปให้ Canvas
+              currentTabName={activeTabName} 
             />
           </div>
         </ReactFlowProvider>

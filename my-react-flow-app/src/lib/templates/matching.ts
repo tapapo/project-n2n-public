@@ -41,7 +41,7 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
     { 
       id: 'n1-img1', 
       type: 'image-input', 
-      position: { x: 50, y: 50 }, 
+      position: { x: 50, y: 87.5 }, 
       data: { 
         label: 'Input Image 1', 
         status: 'success', 
@@ -74,7 +74,7 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
     { 
       id: 'n2-img2', 
       type: 'image-input', 
-      position: { x: 50, y: 550 }, 
+      position: { x: 50, y: 589.3 }, 
       data: { 
         label: 'Input Image 2', 
         status: 'success', 
@@ -107,7 +107,7 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
     { 
       id: 'n5-flann', 
       type: 'flannmatcher', 
-      position: { x: 850, y: 300 }, 
+      position: { x: 850, y: 320 }, 
       data: { 
         label: 'FLANN Matcher', 
         status: 'success', 
@@ -138,7 +138,7 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
     { 
       id: 'n6-save', 
       type: 'save-json', 
-      position: { x: 1250, y: 300 }, 
+      position: { x: 1250, y: 472.3 }, 
       data: { 
         label: 'Save Matches', 
         status: 'idle',

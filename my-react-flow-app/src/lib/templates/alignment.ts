@@ -53,7 +53,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n1-ref",
       type: "image-input",
-      position: { x: 50, y: 50 },
+      position: { x: 50, y: 87.5 },
       data: {
         label: "Image Input (Reference)",
         status: "success",
@@ -85,7 +85,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n2-target",
       type: "image-input",
-      position: { x: 50, y: 550 },
+      position: { x: 50, y: 589.3 },
       data: {
         label: "Image Input (Target)",
         status: "success",
@@ -117,7 +117,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n5-flann",
       type: "flannmatcher",
-      position: { x: 850, y: 300 },
+      position: { x: 850, y: 320 },
       data: {
         label: "FLANN Matcher",
         status: "success",
@@ -141,7 +141,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n6-homo",
       type: "homography-align",
-      position: { x: 1250, y: 300 },
+      position: { x: 1250, y: 343.9 },
       data: {
         label: "Homography Warp",
         status: "success",
@@ -160,13 +160,13 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n7-save-img",
       type: "save-image",
-      position: { x: 1650, y: 200 },
+      position: { x: 1650, y: 400 },
       data: { label: "Save Result", status: "idle" }
     },
     {
       id: "n8-save-json",
       type: "save-json",
-      position: { x: 1650, y: 400 },
+      position: { x: 1650, y: 550 },
       data: { label: "Save JSON", status: "idle" }
     }
   ],

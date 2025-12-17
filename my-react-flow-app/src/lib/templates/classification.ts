@@ -25,7 +25,7 @@ const SNAKE_MASK = '/static/samples/json/classification/snake_moon_mask.png';
 const INPUT_NODE: Node = {
   id: 'n1-moon',
   type: 'image-input',
-  position: { x: 50, y: 300 },
+  position: { x: 250, y: 140.5 },
   data: {
     label: 'Image Input (Moon)',
     status: 'success',
@@ -83,7 +83,7 @@ It is the most standard way to segment objects without manually guessing the thr
     {
       id: 'n3-save-otsu',
       type: 'save-image',
-      position: { x: 1100, y: 100 },
+      position: { x: 1100, y: 288.5 },
       data: { label: 'Save Otsu Mask', status: 'idle' }
     } as Node
   ],
@@ -118,7 +118,7 @@ This is useful for segmenting objects with irregular shapes where simple thresho
     {
       id: 'n2-snake',
       type: 'snake',
-      position: { x: 680, y: 520 },
+      position: { x: 680, y: 99 },
       data: {
         label: 'Snake Contour',
         status: 'success',
@@ -138,7 +138,7 @@ This is useful for segmenting objects with irregular shapes where simple thresho
     {
       id: 'n3-save-snake',
       type: 'save-image',
-      position: { x: 1100, y: 520 },
+      position: { x: 1100, y: 288.5 },
       data: { label: 'Save Snake Overlay', status: 'idle' }
     } as Node
   ],
