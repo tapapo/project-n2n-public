@@ -11,34 +11,25 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* ===========================
-   Number inputs: hide spinners
-   =========================== */
 
-/* Chrome / Safari / Edge / Opera */
+
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none; /* Old WebKit */
-  appearance: none;         /* ✅ Standard */
+  -webkit-appearance: none; 
+  appearance: none;       
   margin: 0;
 }
 
 /* Firefox */
 input[type="number"] {
-  -moz-appearance: textfield; /* Old Gecko */
-  appearance: textfield;      /* ✅ Standard */
+  -moz-appearance: textfield; 
+  appearance: textfield;      
 }
 
-/* (ถ้าอยากเลือกใช้เฉพาะบางตัว ใส่ class="no-spinner" ที่ input แล้วใช้บล็อกด้านล่างแทน)
-.no-spinner::-webkit-inner-spin-button,
-.no-spinner::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
-.no-spinner { -moz-appearance: textfield; appearance: textfield; }
-*/
-/* highlight edge ที่ถูกเลือกใน React Flow */
 .react-flow__edge.selected .react-flow__edge-path {
-  stroke: #22d3ee;          /* สีฟ้า */
-  stroke-width: 3.5px;      /* เส้นหนาขึ้น */
-  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.7)); /* เรืองแสง */
+  stroke: #22d3ee;          
+  stroke-width: 3.5px;      
+  filter: drop-shadow(0 0 6px rgba(34, 211, 238, 0.7)); 
 }
 
 .react-flow__edge.selected .react-flow__edge-interaction {

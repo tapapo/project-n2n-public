@@ -4,7 +4,6 @@ import { ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 
 // Components
-// ✅ แนะนำให้แก้ import เป็น Sidebar (ตัวใหญ่) ให้ตรงกับชื่อไฟล์ Component เพื่อเลี่ยงปัญหา Case Sensitivity
 import Sidebar from './components/sidebar';
 import FlowCanvas, { type FlowCanvasHandle } from './FlowCanvas';
 import WorkflowControls from './components/WorkflowControls';
@@ -14,16 +13,14 @@ import WorkflowTabs from './components/WorkflowTabs';
 import type { WorkflowTemplate } from './lib/workflowTemplates';
 import type { WorkflowTab } from './types';
 
-// Key สำหรับเซฟข้อมูลทั้งหมด
+// Key 
 const STORAGE_KEY_APP_TABS = 'n2n_app_tabs';
 const STORAGE_KEY_ACTIVE_TAB = 'n2n_active_tab_id';
 
 export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   
-  // ---------------------------------------------------------------------------
-  // 🗂️ TAB MANAGEMENT STATE
-  // ---------------------------------------------------------------------------
+  //  TAB MANAGEMENT STATE
   
   const [tabs, setTabs] = useState<WorkflowTab[]>(() => {
     try {
@@ -49,9 +46,7 @@ export default function App() {
 
   const canvasRef = useRef<FlowCanvasHandle>(null);
 
-  // ---------------------------------------------------------------------------
-  // 💾 AUTO-SAVE EFFECTS
-  // ---------------------------------------------------------------------------
+  //  AUTO-SAVE EFFECTS
 
   useEffect(() => {
     try {
@@ -74,12 +69,9 @@ export default function App() {
       }
     }, 100);
     return () => clearTimeout(timer);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); 
 
-  // ---------------------------------------------------------------------------
-  // 🧠 TAB LOGIC HANDLERS
-  // ---------------------------------------------------------------------------
+  //  TAB LOGIC HANDLERS
 
   const syncCanvasToCurrentTab = useCallback(() => {
     if (!canvasRef.current) return;
@@ -104,7 +96,6 @@ export default function App() {
     );
   }, [activeTabId]);
 
-  // ✅ แก้ไข: แยกจังหวะการโหลดและจัดหน้าจอ เพื่อแก้ปัญหา Race Condition
   const handleLoadTemplate = useCallback((template: WorkflowTemplate) => {
     syncCanvasToCurrentTab();
 
@@ -120,12 +111,10 @@ export default function App() {
     setTabs((prev) => [...prev, newTab]);
     setActiveTabId(newId);
 
-    // จังหวะที่ 1: สั่งโหลดข้อมูล (ทันที)
     setTimeout(() => {
         canvasRef.current?.restoreSnapshot(template.nodes, template.edges, { x: 0, y: 0, zoom: 1 });
     }, 0);
 
-    // จังหวะที่ 2: รอให้ Render เสร็จแล้วค่อยสั่งจัดกึ่งกลาง (หน่วงเวลา 200ms)
     setTimeout(() => {
         canvasRef.current?.fitView(); 
     }, 200);

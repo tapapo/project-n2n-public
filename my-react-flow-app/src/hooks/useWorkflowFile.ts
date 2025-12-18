@@ -1,5 +1,5 @@
 // src/hooks/useWorkflowFile.ts
-import { useCallback, useRef, type MutableRefObject } from 'react';
+import { useCallback, useRef } from 'react'; 
 import { useReactFlow, type Node, type Edge } from 'reactflow';
 import type { CustomNodeData, NodeStatus } from '../types';
 
@@ -11,7 +11,8 @@ export type UseWorkflowFileArgs = {
   edges: Edge[];
   setNodes: (updater: (prev: RFNode[]) => RFNode[]) => void;
   setEdges: (updater: (prev: Edge[]) => Edge[]) => void;
-  isApplyingHistoryRef?: MutableRefObject<unknown>;
+
+  isApplyingHistoryRef?: { current: boolean }; 
   flowName: string;
 };
 
@@ -48,7 +49,6 @@ export function useWorkflowFile({
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
-    
     const safeName = flowName
       .trim()
       .replace(/\s+/g, '_')
@@ -100,7 +100,7 @@ export function useWorkflowFile({
 
           // Pause History
           if (isApplyingHistoryRef) {
-            (isApplyingHistoryRef.current as boolean) = true;
+            isApplyingHistoryRef.current = true;
           }
 
           setNodes(() => loadedNodes);
@@ -114,7 +114,7 @@ export function useWorkflowFile({
             
             // Resume History
             if (isApplyingHistoryRef) {
-              (isApplyingHistoryRef.current as boolean) = false;
+              isApplyingHistoryRef.current = false;
             }
           }, 50);
 

@@ -1,5 +1,5 @@
 // src/hooks/useFlowHistory.ts
-import { useCallback, useEffect, useRef, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef } from 'react'; 
 import type { Node, Edge } from 'reactflow';
 import type { CustomNodeData, NodeStatus } from '../types';
 
@@ -16,7 +16,7 @@ export type UseFlowHistoryArgs = {
   edges: Edge[];
   setNodes: (updater: (prev: RFNode[]) => RFNode[]) => void;
   setEdges: (updater: (prev: Edge[]) => Edge[]) => void;
-  isDraggingRef: MutableRefObject<boolean>;
+  isDraggingRef: { current: boolean };
 };
 
 const getCleanData = (data: any) => {
@@ -139,7 +139,6 @@ export function useFlowHistory({
     [setNodes, setEdges]
   );
 
-  // ---------- MAIN EFFECT Logic ที่แก้บัค ----------
   useEffect(() => {
     if (isApplyingHistoryRef.current) return;
     if (isDraggingRef.current) return;
