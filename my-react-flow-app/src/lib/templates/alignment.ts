@@ -2,9 +2,7 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// =============================================================================
-// 1. CONSTANTS: File Paths (ชี้ไปที่ไฟล์จริงใน outputs/samples/)
-// =============================================================================
+
 
 // Input Images
 const IMG_1_URL = '/static/samples/1.png';
@@ -25,9 +23,7 @@ const FLANN_VIS  = '/static/samples/json/matching/flann_sift_vis.jpg';
 const HOMO_JSON = '/static/samples/json/alignment/homo_sift.json';
 const HOMO_IMG  = '/static/samples/json/alignment/homo_sift.jpg';
 
-// =============================================================================
-// 2. TEMPLATE DEFINITION (รองรับ 2 ภาษา)
-// =============================================================================
+
 
 export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
   name: 'Homography Estimation',
@@ -49,7 +45,6 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
   color: 'purple',
 
   nodes: [
-    // (โค้ด nodes เดิมทั้งหมด ไม่ต้องเปลี่ยนอะไร)
     {
       id: "n1-ref",
       type: "image-input",

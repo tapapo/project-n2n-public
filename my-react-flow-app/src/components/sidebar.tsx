@@ -2,7 +2,6 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { TEMPLATES, type WorkflowTemplate } from '../lib/workflowTemplates';
 import AlgorithmInfoModal from './modals/AlgorithmInfoModal';
 
-// 🔑 Interface
 interface TemplateJobGroup {
   name: string;
   headerColor: string;
@@ -38,13 +37,11 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
 
   const [activeTab, setActiveTab] = useState<'nodes' | 'templates'>('nodes');
   
-  // State สำหรับการเปิด/ปิด Group (แยกกันระหว่าง Nodes และ Templates)
   const [openNodeGroups, setOpenNodeGroups] = useState<Record<string, boolean>>({});
   const [openTemplateGroups, setOpenTemplateGroups] = useState<Record<string, boolean>>({});
 
   const [collapsed, setCollapsed] = useState(false);
 
-  // Context Menu State
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
@@ -52,7 +49,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
     template: null as WorkflowTemplate | null,
   });
 
-  // Modal State
   const [aboutModal, setAboutModal] = useState({
     visible: false,
     template: null as WorkflowTemplate | null,
@@ -81,7 +77,10 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
       orange: { border: 'hover:border-orange-500/50', stripe: 'bg-orange-500', text: 'text-orange-400', hoverText: 'group-hover:text-orange-300' },
       purple: { border: 'hover:border-purple-500/50', stripe: 'bg-purple-500', text: 'text-purple-400', hoverText: 'group-hover:text-purple-300' },
       blue: { border: 'hover:border-blue-500/50', stripe: 'bg-blue-500', text: 'text-blue-400', hoverText: 'group-hover:text-blue-300' },
-      teal: { border: 'hover:border-teal-500/50', stripe: 'bg-teal-500', text: 'text-teal-400', hoverText: 'group-hover:text-teal-300' }
+      teal: { border: 'hover:border-teal-500/50', stripe: 'bg-teal-500', text: 'text-teal-400', hoverText: 'group-hover:text-teal-300' },
+      indigo: { border: 'hover:border-indigo-500/50', stripe: 'bg-indigo-500', text: 'text-indigo-400', hoverText: 'group-hover:text-indigo-300' },
+      cyan: { border: 'hover:border-cyan-500/50', stripe: 'bg-cyan-500', text: 'text-cyan-400', hoverText: 'group-hover:text-cyan-300' },
+      rose: { border: 'hover:border-rose-500/50', stripe: 'bg-rose-500', text: 'text-rose-400', hoverText: 'group-hover:text-rose-300' },
     };
     return colorMap[color] || colorMap['teal'];
   };
@@ -91,9 +90,11 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  // 1. Node Groups
   const jobs = useMemo(() => ([
     { name: 'Input', headerColor: 'text-teal-400', algorithms: [{ type: 'image-input', label: 'Image Input', color: 'bg-teal-600' }] },
+    { name: 'Enhancement', headerColor: 'text-indigo-400', algorithms: [{ type: '1', label: 'Enhancement 1', color: 'bg-indigo-600' }, { type: '2', label: 'Enhancement 2', color: 'bg-indigo-600' },{ type: '3', label: 'Enhancement 3', color: 'bg-indigo-600' }] },
+    { name: 'Restoration', headerColor: 'text-cyan-400', algorithms: [{ type: '2', label: 'Restoration 1', color: 'bg-cyan-600' }, { type: '2', label: 'Restoration 2', color: 'bg-cyan-600' }, { type: '2', label: 'Restoration 3', color: 'bg-cyan-600' }] },
+    { name: 'Segmentation', headerColor: 'text-rose-400', algorithms: [{ type: '3', label: 'Segmentation 1', color: 'bg-rose-600' }, { type: '3', label: 'Segmentation 2', color: 'bg-rose-600' }, { type: '3', label: 'Segmentation 3', color: 'bg-rose-600' }] },
     { name: 'Feature Extraction', headerColor: 'text-green-400', algorithms: [{ type: 'sift', label: 'SIFT', color: 'bg-green-600' }, { type: 'surf', label: 'SURF', color: 'bg-green-600' }, { type: 'orb', label: 'ORB', color: 'bg-green-600' }] },
     { name: 'Matching', headerColor: 'text-orange-400', algorithms: [{ type: 'bfmatcher', label: 'BFMatcher', color: 'bg-orange-600' }, { type: 'flannmatcher', label: 'FLANN Matcher', color: 'bg-orange-600' }] },
     { name: 'Object Alignment', headerColor: 'text-purple-400', algorithms: [{ type: 'homography-align', label: 'Homography Align', color: 'bg-purple-600' }, { type: 'affine-align', label: 'Affine Align', color: 'bg-purple-600' }] },
@@ -102,7 +103,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
     { name: 'Saver', headerColor: 'text-gray-400', algorithms: [{ type: 'save-image', label: 'Save Image', color: 'bg-gray-600' }, { type: 'save-json', label: 'Save JSON', color: 'bg-gray-600' }] }
   ]), []);
 
-  // 2. Template Groups
   const templateJobs = useMemo(() => {
     const groups: Record<string, TemplateJobGroup> = {};
 
@@ -150,7 +150,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
     <>
       <aside className={['border-r border-gray-800 bg-gray-900 h-full shadow-2xl flex flex-col transition-all duration-300 z-20', collapsed ? 'w-14' : 'w-72'].join(' ')}>
         
-        {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-gray-800">
           {!collapsed && <div className="text-sm font-bold text-teal-400 uppercase">Node Library</div>}
           <button onClick={() => setCollapsed(s => !s)} className="h-8 w-8 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white flex items-center justify-center border border-gray-700">
@@ -158,7 +157,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
           </button>
         </div>
 
-        {/* Tabs */}
         {!collapsed && (
           <div className="flex p-2 gap-1 border-b border-gray-800">
             <button onClick={() => setActiveTab('nodes')} className={`flex-1 py-1.5 text-xs font-bold rounded-md flex items-center justify-center gap-1 ${activeTab === 'nodes' ? 'bg-teal-600/20 text-teal-400 border border-teal-500/50' : 'text-gray-500 hover:bg-gray-800'}`}>
@@ -170,7 +168,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
           </div>
         )}
 
-        {/* Content */}
         {!collapsed ? (
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             <div className="px-1 pb-2 flex gap-2 mb-1">
@@ -178,7 +175,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
               <button onClick={collapseAll} className="flex-1 text-[10px] px-2 py-1 rounded bg-gray-800 text-gray-500 hover:text-white hover:bg-gray-700">COLLAPSE</button>
             </div>
 
-            {/* NODES VIEW */}
             {activeTab === 'nodes' && jobs.map(job => {
                 const isOpen = openNodeGroups[job.name];
                 return (
@@ -200,7 +196,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
                 );
               })}
 
-            {/* TEMPLATES VIEW */}
             {activeTab === 'templates' && templateJobs.map(job => {
                   const isOpen = openTemplateGroups[job.name];
                   return (
@@ -234,7 +229,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
         {!collapsed && <div className="p-3 text-[10px] text-center text-gray-600 border-t border-gray-800">N2N IMAGE PROCESSING</div>}
       </aside>
 
-      {/* Right Click Menu (No Copy) */}
       {contextMenu.visible && (
         <div className="fixed z-[9999] bg-gray-800 border border-gray-700 text-sm rounded-md shadow-xl py-1 w-48" style={{ top: contextMenu.y, left: contextMenu.x }}>
           <button className="w-full text-left px-3 py-2 hover:bg-gray-700 text-white" onClick={() => { onLoadTemplate?.(contextMenu.template!); setContextMenu((c) => ({ ...c, visible: false })); }}>▶ Load Template</button>
@@ -242,7 +236,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
         </div>
       )}
 
-      {/* Modal */}
       {aboutModal.visible && (
         <AlgorithmInfoModal template={aboutModal.template} onClose={() => setAboutModal({ visible: false, template: null })} />
       )}

@@ -38,13 +38,11 @@ const DEFAULT_PARAMS: FLANNParams = {
   search_params: 'AUTO',
 };
 
-// --- Helpers ---
 function toNum(v: any): number | undefined {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
 }
 
-// ✅ จัดรูปแบบ: 800 x 600px
 function fmtSize(w?: any, h?: any) {
   const wn = toNum(w);
   const hn = toNum(h);
@@ -52,10 +50,8 @@ function fmtSize(w?: any, h?: any) {
   return undefined;
 }
 
-// แปลง shape array [h, w] เป็น text
 function shapeToText(sh?: any) {
   if (Array.isArray(sh) && sh.length >= 2) {
-    // OpenCV shape คือ [height, width] -> สลับเป็น Width x Height
     return fmtSize(sh[1], sh[0]);
   }
   return undefined;
@@ -88,24 +84,18 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
   const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file1'), [edges, id]);
   const isConnected2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file2'), [edges, id]);
 
-  // ✅ Logic การค้นหาข้อมูลจากโหนดแม่ (และโหนดปู่)
   const upstreamMeta = useMemo(() => {
-    // ฟังก์ชันย่อยสำหรับดึงข้อมูลจาก Node
     const extractInfo = (n: any) => {
         const p = n?.data?.payload || {};
-        // 1. ลองหาจาก width/height ตรงๆ (Image Input)
         let w = toNum(p.width);
         let h = toNum(p.height);
         
-        // 2. ถ้าไม่มี ลองหาจาก image_shape [H, W] (Feature Node)
         if (w === undefined && Array.isArray(p.image_shape)) {
             h = toNum(p.image_shape[0]);
             w = toNum(p.image_shape[1]);
         }
 
-        // 3. ถ้าไม่มี ลองขุดเข้าไปใน json.image (เผื่อเป็น Node ที่รันแล้ว)
         if (w === undefined && p.json?.image) {
-            // เช็คหลาย key ที่เป็นไปได้
             const keys = ['processed_shape', 'processed_sift_shape', 'processed_orb_shape', 'processed_surf_shape'];
             for (const k of keys) {
                 const sh = p.json.image[k];
@@ -128,17 +118,14 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
       const parent = nodes.find(n => n.id === edge.source);
       if (!parent) return null;
       
-      // ดึงข้อมูลจาก Parent (Feature Node)
       let info = extractInfo(parent);
 
-      // ถ้า Parent ไม่มีขนาดรูป (เช่นยังไม่ได้รัน Feature) ให้ลองทะลุไปหา Grandparent (Image Input)
       if (info.w === undefined && ['sift', 'surf', 'orb'].includes(parent.type || '')) {
           const grandEdge = edges.find(e => e.target === parent.id);
           if (grandEdge) {
               const grandParent = nodes.find(n => n.id === grandEdge.source);
               if (grandParent) {
                   const grandInfo = extractInfo(grandParent);
-                  // ใช้ขนาดจาก Grandparent แต่ใช้ Kps จาก Parent (ถ้ามี)
                   info.w = grandInfo.w;
                   info.h = grandInfo.h;
               }
@@ -190,7 +177,6 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
   const summaryClean = summaryRaw ? summaryRaw.replace(/\(FLANN\)/gi, '').trim() : undefined;
   const caption = summaryClean ?? (inliers != null && goodCount != null ? `${inliers} inliers / ${goodCount} good matches` : visUrl ? 'Matches preview' : 'Connect two feature nodes and run');
 
-  // ✅ Merge Data: Priority = Result > Upstream
   const metaA = {
     kps: respJson?.input_features_details?.image1?.num_keypoints ?? upstreamMeta.a?.kps,
     sizeText: fmtSize(respJson?.inputs?.image1?.width, respJson?.inputs?.image1?.height) ?? 
@@ -244,17 +230,14 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
       <div className="p-4 space-y-3">
         <p className="text-sm text-gray-300">{caption}</p>
 
-        {/* ✅ แสดง Info Box: Input A/B และ Size */}
         {(isConnected1 || isConnected2 || metaA.kps != null || metaB.kps != null) && (
           <div className="grid grid-cols-2 gap-3 text-[11px]">
-            {/* Input A Box */}
             <div className={`rounded border p-2 transition-colors flex flex-col justify-center ${isConnected1 ? 'border-gray-600 bg-gray-800/50' : 'border-gray-700 border-dashed opacity-50'}`}>
               <div className="text-gray-400 mb-1 truncate font-semibold border-b border-gray-700 pb-1" title={metaA.label}>Input A</div>
               {metaA.sizeText && <div className="text-gray-200 font-mono text-[10px]">{metaA.sizeText}</div>}
               {metaA.kps != null ? <div className="text-green-300 mt-0.5">Kps: {metaA.kps}</div> : <div className="text-gray-500">-</div>}
             </div>
             
-            {/* Input B Box */}
             <div className={`rounded border p-2 transition-colors flex flex-col justify-center ${isConnected2 ? 'border-gray-600 bg-gray-800/50' : 'border-gray-700 border-dashed opacity-50'}`}>
               <div className="text-gray-400 mb-1 truncate font-semibold border-b border-gray-700 pb-1" title={metaB.label}>Input B</div>
               {metaB.sizeText && <div className="text-gray-200 font-mono text-[10px]">{metaB.sizeText}</div>}
@@ -283,7 +266,6 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
       </div>
 
       <Modal open={open} title="FLANN Settings" onClose={onClose}>
-        {/* ... (Modal content same as before) ... */}
         <div className="space-y-3 text-xs text-gray-200">
           <div className="grid grid-cols-2 gap-3">
             <label>Lowe's ratio <input type="number" step="0.01" min={0} max={1} className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700" value={form.lowe_ratio} onChange={(e) => setForm(s => ({ ...s, lowe_ratio: Number(e.target.value) }))} /></label>

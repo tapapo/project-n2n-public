@@ -14,15 +14,12 @@ export async function runMatcher(
   const nodeId = node.id;
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
 
-  // Helper: หา JSON Path
   const findFeatureJson = (n?: RFNode): string | undefined => {
     const p = (n?.data as CustomNodeData | undefined)?.payload;
     return (p as any)?.json_path ?? (p as any)?.json_url;
   };
 
-  // -----------------------------------------------------------
-  // 🛡️ STEP 1: เช็คจำนวนเส้น (Connection Count)
-  // -----------------------------------------------------------
+  
   const incoming = getIncoming(node.id);
   const e1 = incoming.find((e) => e.targetHandle === 'file1');
   const e2 = incoming.find((e) => e.targetHandle === 'file2');
@@ -33,9 +30,7 @@ export async function runMatcher(
     throw new Error(msg);
   }
 
-  // -----------------------------------------------------------
-  // 🛡️ STEP 2: เช็คประเภทโหนด (Strict Type Validation)
-  // -----------------------------------------------------------
+  
   const n1 = nodes.find(n => n.id === e1.source);
   const n2 = nodes.find(n => n.id === e2.source);
   
@@ -44,7 +39,6 @@ export async function runMatcher(
   const type2 = n2?.type || 'unknown';
 
   if (!allowedTypes.includes(type1) || !allowedTypes.includes(type2)) {
-     // หาตัวที่ผิดเพื่อเอามาโชว์ในข้อความ Error
      const badType = !allowedTypes.includes(type1) ? type1 : type2;
      
      
@@ -54,9 +48,7 @@ export async function runMatcher(
      throw new Error(msg);
   }
 
-  // -----------------------------------------------------------
-  // 🛡️ STEP 3: เช็คข้อมูล (Data Check)
-  // -----------------------------------------------------------
+  
   const jsonA = findFeatureJson(n1);
   const jsonB = findFeatureJson(n2);
 
@@ -66,9 +58,7 @@ export async function runMatcher(
     throw new Error(msg);
   }
 
-  // -----------------------------------------------------------
-  // 🚀 STEP 4: รัน API (Execution)
-  // -----------------------------------------------------------
+  
   const kind = node.type as 'bfmatcher' | 'flannmatcher';
   await markStartThenRunning(node.id, `Running ${kind.toUpperCase()}`, setNodes);
 
@@ -113,7 +103,6 @@ export async function runMatcher(
       });
     }
 
-    // Success
     setNodes((nds) =>
       nds.map((x) =>
         x.id === node.id
@@ -143,7 +132,6 @@ export async function runMatcher(
     console.error(`❌ ${kind} failed:`, err);
     await updateNodeStatus(node.id, 'fault', setNodes);
     
-    // Throw Error
     throw err;
   }
 }

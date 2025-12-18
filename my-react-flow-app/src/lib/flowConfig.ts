@@ -1,7 +1,6 @@
 // src/lib/flowConfig.ts
 import { MarkerType, type NodeTypes, type DefaultEdgeOptions } from 'reactflow';
 
-// Import Components ทั้งหมด
 import ImageInputNode from '../components/nodes/ImageInputNode';
 import SiftNode from '../components/nodes/SiftNode';
 import SurfNode from '../components/nodes/SurfNode';
@@ -18,7 +17,6 @@ import SnakeNode from '../components/nodes/SnakeNode';
 import SaveImageNode from '../components/nodes/SaveImageNode';
 import SaveJsonNode from '../components/nodes/SaveJsonNode';
 
-// ✅ ประกาศ nodeTypes เป็นค่าคงที่ (Static) ที่นี่
 export const nodeTypes: NodeTypes = {
   'image-input': ImageInputNode,
   sift: SiftNode,
@@ -37,7 +35,6 @@ export const nodeTypes: NodeTypes = {
   'save-json': SaveJsonNode,
 };
 
-// ✅ ประกาศ Edge Options ที่นี่
 export const defaultEdgeOptions: DefaultEdgeOptions = {
   type: 'smoothstep',
   markerEnd: { type: MarkerType.ArrowClosed },

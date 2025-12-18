@@ -4,13 +4,10 @@ import type { Dispatch, SetStateAction, MutableRefObject } from 'react';
 import type { Node, Edge } from 'reactflow';
 import type { CustomNodeData, NodeStatus } from '../../types';
 
-// ====== Typed aliases ======
 export type RFNode = Node<CustomNodeData>;
 export type SetNodes = Dispatch<SetStateAction<RFNode[]>>;
 
-/**
- * 🟢 markStartThenRunning
- */
+
 export async function markStartThenRunning(
   nodeId: string,
   label: string,
@@ -35,9 +32,7 @@ export async function markStartThenRunning(
   );
 }
 
-/**
- * ✅ updateNodeStatus
- */
+
 export async function updateNodeStatus(
   nodeId: string,
   status: NodeStatus,
@@ -54,9 +49,7 @@ export async function updateNodeStatus(
   await new Promise((r) => setTimeout(r, 50));
 }
 
-/**
- * ✅ findInputImage (ตัวสำคัญที่ Brisque เรียกใช้)
- */
+
 export function findInputImage(
   nodeId: string, 
   nodes: RFNode[], 
@@ -71,17 +64,13 @@ export function findInputImage(
   const data = parent.data.payload || parent.data.output;
   if (!data) return undefined;
   
-  // 1. String Path ตรงๆ
   if (typeof data === 'string') return data;
 
-  // 2. Object (เช็ค URL รูปภาพหลักๆ)
   if (typeof data === 'object') {
-     // เช็คแบบเจาะจงก่อน
      if (['homography-align', 'affine-align'].includes(parent.type || '')) {
         return (data as any).aligned_url || (data as any).url;
      }
      
-     // เช็คแบบทั่วไป
      return (data as any).url || 
             (data as any).aligned_url || 
             (data as any).path || 
@@ -95,9 +84,7 @@ export function findInputImage(
   return undefined;
 }
 
-/**
- * 📂 fetchFileFromUrl
- */
+
 export async function fetchFileFromUrl(url: string, filename: string): Promise<File> {
   if (!url) throw new Error('Missing URL');
   const resp = await fetch(url);
@@ -106,9 +93,7 @@ export async function fetchFileFromUrl(url: string, filename: string): Promise<F
   return new File([blob], filename, { type: blob.type || 'image/jpeg' });
 }
 
-/**
- * 🧭 getNodeImageUrl
- */
+
 export function getNodeImageUrl(n?: RFNode): string | undefined {
   if (!n) return undefined;
   const normalize = (u?: string) => u ? (/^(https?:|blob:|data:)/i.test(u) ? u : abs(u)) : undefined;
@@ -131,9 +116,7 @@ export function getNodeImageUrl(n?: RFNode): string | undefined {
   return normalize(p?.result_image_url) ?? normalize(p?.url);
 }
 
-/**
- * 🧰 guard
- */
+
 export function guard(canceledRef: MutableRefObject<boolean>) {
   if (canceledRef.current) throw new Error('Pipeline canceled');
 }

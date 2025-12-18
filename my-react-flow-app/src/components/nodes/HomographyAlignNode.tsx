@@ -18,7 +18,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
 
-  // ✅ Check connection แบบ Real-time
   const isConnected = useStore(
     useCallback((s: any) => s.edges.some((e: any) => e.target === id), [id])
   );
@@ -51,21 +50,11 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
     data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
-  // ---------------------------------------------------------
-  // 🖼️ LOGIC การดึงรูปภาพ (แก้ไข Cache Busting)
-  // ---------------------------------------------------------
+
   const resp = data?.payload?.json as any | undefined;
-
-  // 1. ลองดึง URL ที่พร้อมใช้จาก payload (Runner อาจส่งมา)
   const payloadUrl = data?.payload?.aligned_url || data?.payload?.result_image_url;
-
-  // 2. ถ้าไม่มี ให้ลองดึงจาก JSON output (ค่าดิบจาก Backend)
   const jsonPath = resp?.output?.aligned_url || resp?.output?.aligned_image;
-
-  // 3. เลือกอันที่มีค่า (ให้ความสำคัญ payload ก่อน)
   const rawUrl = payloadUrl || jsonPath;
-
-  // 4. ✅ FIX: แปลงเป็น Absolute URL และเติม Timestamp เสมอ เพื่อแก้ Browser Cache
   const alignedUrl = rawUrl 
     ? `${abs(rawUrl)}?t=${Date.now()}` 
     : undefined;
@@ -79,7 +68,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
       ? `Alignment complete${inliers != null ? ` — ${inliers} inliers` : ''}`
       : 'Connect a Matcher node and run';
 
-  // Theme: Purple
   let borderColor = 'border-purple-500';
   if (selected) {
     borderColor = 'border-purple-400 ring-2 ring-purple-500';
@@ -87,7 +75,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
     borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
   }
 
-  // Handle Style
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
@@ -151,7 +138,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
               className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56 bg-black/20"
               draggable={false}
               onError={(e) => {
-                  // ซ่อนรูปถ้าโหลดไม่ได้จริงๆ
                   e.currentTarget.style.display = 'none';
               }}
             />

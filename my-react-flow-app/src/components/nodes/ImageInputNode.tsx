@@ -32,7 +32,6 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
       const f = resp.files[0];
       setLocalName(f.name);
       
-      // ✅ FIX: เติม timestamp ตอนอัปโหลดด้วย
       const absUrl = (abs(f.url) || f.url) as string;
       
       let dims = { width: 0, height: 0 };
@@ -63,13 +62,11 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
     }
   };
 
-  // ✅ ดึง URL จาก payload
   const rawUrl = data?.payload?.result_image_url || data?.payload?.url;
   
-  // ✅ FIX FINAL: ใส่ Timestamp เพื่อบังคับ Browser โหลดใหม่เสมอ!
-  // ถ้า rawUrl มีค่า ให้แปลงเป็น absolute url แล้วเติม ?t=...
+ 
   const displayUrl = rawUrl 
-    ? `${abs(rawUrl)}?t=${Date.now()}` // <-- จุดเปลี่ยนสำคัญ
+    ? `${abs(rawUrl)}?t=${Date.now()}` 
     : undefined;
 
   const isFault = error !== '';
@@ -119,7 +116,6 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
             alt="preview" 
             className="w-full rounded-md border border-gray-700 object-contain max-h-48 bg-gray-900" 
             onError={(e) => { 
-              // ลอง Log ดูว่า URL ที่พังคืออะไร
               console.error("Image load failed:", e.currentTarget.src);
               e.currentTarget.style.display = 'none'; 
             }}

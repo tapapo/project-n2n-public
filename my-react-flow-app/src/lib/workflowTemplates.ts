@@ -2,15 +2,13 @@
 import type { Edge, Node } from 'reactflow';
 import type { CustomNodeData } from '../types';
 
-// ============================================================
-// Workflow Template Type (FINAL UPDATED VERSION)
-// ============================================================
+
 export type WorkflowTemplate = {
   desc?: any;
   name: string;
-  descriptor?: { en: string; th: string }; // 👈 เพิ่มตรงนี้
+  descriptor?: { en: string; th: string }; 
   description: string;
-  longDescription?: { en: string; th: string }; // 👈 เปลี่ยนเป็น object
+  longDescription?: { en: string; th: string }; 
 
   color: string;
 
@@ -18,9 +16,7 @@ export type WorkflowTemplate = {
   edges: Edge[];
 };
 
-// ------------------------------------------------------------
 // Import Template Groups
-// ------------------------------------------------------------
 
 // Feature & Matching
 import { FEATURE_EXTRACTION_SINGLE } from './templates/feature';
@@ -40,31 +36,13 @@ import {
   PSNR_ASSESSMENT_TEMPLATE,
   BRISQUE_ASSESSMENT_TEMPLATE,
 } from './templates/quality';
-
-// ------------------------------------------------------------
-//  FINAL TEMPLATE LIST (EXPORT)
-// ------------------------------------------------------------
 export const TEMPLATES: WorkflowTemplate[] = [
-  // ====================================
-  // Feature Extraction & Matching
-  // ====================================
+  
   FEATURE_EXTRACTION_SINGLE,
   FEATURE_MATCHING_PIPELINE,
-
-  // ====================================
-  // Quality Assessment (Separated)
-  // ====================================
   PSNR_ASSESSMENT_TEMPLATE,
   BRISQUE_ASSESSMENT_TEMPLATE,
-
-  // ====================================
-  // Classification (Separated)
-  // ====================================
   OTSU_CLASSIFICATION_TEMPLATE,
   SNAKE_CLASSIFICATION_TEMPLATE,
-
-  // ====================================
-  // Alignment
-  // ====================================
   OBJECT_ALIGNMENT_HOMOGRAPHY,
 ];

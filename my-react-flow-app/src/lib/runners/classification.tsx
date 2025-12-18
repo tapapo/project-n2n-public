@@ -1,6 +1,5 @@
 //src/lib/runners/classification.tsx
 import React from 'react';
-// ✅ Import Edge จาก reactflow โดยตรง (ลบ AnyEdge ทิ้ง)
 import type { Node as RFNode, Edge } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import { runOtsuClassification, runSnake, abs } from '../api';
@@ -15,7 +14,6 @@ function getNodeParams<T extends object = Record<string, any>>(node: RF): T {
   return ((node.data?.payload?.params as T) ?? ({} as T));
 }
 
-// ✅ รายชื่อ Node ที่ห้ามใช้เป็น Input ให้ Classification
 const INVALID_INPUT_TYPES = [
   'sift', 'surf', 'orb',
   'bfmatcher', 'flannmatcher',
@@ -23,32 +21,27 @@ const INVALID_INPUT_TYPES = [
   'save-json','otsu','snake'
 ];
 
-// ============================================================
-// 1️⃣ OTSU Runner
-// ============================================================
+
 export async function runOtsu(
   node: RF,
   setNodes: SetNodes,
   nodes: RF[],
-  edges: Edge[], // ✅ ใช้ Type Edge ของจริง
+  edges: Edge[], 
   signal?: AbortSignal
 ) {
   const nodeId = node.id;
   const nodeName = "Otsu Threshold";
 
-  // Helper: แจ้ง Error
   const fail = async (msg: string) => {
     await updateNodeStatus(nodeId, 'fault', setNodes);
     throw new Error(msg);
   };
 
-  // 🛡️ 1. Validation: เช็คเส้นเชื่อมต่อ
   const incoming = getIncoming(edges, nodeId);
   if (incoming.length === 0) {
     return fail('No input connection (Please connect an Image source).');
   }
 
-  // 🛡️ 2. Validation: เช็คประเภทโหนดต้นทาง
   const prevNode = nodes.find((n) => n.id === incoming[0].source);
   if (prevNode && INVALID_INPUT_TYPES.includes(prevNode.type || '')) {
     const tool = prevNode.data.label || prevNode.type;
@@ -58,7 +51,6 @@ export async function runOtsu(
   await markStartThenRunning(nodeId, 'Running OTSU', setNodes);
 
   try {
-    // 🛡️ 3. หา Path รูปภาพ (ใช้ helper กลาง findInputImage)
     const imagePath = findInputImage(nodeId, nodes, edges);
 
     if (!imagePath) {
@@ -116,26 +108,22 @@ export async function runOtsu(
   }
 }
 
-// ============================================================
-// 2️⃣ SNAKE Runner
-// ============================================================
+
 export async function runSnakeRunner(
   node: RF,
   setNodes: SetNodes,
   nodes: RF[],
-  edges: Edge[], // ✅ ใช้ Type Edge ของจริง
+  edges: Edge[], 
   signal?: AbortSignal
 ) {
   const nodeId = node.id;
   const nodeName = "Snake";
 
-  // Helper: แจ้ง Error
   const fail = async (msg: string) => {
     await updateNodeStatus(nodeId, 'fault', setNodes);
     throw new Error(msg);
   };
 
-  // 🛡️ 1. Validation
   const incoming = getIncoming(edges, nodeId);
   if (incoming.length === 0) {
     return fail('No input connection (Please connect an Image source).');
@@ -150,7 +138,6 @@ export async function runSnakeRunner(
   await markStartThenRunning(nodeId, 'Running Snake', setNodes);
 
   try {
-    // 🛡️ 2. หา Path รูปภาพ
     const imagePath = findInputImage(nodeId, nodes, edges);
     
     if (!imagePath) {

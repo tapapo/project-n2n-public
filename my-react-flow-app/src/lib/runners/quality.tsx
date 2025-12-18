@@ -14,34 +14,28 @@ export async function runQuality(
   const nodeId = node.id;
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
   
-  // ชื่อโหนดปัจจุบัน
   const nodeName = node.data.label || node.type?.toUpperCase() || 'Quality Node';
 
-  // Helper: Throw & Update Fault
   const fail = async (msg: string) => {
     await updateNodeStatus(nodeId, 'fault', setNodes);
     throw new Error(msg); 
   };
 
-  // ✅ รายชื่อโหนดที่ห้ามนำมาต่อ (เพิ่ม brisque, psnr, ssim เข้าไปแล้ว)
   const BAD_SOURCES = [
     'sift', 'surf', 'orb', 
     'bfmatcher', 'flannmatcher', 
     'otsu', 'snake', 
     'save-json',
-    'brisque', 'psnr', 'ssim' // 👈 เพิ่มตรงนี้ครับ
+    'brisque', 'psnr', 'ssim' 
   ];
 
-  // =====================================================
-  // 🛡️ BRISQUE (ต้องการ 1 รูปภาพ)
-  // =====================================================
+
   if (node.type === 'brisque') {
     const incoming = getIncoming(nodeId);
     if (incoming.length < 1) return fail('No image input');
 
     const prevNode = nodes.find((n) => n.id === incoming[0].source);
     
-    // Validation
     if (prevNode && BAD_SOURCES.includes(prevNode.type || '')) {
       const toolName = prevNode.data.label || prevNode.type;
       return fail(`Invalid Input: ${nodeName} requires an Image source, not a '${toolName}' result.`);
@@ -83,9 +77,7 @@ export async function runQuality(
     return;
   }
 
-  // =====================================================
-  // 🛡️ PSNR / SSIM (ต้องการ 2 รูปภาพ)
-  // =====================================================
+ 
   if (node.type === 'psnr' || node.type === 'ssim') {
     const incoming = getIncoming(nodeId);
     const e1 = incoming.find((e) => e.targetHandle === 'input1');
@@ -99,7 +91,6 @@ export async function runQuality(
     const typeA = nodeA?.type || '';
     const typeB = nodeB?.type || '';
 
-    // Validation
     const badInputs: string[] = [];
     
     if (BAD_SOURCES.includes(typeA)) {

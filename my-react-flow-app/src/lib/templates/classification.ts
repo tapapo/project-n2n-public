@@ -2,9 +2,6 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// =============================================================================
-// CONSTANT FILE PATHS
-// =============================================================================
 
 // Input Image
 const MOON_URL = '/static/samples/Moonsample.jpg';
@@ -18,9 +15,7 @@ const SNAKE_JSON = '/static/samples/json/classification/snake_moon.json';
 const SNAKE_VIS  = '/static/samples/json/classification/snake_moon_vis.png';
 const SNAKE_MASK = '/static/samples/json/classification/snake_moon_mask.png';
 
-// =============================================================================
-// COMMON INPUT NODE
-// =============================================================================
+
 
 const INPUT_NODE: Node = {
   id: 'n1-moon',

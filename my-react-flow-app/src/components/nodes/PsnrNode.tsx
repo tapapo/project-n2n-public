@@ -7,10 +7,8 @@ const statusDot = (active: boolean, color: string) =>
   `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`;
 
 const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
-  // ✅ ใช้ useEdges เพื่อความ Real-time (แก้บั๊กลบเส้นแล้วจุดแดงไม่ขึ้น)
   const edges = useEdges(); 
 
-  // ✅ Check connections (แยก 2 เส้น)
   const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'input1'), [edges, id]);
   const isConnected2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'input2'), [edges, id]);
 
@@ -31,7 +29,6 @@ const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         ? `PSNR = ${val.toFixed(2)} dB`
         : 'Connect two Image Input and run');
 
-  // ✅ Theme: Blue (ฟ้าเสมอ)
   let borderColor = 'border-blue-500';
   if (selected) {
     borderColor = 'border-blue-400 ring-2 ring-blue-500';
@@ -39,7 +36,6 @@ const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
   }
 
-  // ✅ Helper สร้าง Class ให้ Handle
   const getHandleClass = (connected: boolean) => `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !connected
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
@@ -49,7 +45,6 @@ const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 transition-all duration-200 ${borderColor}`}>
       
-      {/* Input 1 (Left Top) */}
       <Handle 
         type="target" 
         position={Position.Left} 
@@ -58,7 +53,6 @@ const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         style={{ top: '35%', transform: 'translateY(-50%)' }} 
       />
       
-      {/* Input 2 (Left Bottom) */}
       <Handle 
         type="target" 
         position={Position.Left} 
@@ -67,7 +61,6 @@ const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         style={{ top: '65%', transform: 'translateY(-50%)' }} 
       />
       
-      {/* Output (Right) */}
       <Handle 
         type="source" 
         position={Position.Right} 
@@ -82,7 +75,6 @@ const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
           title="Run this node"
           onClick={handleRun}
           disabled={isRunning}
-          // ✅ ปุ่มฟ้าเสมอ
           className={[
             'px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white',
             isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-blue-600 hover:bg-blue-700',

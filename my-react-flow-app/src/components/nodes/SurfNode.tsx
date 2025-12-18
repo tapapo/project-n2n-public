@@ -1,8 +1,8 @@
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; // ✅ เพิ่ม useNodes
+import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
-import { abs } from '../../lib/api'; // ✅ Import abs
+import { abs } from '../../lib/api'; 
 
 const statusDot = (active: boolean, color: string) =>
   `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`;
@@ -47,7 +47,7 @@ function shapeToText(sh?: any) {
 const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
-  const nodes = useNodes<CustomNodeData>(); // ✅ ใช้ useNodes
+  const nodes = useNodes<CustomNodeData>();
   const [open, setOpen] = useState(false);
 
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
@@ -60,7 +60,6 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const [form, setForm] = useState(params);
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
 
-  // ✅ Logic การดึง Input Size จากโหนดแม่
   const upstreamSize = useMemo(() => {
     const incoming = edges.find(e => e.target === id);
     if (!incoming) return undefined;
@@ -106,7 +105,6 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const isBusy = isRunning;
 
-  // ✅ FIX: Cache Busting URL
   const rawUrl =
     (data?.payload && (data.payload.result_image_url as string)) ||
     (data?.payload && (data.payload.vis_url as string));
@@ -119,7 +117,6 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ? data.description
     : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
 
-  // Theme: Green
   let borderColor = 'border-green-500';
   if (selected) {
     borderColor = 'border-green-400 ring-2 ring-green-500';
@@ -182,7 +179,6 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ✅ แสดงขนาด Input */}
         {upstreamSize && (
           <div className="text-[11px] text-gray-400">Input: {upstreamSize}</div>
         )}
@@ -193,7 +189,6 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
           <div className="text-[11px] text-gray-400">Processed: {processedText}</div>
         )}
 
-        {/* ✅ แสดงรูป (Cache Busting) */}
         {displayUrl && (
           <img
             src={displayUrl}

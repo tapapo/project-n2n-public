@@ -17,7 +17,6 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// ✅ Import Config
 import { nodeTypes, defaultEdgeOptions } from './lib/flowConfig';
 
 import type { CustomNodeData, LogEntry } from './types';
@@ -38,7 +37,6 @@ import { useWorkflowFile } from './hooks/useWorkflowFile';
 import { validateNodeInput } from './lib/validation';
 import LogPanel from './components/LogPanel';
 
-// Interface สำหรับให้ App เรียกใช้
 export interface FlowCanvasHandle {
   getSnapshot: () => { nodes: RFNode[]; edges: Edge[]; viewport: Viewport };
   restoreSnapshot: (nodes: RFNode[], edges: Edge[], viewport: Viewport) => void;
@@ -48,15 +46,12 @@ export interface FlowCanvasHandle {
 interface FlowCanvasProps {
   isRunning: boolean;
   onPipelineDone: () => void;
-  // Callback เพื่อส่งข้อมูลกลับไปบันทึกที่ App
   onFlowChange?: (changes: { nodes: RFNode[]; edges: Edge[]; viewport: Viewport }) => void;
-  // ✅ รับชื่อ Tab ปัจจุบันมาจาก App (เพื่อเอาไปตั้งชื่อไฟล์ตอน Save)
   currentTabName: string; 
 }
 
 const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
 
-// Helper: ทำความสะอาดข้อความ Error
 function cleanErrorMessage(rawMsg: string): string {
   if (!rawMsg) return 'Unknown Error';
   try {
@@ -84,7 +79,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
     [screenToFlowPosition]
   );
 
-  // เริ่มต้นด้วยว่างเปล่า (รอ App ส่งข้อมูลมาให้)
   const [nodes, setNodes, onNodesChange] = useNodesState<CustomNodeData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -92,7 +86,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
   const isDraggingRef = useRef(false);
   const isCanceledRef = useRef(false);
 
-  // ✅ Auto-save trigger
+  // Auto-save trigger
   useEffect(() => {
     if (!onFlowChange) return;
     const timer = setTimeout(() => {
@@ -101,7 +95,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
     return () => clearTimeout(timer);
   }, [nodes, edges, onFlowChange, getViewport]);
 
-  // ✅ API สำหรับให้ App เรียกใช้
+  // API สำหรับให้ App เรียกใช้
   useImperativeHandle(ref, () => ({
     getSnapshot: () => ({
       nodes: nodes,
@@ -152,15 +146,23 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
 
   const { undo, redo, isApplyingHistoryRef } = useFlowHistory({ nodes, edges, setNodes, setEdges, isDraggingRef });
   
-  // ✅ ส่งชื่อ flowName ไปให้ Hook ใช้งาน
   const { saveWorkflow, triggerLoadWorkflow, fileInputRef, handleFileChange } = useWorkflowFile({
     nodes,
     edges,
     setNodes,
     setEdges,
     isApplyingHistoryRef,
-    flowName: currentTabName // <--- ส่งต่อตรงนี้ครับ
+    flowName: currentTabName
   });
+
+  const handleClearWorkflow = useCallback(() => {
+    if (nodes.length === 0) return; 
+
+    setNodes([]);
+    setEdges([]);
+    addLog('Workflow cleared.', 'warning');
+    
+  }, [nodes, setNodes, setEdges, addLog]);
 
   const setIncomingEdgesStatus = useCallback(
     (nodeId: string, status: 'default' | 'error') => {
@@ -206,6 +208,9 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       try {
         switch (node.type) {
           case 'image-input': break; 
+          case '1': case '2': case '3': 
+            await new Promise(r => setTimeout(r, 500)); 
+            break;
           case 'sift': case 'surf': case 'orb':
             await runFeature(node, setNodes, nodesRef.current, edgesRef.current); break;
           case 'brisque': case 'psnr': case 'ssim':
@@ -239,7 +244,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
 
   useFlowHotkeys({ getPastePosition: () => lastMousePosRef.current, runNodeById, undo, redo });
 
-  // Update onRunNode callback when nodes change
   useEffect(() => {
     setNodes((nds) => {
       let changed = false;
@@ -252,7 +256,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
     });
   }, [nodes, runNodeById, setNodes]);
 
-  // Run Pipeline Logic
   useEffect(() => {
     if (!isRunning) {
         isCanceledRef.current = true;
@@ -319,6 +322,9 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       <div className="absolute z-10 top-2 right-2 flex gap-2">
         <button onClick={saveWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">💾 SAVE WORKFLOW</button>
         <button onClick={triggerLoadWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">📂 LOAD WORKFLOW</button>
+        
+        <button onClick={handleClearWorkflow} className="px-3 py-1 rounded bg-red-900/80 hover:bg-red-700 text-xs border border-red-700 shadow-sm text-white transition-colors">🗑️ CLEAR</button>
+
         <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
       </div>
 

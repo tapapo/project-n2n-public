@@ -5,7 +5,7 @@ type ModalProps = {
   open: boolean;
   title?: string;
   onClose: () => void;
-  children?: React.ReactNode; // <-- เปลี่ยนเป็น optional
+  children?: React.ReactNode; 
 };
 
 const Modal: React.FC<ModalProps> = ({ open, title, onClose, children }) => {
@@ -25,7 +25,6 @@ const Modal: React.FC<ModalProps> = ({ open, title, onClose, children }) => {
           </button>
         </div>
 
-        {/* ถ้าไม่มี children ก็ให้เป็นกล่องว่างๆ กัน layout กระตุก */}
         <div className="p-4">
           {children ?? <div className="text-sm text-gray-400">No content</div>}
         </div>

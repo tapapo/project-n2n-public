@@ -133,7 +133,6 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
         };
       });
 
-      // ✅ แก้ type error แน่นอน
       const newEdges = mappedEdges.filter(Boolean) as RFEdge[];
 
       const clearedOldNodes = nodes.map((n) => ({ ...n, selected: false }));

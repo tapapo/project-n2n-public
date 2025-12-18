@@ -39,7 +39,7 @@ export function useWorkflowFile({
   const saveWorkflow = useCallback(() => {
     const payload: SavedWorkflow = {
       version: 1,
-      timestamp: new Date().toISOString(), // เก็บเวลาไว้ข้างใน JSON (เผื่อใช้ debug) แต่ไม่เอามาตั้งชื่อไฟล์
+      timestamp: new Date().toISOString(), 
       nodes,
       edges,
     };
@@ -48,15 +48,12 @@ export function useWorkflowFile({
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
 
-    // ✅ แก้ไขตรงนี้: ลบการสร้าง Timestamp ออก
     
-    // Sanitize ชื่อ: ตัดช่องว่างเป็น _, ยอมให้มีภาษาไทย, อังกฤษ, ตัวเลข
     const safeName = flowName
       .trim()
       .replace(/\s+/g, '_')
       .replace(/[^a-zA-Z0-9_\u0E00-\u0E7F-]/g, '');
 
-    // ใช้ชื่อเพียวๆ เลย
     const finalName = `${safeName || 'workflow'}.json`;
 
     const a = document.createElement('a');

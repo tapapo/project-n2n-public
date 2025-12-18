@@ -2,9 +2,7 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// =============================================================================
-// 1. CONSTANTS: File Paths
-// =============================================================================
+
 
 // Input Images
 const IMG_1_URL = '/static/samples/1.png';

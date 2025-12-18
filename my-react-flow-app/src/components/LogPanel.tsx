@@ -9,22 +9,17 @@ interface LogPanelProps {
 export default function LogPanel({ logs, onClear }: LogPanelProps) {
   const endRef = useRef<HTMLDivElement>(null);
   
-  // State สำหรับจัดการการแสดงผล
-  const [isVisible, setIsVisible] = useState(false); // ควบคุมการ ปิด (X)
-  const [isMinimized, setIsMinimized] = useState(false); // ควบคุมการ ย่อ (_)
+  const [isVisible, setIsVisible] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false); 
   
-  // เก็บจำนวน Log ก่อนหน้า เพื่อเช็คว่ามี Log ใหม่มาไหม
   const prevLogsLength = useRef(logs.length);
 
   useEffect(() => {
-    // ถ้ามี Log เพิ่มขึ้น -> ให้เปิดหน้าต่างอัตโนมัติ
     if (logs.length > prevLogsLength.current) {
       setIsVisible(true);
-      // ถ้าอยากให้เด้งขยายด้วยเมื่อมี Error ให้เปิดคอมเมนต์บรรทัดล่าง
-      // if (logs[logs.length - 1].type === 'error') setIsMinimized(false);
+      
     }
     
-    // Auto scroll
     if (isVisible && !isMinimized) {
       endRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
@@ -32,7 +27,6 @@ export default function LogPanel({ logs, onClear }: LogPanelProps) {
     prevLogsLength.current = logs.length;
   }, [logs, isVisible, isMinimized]);
 
-  // ถ้า isVisible เป็น false คือปิดไปเลย ไม่ต้อง render
   if (!isVisible) return null;
 
   return (
@@ -42,7 +36,6 @@ export default function LogPanel({ logs, onClear }: LogPanelProps) {
       `}
     >
       
-      {/* --- Header --- */}
       <div className="flex justify-between items-center px-3 py-2 bg-gray-800/90 border-b border-gray-700 select-none">
         <div className="flex items-center gap-2">
           <span className="text-gray-300 font-bold flex items-center gap-2">
@@ -55,9 +48,7 @@ export default function LogPanel({ logs, onClear }: LogPanelProps) {
           )}
         </div>
 
-        {/* Action Buttons */}
         <div className="flex items-center gap-1">
-          {/* 🧹 Clear Button */}
           <button 
             onClick={onClear}
             title="Clear logs"
@@ -68,26 +59,22 @@ export default function LogPanel({ logs, onClear }: LogPanelProps) {
             </svg>
           </button>
 
-          {/* ➖ Minimize Button */}
           <button 
             onClick={() => setIsMinimized(!isMinimized)}
             title={isMinimized ? "Expand" : "Minimize"}
             className="text-gray-400 hover:text-white p-1 rounded hover:bg-gray-700 transition"
           >
             {isMinimized ? (
-              // Expand Icon (Square)
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
                 <rect x="4" y="4" width="16" height="16" rx="2" strokeWidth={2} />
               </svg>
             ) : (
-              // Minimize Icon (Line)
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
               </svg>
             )}
           </button>
 
-          {/* ❌ Close Button */}
           <button 
             onClick={() => setIsVisible(false)}
             title="Close panel"
@@ -100,7 +87,6 @@ export default function LogPanel({ logs, onClear }: LogPanelProps) {
         </div>
       </div>
 
-      {/* --- Log List --- */}
       {!isMinimized && (
         <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-transparent">
           {logs.length === 0 ? (
@@ -110,7 +96,6 @@ export default function LogPanel({ logs, onClear }: LogPanelProps) {
           ) : (
             logs.map((log) => (
               <div key={log.id} className="flex gap-2 items-start p-1.5 rounded hover:bg-white/5 transition group">
-                {/* จุดสี */}
                 <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 
                   ${log.type === 'error' ? 'bg-red-500 shadow-[0_0_5px_rgba(239,68,68,0.8)]' : 
                     log.type === 'success' ? 'bg-green-500 shadow-[0_0_5px_rgba(34,197,94,0.8)]' : 

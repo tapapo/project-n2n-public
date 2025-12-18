@@ -4,7 +4,6 @@ import type { CustomNodeData } from '../../types';
 import { abs } from '../api'; 
 import { updateNodeStatus, findInputImage } from './utils';
 
-// Helper: ดาวน์โหลดไฟล์ผ่าน Browser
 function triggerBrowserDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -16,18 +15,15 @@ function triggerBrowserDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-// Helper: หา Node ต้นทาง (เพื่อเอาชื่อมาตั้งชื่อไฟล์)
 function getSourceNode(nodeId: string, nodes: Node<CustomNodeData>[], edges: Edge[]) {
   const edge = edges.find((e) => e.target === nodeId);
   if (!edge) return null;
   return nodes.find((n) => n.id === edge.source);
 }
 
-// Helper: สร้างชื่อไฟล์จากชื่อโหนด + เวลา
 function generateFilename(node: Node<CustomNodeData>, extension: string): string {
   const now = new Date();
   
-  // จัดรูปแบบเวลา: YYYYMMDD_HHmmss
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
@@ -36,15 +32,12 @@ function generateFilename(node: Node<CustomNodeData>, extension: string): string
   const second = String(now.getSeconds()).padStart(2, '0');
   const timestamp = `${year}${month}${day}_${hour}${minute}${second}`;
 
-  // ดึงชื่อโหนด (Label) ถ้าไม่มีให้ใช้ Type
   const rawLabel = node.data.label || node.type || "output";
-  // ลบอักขระพิเศษและเว้นวรรค
   const cleanLabel = rawLabel.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '');
 
   return `${cleanLabel}_${timestamp}.${extension}`;
 }
 
-// Helper: หา JSON จากโหนดต้นทาง (Strict Version)
 function findInputJson(
   nodeId: string,
   nodes: Node<CustomNodeData>[],
@@ -59,7 +52,6 @@ function findInputJson(
   const payload = parentNode.data.payload;
   if (!payload) return null;
 
-  // ต้องมีคีย์ 'json' เท่านั้น
   if ((payload as any).json) {
     return (payload as any).json;
   }
@@ -67,9 +59,8 @@ function findInputJson(
   return null;
 }
 
-// ============================================================
+
 // 1. RUN SAVE IMAGE
-// ============================================================
 export async function runSaveImage(
   node: Node<CustomNodeData>,
   setNodes: React.Dispatch<React.SetStateAction<Node<CustomNodeData>[]>>,
@@ -108,9 +99,7 @@ export async function runSaveImage(
     else if (blob.type === 'image/png') ext = 'png';
     else if (typeof imageUrlPath === 'string' && imageUrlPath.toLowerCase().endsWith('.jpg')) ext = 'jpg';
 
-    // ✅ หาโหนดต้นทางเพื่อเอามาตั้งชื่อ
     const sourceNode = getSourceNode(nodeId, nodes, edges);
-    // ถ้ามีโหนดต้นทางใช้ชื่อโหนดต้นทาง ถ้าไม่มีใช้ชื่อโหนด Save เอง
     const targetNamingNode = sourceNode || node;
     const filename = generateFilename(targetNamingNode, ext);
 
@@ -137,9 +126,7 @@ export async function runSaveImage(
   }
 }
 
-// ============================================================
 // 2. RUN SAVE JSON
-// ============================================================
 export async function runSaveJson(
   node: Node<CustomNodeData>,
   setNodes: React.Dispatch<React.SetStateAction<Node<CustomNodeData>[]>>,
@@ -175,7 +162,6 @@ export async function runSaveJson(
     const jsonString = JSON.stringify(finalData, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     
-    // ✅ หาโหนดต้นทางเพื่อเอามาตั้งชื่อ
     const sourceNode = getSourceNode(nodeId, nodes, edges);
     const targetNamingNode = sourceNode || node;
     const filename = generateFilename(targetNamingNode, 'json');

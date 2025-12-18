@@ -1,33 +1,29 @@
 // src/components/nodes/SaveJsonNode.tsx
 import { memo, useCallback, useMemo } from 'react';
-import { Handle, Position, type NodeProps, useEdges } from 'reactflow'; // ✅ ใช้ useEdges
+import { Handle, Position, type NodeProps, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 
 const SaveJsonNode = ({ id, data, selected }: NodeProps<CustomNodeData>) => {
-  const edges = useEdges(); // ✅ ดึงเส้นแบบ Real-time
+  const edges = useEdges(); 
 
   const isRunning = data.status === 'running';
   const isSuccess = data.status === 'success';
   const isFault = data.status === 'fault';
 
-  // ✅ Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // ✅ Theme: Gray (เทาเสมอ)
   let borderColor = 'border-gray-500';
   if (selected) {
-    borderColor = 'border-gray-300 ring-2 ring-gray-500'; // Selected
+    borderColor = 'border-gray-300 ring-2 ring-gray-500'; 
   } else if (isRunning) {
-    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50'; // Running
+    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50'; 
   }
-  // ไม่เปลี่ยนสี border ตาม success/fault เพื่อคงธีมสีเทา
 
   const handleRun = useCallback(() => {
     if (data.onRunNode) data.onRunNode(id);
     else console.warn("onRunNode function not found");
   }, [data, id]);
 
-  // ✅ Handle Class Logic
   const handleClasses = `w-3 h-3 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
@@ -62,7 +58,6 @@ const SaveJsonNode = ({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       )}
 
-      {/* ✅ Input Handle */}
       <Handle type="target" position={Position.Left} className={handleClasses} />
     </div>
   );

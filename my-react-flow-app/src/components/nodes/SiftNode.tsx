@@ -2,7 +2,7 @@ import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
-import { abs } from '../../lib/api'; // 1. ✅ อย่าลืม Import abs
+import { abs } from '../../lib/api'; 
 
 const statusDot = (active: boolean, color: string) => 
   `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`;
@@ -98,7 +98,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const rawUrl = data?.payload?.result_image_url || data?.payload?.vis_url || data?.payload?.sift_vis_url;
   
-  // 2. ✅ FIX: แปลง Path เป็น URL เต็ม และใส่ timestamp กัน cache
   const displayUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
   
   const caption =
@@ -174,7 +173,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
           <div className="text-[11px] text-gray-400">Processed: {fmtSize(processed.w!, processed.h!)}</div>
         )}
 
-        {/* 3. ✅ ใช้ displayUrl ที่ผ่าน abs() แล้ว */}
         {displayUrl && (
           <img
             src={displayUrl}
@@ -186,7 +184,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         {caption && <p className="text-xs text-white-400 break-words">{caption}</p>}
       </div>
 
-      {/* Footer & Modal (เหมือนเดิม) */}
       <div className="border-t-2 border-gray-700 p-2 text-sm">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>

@@ -2,18 +2,14 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// =============================================================================
-// 1. CONSTANTS: File Paths
-// =============================================================================
+
 const ORI_URL = '/static/samples/ori.png';
 const NOISE_URL = '/static/samples/noise.jpg';
 const MOON_URL = '/static/samples/Moonsample.jpg';
 const PSNR_JSON = '/static/samples/json/quality/psnr_score.json';
 const BRISQUE_JSON = '/static/samples/json/quality/brisque_score.json';
 
-// =============================================================================
-// TEMPLATE 1: PSNR ONLY (Full-Reference Quality)
-// =============================================================================
+
 export const PSNR_ASSESSMENT_TEMPLATE: WorkflowTemplate = {
   name: 'PSNR (Peak Signal-to-Noise Ratio)',
   descriptor: {

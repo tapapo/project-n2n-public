@@ -28,7 +28,6 @@ const DEFAULT_PARAMS = {
 };
 type BFParams = typeof DEFAULT_PARAMS;
 
-// --- Helpers (Consistent with FLANN) ---
 function toNum(v: any): number | undefined {
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
@@ -43,37 +42,32 @@ function fmtSize(w?: any, h?: any) {
 
 function shapeToText(sh?: any) {
   if (Array.isArray(sh) && sh.length >= 2) {
-    return fmtSize(sh[1], sh[0]); // OpenCV shape [h, w] -> w x h
+    return fmtSize(sh[1], sh[0]); 
   }
   return undefined;
 }
 
-// (ฟังก์ชัน extractInputMeta เดิมถูกลบออก และแทนที่ด้วย Logic ใน Component เพื่อความยืดหยุ่น)
 
 const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
-  const nodes = useNodes<CustomNodeData>(); // ✅ ดึง Nodes เพื่อหาข้อมูลต้นทาง
+  const nodes = useNodes<CustomNodeData>(); 
   const [open, setOpen] = useState(false);
   
   const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file1'), [edges, id]);
   const isConnected2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file2'), [edges, id]);
 
-  // ✅ Logic การค้นหาข้อมูลจากโหนดแม่ (Deep Search แบบ FLANN)
   const upstreamMeta = useMemo(() => {
     const extractInfo = (n: any) => {
         const p = n?.data?.payload || {};
-        // 1. หาจาก width/height (Image Input)
         let w = toNum(p.width);
         let h = toNum(p.height);
         
-        // 2. หาจาก image_shape [H, W] (Feature Node)
         if (w === undefined && Array.isArray(p.image_shape)) {
             h = toNum(p.image_shape[0]);
             w = toNum(p.image_shape[1]);
         }
 
-        // 3. หาจาก json.image (เผื่อรันแล้ว)
         if (w === undefined && p.json?.image) {
             const keys = ['processed_shape', 'processed_sift_shape', 'processed_orb_shape', 'processed_surf_shape'];
             for (const k of keys) {
@@ -99,7 +93,6 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
       
       let info = extractInfo(parent);
 
-      // ทะลุไปหา Grandparent ถ้าจำเป็น
       if (info.w === undefined && ['sift', 'surf', 'orb'].includes(parent.type || '')) {
           const grandEdge = edges.find(e => e.target === parent.id);
           if (grandEdge) {
@@ -162,7 +155,6 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
   const summary = respJson?.matching_statistics?.summary;
   const caption = summary ?? (inliers != null && goodCount != null ? `${inliers} inliers / ${goodCount} good matches` : visUrl ? 'Matches preview' : 'Connect two feature nodes and run');
 
-  // ✅ Merge Data (Priority: Result > Upstream)
   const metaA = {
     kps: respJson?.input_features_details?.image1?.num_keypoints ?? upstreamMeta.a?.kps,
     sizeText: fmtSize(respJson?.inputs?.image1?.width, respJson?.inputs?.image1?.height) ?? 
@@ -183,7 +175,6 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
   const usedCross: boolean | undefined = respJson?.bfmatcher_parameters_used?.cross_check;
   const usedDraw: string | undefined = respJson?.bfmatcher_parameters_used?.draw_mode;
 
-  // Theme: Orange
   let borderColor = 'border-orange-500';
   if (selected) borderColor = 'border-orange-400 ring-2 ring-orange-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -221,7 +212,6 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
       <div className="p-4 space-y-3">
         <p className="text-sm text-gray-300">{caption}</p>
 
-        {/* ✅ แสดง Info Box: Input A/B และ Size */}
         {(isConnected1 || isConnected2 || metaA.kps != null || metaB.kps != null) && (
           <div className="grid grid-cols-2 gap-3 text-[11px]">
             <div className={`rounded border p-2 transition-colors flex flex-col justify-center ${isConnected1 ? 'border-gray-600 bg-gray-800/50' : 'border-gray-700 border-dashed opacity-50'}`}>
@@ -257,7 +247,6 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Settings modal */}
       <Modal open={open} title="BFMatcher Settings" onClose={onClose}>
         <div className="space-y-3 text-xs text-gray-300">
           <div className="grid grid-cols-2 gap-3">

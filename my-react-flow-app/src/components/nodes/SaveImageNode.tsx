@@ -1,24 +1,21 @@
 // src/components/nodes/SaveImageNode.tsx
 import { memo, useCallback, useMemo } from 'react';
-import { Handle, Position, type NodeProps, useEdges } from 'reactflow'; // ✅ ใช้ useEdges
+import { Handle, Position, type NodeProps, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 
 const SaveImageNode = ({ id, data, selected }: NodeProps<CustomNodeData>) => {
-  const edges = useEdges(); // ✅ ดึงเส้นแบบ Real-time
-
-  // ✅ Check Connection
+  const edges = useEdges(); 
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
   const isRunning = data.status === 'running';
   const isSuccess = data.status === 'success';
   const isFault = data.status === 'fault';
 
-  // ✅ Theme: Gray (เทาเสมอ)
   let borderColor = 'border-gray-500';
   if (selected) {
-    borderColor = 'border-gray-300 ring-2 ring-gray-500'; // Selected
+    borderColor = 'border-gray-300 ring-2 ring-gray-500'; 
   } else if (isRunning) {
-    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50'; // Running
+    borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50'; 
   }
 
   const handleRun = useCallback(() => {
@@ -26,7 +23,6 @@ const SaveImageNode = ({ id, data, selected }: NodeProps<CustomNodeData>) => {
     else console.warn("onRunNode function not found");
   }, [data, id]);
 
-  // ✅ Handle Class Logic
   const handleClasses = `w-3 h-3 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
@@ -54,7 +50,6 @@ const SaveImageNode = ({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       )}
 
-      {/* ✅ Handle Input */}
       <Handle type="target" position={Position.Left} className={handleClasses} />
     </div>
   );

@@ -102,7 +102,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const [imgSize, setImgSize] = useState<{w: number, h: number} | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<{x: number, y: number} | null>(null);
-  const frameRef = useRef(0); // 🔑 NEW: Ref สำหรับ Animation Frame ID (สำหรับ rAF)
+  const frameRef = useRef(0);
   
   const [isEditing, setIsEditing] = useState(true);
 
@@ -148,7 +148,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       if (JSON.stringify(savedParams) !== JSON.stringify(form)) {
           setForm(savedParams);
       }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedParams]);
 
   const isRunning = data?.status === 'start' || data?.status === 'running';
@@ -198,12 +197,10 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       }
   }
 
-  // Theme: Pink
   let borderColor = 'border-pink-500';
   if (selected) borderColor = 'border-pink-400 ring-2 ring-pink-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // --- Interactive Handlers ---
   const getImgCoords = (e: React.MouseEvent) => {
     if (!imgRef.current) return null;
     const rect = imgRef.current.getBoundingClientRect();
@@ -215,7 +212,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     };
   };
 
-  // ✅ FIX 1: onImgLoad Guard (Loop Fix)
   const onImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const img = e.currentTarget;
     const newWidth = img.naturalWidth;
@@ -226,11 +222,9 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     }
   }, [imgSize]); 
 
-  // 🟢 FIX 3: handleMouseDown (Drag Start) - แก้ให้หยุด Node Drag และ Browser Default Selection
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // 1. หยุดไม่ให้ Node ลาก
+    e.stopPropagation(); 
 
-    // 🔑 FIX CRITICAL: ป้องกันการเลือกข้อความและการลากโหนดในทุกโหมด
     if (form.init_mode === 'bbox' || form.init_mode === 'point') {
         e.preventDefault(); 
     }
@@ -248,12 +242,10 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     }
   }, [form, getImgCoords, updateNodeData]);
 
-  // 🟢 FIX 5: handleMouseMove (Performance Fix with rAF)
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging || !dragStart || form.init_mode !== 'bbox') return;
     e.preventDefault(); e.stopPropagation();
     
-    // 🔑 FIX: ใช้ requestAnimationFrame เพื่อลดความถี่การ Render
     if (frameRef.current) {
         cancelAnimationFrame(frameRef.current);
     }
@@ -280,17 +272,15 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         setDragStart(null);
         updateNodeData(form);
     }
-    // 🔑 FIX: Clear animation frame on mouse up
     if (frameRef.current) {
         cancelAnimationFrame(frameRef.current);
         frameRef.current = 0;
     }
   }, [isDragging, form, updateNodeData]);
 
-  // 🟢 FIX 6: handleClick (Point Set)
   const handleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); // 1. หยุดไม่ให้ Node ถูกเลือก
-    e.preventDefault(); // 2. หยุด Browser Default Click Action
+    e.stopPropagation(); 
+    e.preventDefault(); 
 
     if (form.init_mode === 'point') {
       setIsEditing(true);
@@ -358,7 +348,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                 onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
 
-            {/* Point Overlay */}
             {isEditing && form.init_mode === 'point' && form.from_point_x != null && form.from_point_y != null && imgSize && (
                 <div 
                     className="absolute w-3 h-3 bg-red-500 rounded-full border-2 border-white transform -translate-x-1/2 -translate-y-1/2 pointer-events-none shadow-sm"
@@ -369,7 +358,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                 />
             )}
 
-            {/* BBox Overlay */}
             {isEditing && form.init_mode === 'bbox' && form.bbox_x1 != null && form.bbox_y1 != null && imgSize && (
                 <div 
                     className="absolute border-2 border-red-500 bg-red-500/20 pointer-events-none"

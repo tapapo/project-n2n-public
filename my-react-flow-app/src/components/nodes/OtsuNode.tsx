@@ -71,7 +71,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const resp = data?.payload?.json as any | undefined;
   const resultImage = data?.payload?.result_image_url || data?.payload?.preview_url || resp?.binary_url;
   
-  // ✅ FIX FINAL: ดึงค่า Threshold จาก Key ที่ถูกต้อง (จาก JSON หรือ Payload หลัก)
   const thr = resp?.threshold_value || resp?.threshold || resp?.output?.threshold_value || resp?.output?.threshold || data?.payload?.threshold_value;
 
   const rawUrl = resultImage || upstreamImage;
@@ -83,7 +82,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ? `Threshold = ${thr ?? '?'}` 
     : 'Connect Image Input and run';
 
-  // ✅ FIX KEY: ปรับปรุง onImgLoad เพื่อหยุด Infinite Loop
   const onImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const img = e.currentTarget;
     const newWidth = img.naturalWidth;
@@ -94,7 +92,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     }
   }, [imgSize]); 
 
-  // Theme, Handles, JSX...
   let borderColor = 'border-pink-500';
   if (selected) {
     borderColor = 'border-pink-400 ring-2 ring-pink-500';

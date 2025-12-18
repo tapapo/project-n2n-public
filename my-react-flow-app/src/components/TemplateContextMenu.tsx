@@ -9,7 +9,6 @@ type TemplateContextMenuProps = {
   template: WorkflowTemplate;
   onClose: () => void;
 
-  // Load template into FlowCanvas
   onLoadTemplate?: (template: WorkflowTemplate) => void;
 
   currentLang: 'en' | 'th';
@@ -25,7 +24,6 @@ const TemplateContextMenu: React.FC<TemplateContextMenuProps> = ({
 }) => {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // ===== Event: click outside / ESC close =====
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (!menuRef.current) return;
@@ -49,16 +47,14 @@ const TemplateContextMenu: React.FC<TemplateContextMenuProps> = ({
     };
   }, [onClose]);
 
-  // ===== Position adjust to avoid off-screen =====
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const menuWidth = 260;
-  const menuHeight = 150; // ปรับความสูงลดลงเล็กน้อยเพราะเอาปุ่มออกไป 1 ปุ่ม
+  const menuHeight = 150; 
 
   const safeX = Math.min(x, viewportWidth - menuWidth - 8);
   const safeY = Math.min(y, viewportHeight - menuHeight - 8);
 
-  // ===== UI =====
   const content = (
     <div
       ref={menuRef}
@@ -66,7 +62,6 @@ const TemplateContextMenu: React.FC<TemplateContextMenuProps> = ({
       className="fixed z-[9999] bg-slate-900/98 border border-slate-700 rounded-lg shadow-2xl w-64 text-xs text-slate-200 backdrop-blur-sm"
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Header */}
       <div className="px-3 py-2 border-b border-slate-700 bg-slate-900/90">
         <div className="text-[11px] font-semibold text-teal-300 truncate">
           {template.name}
@@ -80,7 +75,6 @@ const TemplateContextMenu: React.FC<TemplateContextMenuProps> = ({
 
       <div className="py-1">
 
-        {/* Load this template */}
         <button
           className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-teal-600/20 hover:text-teal-300 transition-colors"
           onClick={() => {
@@ -94,7 +88,6 @@ const TemplateContextMenu: React.FC<TemplateContextMenuProps> = ({
           <span>Load this template</span>
         </button>
 
-        {/* Quick preview */}
         <button
           className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-700/60 transition-colors"
           onClick={() => {
@@ -112,7 +105,6 @@ const TemplateContextMenu: React.FC<TemplateContextMenuProps> = ({
 
         <div className="my-1 border-t border-slate-700" />
 
-        {/* Cancel */}
         <button
           className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 transition-colors"
           onClick={onClose}
