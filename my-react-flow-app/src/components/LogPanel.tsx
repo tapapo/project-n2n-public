@@ -1,3 +1,4 @@
+// project_n2n/my-react-flow-app/src/components/LogPanel.tsx
 import { useEffect, useRef, useState } from 'react';
 import type { LogEntry } from '../types';
 

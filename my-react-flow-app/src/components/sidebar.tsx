@@ -1,3 +1,4 @@
+// project_n2n/my-react-flow-app/src/components/sidebar.tsx
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { TEMPLATES, type WorkflowTemplate } from '../lib/workflowTemplates';
 import AlgorithmInfoModal from './modals/AlgorithmInfoModal';

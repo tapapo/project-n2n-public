@@ -1,3 +1,4 @@
+# project_n2n/server/algos/Classification/otsu_adapter.py
 import os
 import json
 import hashlib # ✅ ใช้ Hash เพื่อป้องกันไฟล์ซ้ำ

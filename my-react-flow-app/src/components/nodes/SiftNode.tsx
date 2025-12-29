@@ -1,3 +1,4 @@
+// project_n2n/my-react-flow-app/src/components/nodes/SiftNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';

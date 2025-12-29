@@ -1,3 +1,4 @@
+# project_n2n/server/algos/Classification/snake_adapter.py
 import os
 import json
 import uuid
