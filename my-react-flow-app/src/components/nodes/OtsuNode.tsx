@@ -1,10 +1,8 @@
-//src/components/nodes/OtsuNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; 
+import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
-import { getNodeImageUrl } from '../../lib/runners/utils';
 
 const dot = (active: boolean, cls: string) => 
   `h-4 w-4 rounded-full ${active ? cls : 'bg-gray-600'} flex-shrink-0`;
@@ -26,19 +24,12 @@ const DEFAULT_PARAMS: Params = {
 const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
-  const nodes = useNodes<CustomNodeData>(); 
 
   const [open, setOpen] = useState(false);
   
   const imgRef = useRef<HTMLImageElement>(null); 
   const [imgSize, setImgSize] = useState<{w: number, h: number} | null>(null);
 
-  const upstreamImage = useMemo(() => {
-    const incoming = edges.find(e => e.target === id);
-    if (!incoming) return null;
-    const parent = nodes.find(n => n.id === incoming.source);
-    return getNodeImageUrl(parent);
-  }, [edges, nodes, id]);
 
   const isConnected = useMemo(() => edges.some((e) => e.target === id), [edges, id]);
 
@@ -73,7 +64,7 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   
   const thr = resp?.threshold_value || resp?.threshold || resp?.output?.threshold_value || resp?.output?.threshold || data?.payload?.threshold_value;
 
-  const rawUrl = resultImage || upstreamImage;
+  const rawUrl = resultImage;
   
   const displayImage = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
 

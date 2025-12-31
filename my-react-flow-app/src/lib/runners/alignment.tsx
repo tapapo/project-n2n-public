@@ -1,4 +1,3 @@
-//src/lib/runners/alignment.tsx
 import { runHomographyAlignment, runAffineAlignment, abs } from '../api';
 import { markStartThenRunning, updateNodeStatus } from './utils';
 import type { Edge } from 'reactflow';
@@ -15,18 +14,16 @@ function getIncoming(edges: Edge[], id: string) {
 function pickMatchJsonFromNode(matchNode?: RF): string | null {
   if (!matchNode) return null;
   const p = (matchNode.data as CustomNodeData | undefined)?.payload;
-  const nested = (p as any)?.json?.json_path;
-  const flat = (p as any)?.json_path;
-  const path = typeof nested === 'string' ? nested : typeof flat === 'string' ? flat : null;
+  // รองรับหลาย Path
+  const matchPath = p?.output?.match_json || p?.json?.json_path || p?.json_path;
   
-  if (!path || !path.endsWith('.json')) return null;
-  return path;
+  if (!matchPath || typeof matchPath !== 'string' || !matchPath.endsWith('.json')) return null;
+  return matchPath;
 }
 
 function getNodeParams<T extends object = Record<string, any>>(node: RF): T {
   return ((node.data?.payload?.params as T) ?? ({} as T));
 }
-
 
 export async function runAlignment(
   node: RF,
@@ -37,10 +34,10 @@ export async function runAlignment(
   const nodeId = node.id;
   const kind = node.type || 'homography-align';
 
-  
+  // 1. ตรวจสอบ Connection
   const incoming = getIncoming(edges, nodeId);
   if (!incoming.length) {
-    const msg = 'No input matcher connection (Drag a line from BFMatcher/FLANNMatcher).';
+    const msg = 'No input connection. Please connect a Matcher node (BF/FLANN).';
     await updateNodeStatus(nodeId, 'fault', setNodes);
     throw new Error(msg);
   }
@@ -48,28 +45,27 @@ export async function runAlignment(
   const srcEdge = incoming[0];
   const matchNode = nodes.find((n) => n.id === srcEdge.source);
 
- 
+  // 2. ตรวจสอบประเภทโหนดต้นทาง
   const allowedTypes = ['bfmatcher', 'flannmatcher'];
   if (!matchNode || !allowedTypes.includes(matchNode.type || '')) {
-    const label = matchNode?.data.label || matchNode?.type || 'Unknown Node';
-    
+    const label = matchNode?.data?.label || matchNode?.type || 'Unknown Node';
     const msg = `Invalid Input: Alignment requires a Matcher node, not a '${label}' result.`;
-    
     await updateNodeStatus(nodeId, 'fault', setNodes);
+    setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, description: msg } } : n));
     throw new Error(msg);
   }
-
   
+  // 3. ดึง JSON Path
   const matchJson = pickMatchJsonFromNode(matchNode);
   if (!matchJson) {
-    const msg = 'Matcher has no valid JSON output (Please Run the Matcher node first).';
+    const msg = 'Matcher output not ready. Please Run the Matcher node first.';
     await updateNodeStatus(nodeId, 'fault', setNodes);
+    setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, description: msg } } : n));
     throw new Error(msg);
   }
 
-
   const params = getNodeParams(node);
-  const label = kind === 'affine-align' ? 'Running Affine' : 'Running Homography';
+  const label = kind === 'affine-align' ? 'Running Affine...' : 'Running Homography...';
 
   await markStartThenRunning(nodeId, label, setNodes);
 
@@ -83,11 +79,8 @@ export async function runAlignment(
     }
 
     const alignedPath = resp?.output?.aligned_path;
-    const alignedUrl = resp?.output?.aligned_url 
-      ? abs(resp.output.aligned_url) 
-      : undefined;
-    
-    const inliers = typeof resp?.num_inliers === 'number' ? resp.num_inliers : '?';
+    const alignedUrl = resp?.output?.aligned_url ? abs(resp.output.aligned_url) : undefined;
+    const inliers = typeof resp?.num_inliers === 'number' ? resp.num_inliers : (resp?.inliers ?? '?');
 
     setNodes((nds) =>
       nds.map((x) =>
@@ -103,14 +96,23 @@ export async function runAlignment(
                   tool: kind === 'affine-align' ? 'AffineAlignment' : 'HomographyAlignment',
                   output_type: 'alignment', 
                   params,
-                  json: resp,
+                  
+                  // ✅ เก็บ raw json
+                  json_data: resp, 
+                  
+                  // ✅ จัดการเรื่อง URL รูปภาพให้ครบถ้วน
+                  vis_url: alignedUrl, 
+                  result_image_url: alignedUrl,
+                  output_image: alignedUrl, 
+                  
+                  // ✅✅ เพิ่ม Metadata สำคัญ: ขนาดและ Channel
+                  // เพื่อให้ Node ถัดไป (Enhancement) รู้ว่าเป็นภาพสีและมีขนาดเท่าไหร่
+                  image_shape: resp.image_shape || resp.output?.aligned_shape,
+                  channels: resp.channels || (resp.image_shape ? resp.image_shape[2] : 3),
+
                   json_path: resp?.json_path,
-                  json_url: resp?.json_url ? abs(resp.json_url) : undefined,
                   aligned_path: alignedPath,
-                  aligned_url: alignedUrl,
                   output: resp, 
-                  url: alignedUrl,
-                  result_image_url: alignedUrl 
                 },
               } as CustomNodeData,
             }
@@ -120,7 +122,10 @@ export async function runAlignment(
   } catch (err: any) {
     console.error("Alignment Error:", err);
     await updateNodeStatus(nodeId, 'fault', setNodes);
-    
+    const errMsg = err.response?.data?.detail || err.message || "Alignment Failed";
+    setNodes((nds) => nds.map(n => n.id === nodeId ? {
+        ...n, data: { ...n.data, description: errMsg }
+    } : n));
     throw err;
   }
 }

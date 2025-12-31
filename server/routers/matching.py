@@ -1,10 +1,9 @@
-# server/routers/matching.py
 import os
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-# ✅ แก้ไข: นำเข้าเครื่องมือจาก utils_io แทนเพื่อป้องกัน Circular Import
+# นำเข้าเครื่องมือจาก utils_io
 from ..utils_io import resolve_image_path, OUT, static_url
 
 # นำเข้า Adapters ของหมวด Matching
@@ -64,9 +63,9 @@ def match_bf(req: MatchReq):
             draw_mode=req.draw_mode,
         )
         
-        inliers = int(result.get("inliers", 0))
-        # ดึงจำนวน Good Matches จากสถิติที่ Adapter คืนมา
+        # ดึงสถิติที่ Adapter คืนมา
         stats = result.get("matching_statistics", {})
+        inliers = int(result.get("inliers", 0))
         good_cnt = _as_count(result.get("good_matches", stats.get("num_good_matches", 0)))
 
         return {
@@ -76,6 +75,11 @@ def match_bf(req: MatchReq):
             "matching_statistics": stats,
             "vis_url": static_url(result.get("vis_url"), OUT),
             "json_url": static_url(result.get("json_path"), OUT),
+            "json_path": result.get("json_path"), # คืนค่า path สำหรับโหนดถัดไป (Alignment)
+            # ✅ คืนข้อมูล meta เพื่อให้ React โชว์ขนาดภาพและ Kps หลังรัน
+            "inputs": result.get("inputs", {}),
+            "input_features_details": result.get("input_features_details", {}),
+            "bfmatcher_parameters_used": result.get("bfmatcher_parameters_used", {})
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"BF Matcher failed: {str(e)}")
@@ -103,12 +107,20 @@ def match_flann(req: MatchReq):
             max_draw=req.max_draw,
         )
 
+        stats = result.get("matching_statistics", {})
+        
         return {
             "status": "success",
             "tool": "FLANNBasedMatcher",
-            "matching_statistics": result.get("matching_statistics", {}),
+            "description": stats.get("summary") or "FLANN Matching completed",
+            "matching_statistics": stats,
             "vis_url": static_url(result.get("vis_url"), OUT),
             "json_url": static_url(result.get("json_path"), OUT),
+            "json_path": result.get("json_path"),
+            # ✅ คืนข้อมูล meta เพื่อให้ React โชว์ขนาดภาพและ Kps หลังรัน
+            "inputs": result.get("inputs", {}),
+            "input_features_details": result.get("input_features_details", {}),
+            "flann_parameters_used": result.get("flann_parameters_used", {})
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"FLANN Matcher failed: {str(e)}")

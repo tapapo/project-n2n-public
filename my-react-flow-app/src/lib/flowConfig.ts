@@ -17,6 +17,17 @@ import SnakeNode from '../components/nodes/SnakeNode';
 import SaveImageNode from '../components/nodes/SaveImageNode';
 import SaveJsonNode from '../components/nodes/SaveJsonNode';
 
+// โหนดของเพื่อน
+import CLAHENode from '../components/nodes/CLAHE';
+import MSRCRNode from '../components/nodes/MSRCR';
+import ZeroDCENode from '../components/nodes/ZERO';
+import DnCNNNode from '../components/nodes/DCNN';
+import RealESRGANNode from '../components/nodes/REAL';
+import SwinIRNode from '../components/nodes/SWINIR';
+import DeepLabNode from '../components/nodes/DEEP';
+import MaskRCNNNode from '../components/nodes/MASK';
+import UNetNode from '../components/nodes/UNET';
+
 export const nodeTypes: NodeTypes = {
   'image-input': ImageInputNode,
   sift: SiftNode,
@@ -33,10 +44,34 @@ export const nodeTypes: NodeTypes = {
   snake: SnakeNode,
   'save-image': SaveImageNode,
   'save-json': SaveJsonNode,
+
+  // --- โหนดของเพื่อน (ลงทะเบียนดักไว้ทั้งชื่อสั้นและชื่อยาว) ---
+  'clahe': CLAHENode,
+  
+  'msrcr': MSRCRNode,
+  
+  'zero': ZeroDCENode,
+  'zeroDce': ZeroDCENode, // ✅ ดัก Error: zeroDce not found
+  
+  'dcnn': DnCNNNode,
+  'dncnn': DnCNNNode,     // ✅ ดัก Error: dncnn not found
+  
+  'real': RealESRGANNode,
+  'realesrgan': RealESRGANNode, // ✅ ดัก Error: realesrgan not found
+  
+  'swinir': SwinIRNode,
+  
+  'deep': DeepLabNode,
+  'deeplab': DeepLabNode, // ✅ ดัก Error: deeplab not found
+  
+  'mask': MaskRCNNNode,
+  'maskrcnn': MaskRCNNNode, // ✅ ดัก Error: maskrcnn not found
+  
+  'unet': UNetNode,
 };
 
 export const defaultEdgeOptions: DefaultEdgeOptions = {
   type: 'smoothstep',
-  markerEnd: { type: MarkerType.ArrowClosed },
+  markerEnd: { type: MarkerType.ArrowClosed, color: '#64748b' },
   style: { strokeWidth: 2, stroke: '#64748b' },
 };

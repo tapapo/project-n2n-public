@@ -1,4 +1,3 @@
-//src/components/nodes/HomographyAlignNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useStore } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
@@ -68,6 +67,20 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
       ? `Alignment complete${inliers != null ? ` — ${inliers} inliers` : ''}`
       : 'Connect a Matcher node and run';
 
+  // ✅ Logic ดึงขนาดภาพ
+  const displaySize = useMemo(() => {
+    const jsonData = data?.payload?.json_data || data?.payload?.output || data?.payload?.json;
+    let shape = jsonData?.output?.aligned_shape;
+    if (!shape) shape = jsonData?.output?.shape;
+    if (!shape) shape = data?.payload?.aligned_shape;
+
+    if (Array.isArray(shape) && shape.length >= 2) {
+      return `${shape[1]}×${shape[0]}px`;
+    }
+    return null;
+  }, [data?.payload]);
+
+
   let borderColor = 'border-purple-500';
   if (selected) {
     borderColor = 'border-purple-400 ring-2 ring-purple-500';
@@ -128,7 +141,12 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
       </div>
 
       <div className="p-4 space-y-3">
-        <p className="text-sm text-gray-300">{caption}</p>
+        {/* ✅ เพิ่ม mb-2 ตรงนี้เพื่อให้ห่างจากรูปมากขึ้น */}
+        {displaySize && (
+          <div className="text-[10px] text-gray-400 mb-2">
+            Output: {displaySize}
+          </div>
+        )}
 
         {alignedUrl ? (
           <a href={alignedUrl} target="_blank" rel="noreferrer">
@@ -149,6 +167,9 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
             </div>
           )
         )}
+
+        {/* Caption อยู่ใต้รูป */}
+        <p className="text-sm text-gray-300">{caption}</p>
 
         {(warpMode || blend !== undefined) && (
           <div className="mt-1 text-[11px] text-gray-300 flex flex-wrap gap-2">

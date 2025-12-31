@@ -1,11 +1,10 @@
-//src/components/nodes/FLANNMatcherNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow';
+import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 
-const statusDot = (active: boolean, color: string) =>
+const statusDot = (active: boolean, color: string) => 
   `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`;
 
 const SettingsSlidersIcon = ({ className = 'h-3.5 w-3.5' }: { className?: string }) => (
@@ -38,125 +37,24 @@ const DEFAULT_PARAMS: FLANNParams = {
   search_params: 'AUTO',
 };
 
-function toNum(v: any): number | undefined {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : undefined;
-}
-
-function fmtSize(w?: any, h?: any) {
-  const wn = toNum(w);
-  const hn = toNum(h);
-  if (wn !== undefined && hn !== undefined) return `${wn} x ${hn}px`;
-  return undefined;
-}
-
-function shapeToText(sh?: any) {
-  if (Array.isArray(sh) && sh.length >= 2) {
-    return fmtSize(sh[1], sh[0]);
-  }
-  return undefined;
-}
-
-function humanIndex(used: any): string | undefined {
-  if (!used || !used.index_params) return;
-  const ip = used.index_params;
-  if (typeof ip !== 'object' || !Object.keys(ip).length) return; 
-  const algo = (ip.algorithm ?? '').toString().toUpperCase();
-  if (algo === '1' || algo.includes('KD')) return `KD-Tree (trees=${ip.trees ?? 5})`;
-  if (algo === '6' || algo === 'LSH') return `LSH (table=${ip.table_number ?? 6})`;
-  return;
-}
-
-function humanSearch(used: any): string | undefined {
-  if (!used || !used.search_params) return;
-  const sp = used.search_params;
-  if (typeof sp !== 'object' || !Object.keys(sp).length) return;
-  if (typeof sp.checks === 'number') return `checks=${sp.checks}`;
-  return;
-}
-
 const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges(); 
-  const nodes = useNodes<CustomNodeData>();
   const [open, setOpen] = useState(false);
 
   const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file1'), [edges, id]);
   const isConnected2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file2'), [edges, id]);
 
-  const upstreamMeta = useMemo(() => {
-    const extractInfo = (n: any) => {
-        const p = n?.data?.payload || {};
-        let w = toNum(p.width);
-        let h = toNum(p.height);
-        
-        if (w === undefined && Array.isArray(p.image_shape)) {
-            h = toNum(p.image_shape[0]);
-            w = toNum(p.image_shape[1]);
-        }
+  const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
+  const [form, setForm] = useState<FLANNParams>(params);
+  useEffect(() => setForm(params), [params]);
 
-        if (w === undefined && p.json?.image) {
-            const keys = ['processed_shape', 'processed_sift_shape', 'processed_orb_shape', 'processed_surf_shape'];
-            for (const k of keys) {
-                const sh = p.json.image[k];
-                if (Array.isArray(sh)) {
-                    h = toNum(sh[0]);
-                    w = toNum(sh[1]);
-                    break;
-                }
-            }
-        }
-
-        const kps = p.num_keypoints ?? p.kps_count ?? p.json?.num_keypoints;
-        return { w, h, kps, label: n.data?.label || n.type };
-    };
-
-    const getMeta = (handleId: string) => {
-      const edge = edges.find(e => e.target === id && e.targetHandle === handleId);
-      if (!edge) return null;
-      
-      const parent = nodes.find(n => n.id === edge.source);
-      if (!parent) return null;
-      
-      let info = extractInfo(parent);
-
-      if (info.w === undefined && ['sift', 'surf', 'orb'].includes(parent.type || '')) {
-          const grandEdge = edges.find(e => e.target === parent.id);
-          if (grandEdge) {
-              const grandParent = nodes.find(n => n.id === grandEdge.source);
-              if (grandParent) {
-                  const grandInfo = extractInfo(grandParent);
-                  info.w = grandInfo.w;
-                  info.h = grandInfo.h;
-              }
-          }
-      }
-
-      return {
-        label: info.label,
-        sizeText: fmtSize(info.w, info.h),
-        kps: toNum(info.kps)
-      };
-    };
-
-    return {
-      a: getMeta('file1'),
-      b: getMeta('file2')
-    };
-  }, [edges, nodes, id]);
-
-  const savedParams: FLANNParams = useMemo(() => {
-    const p = (data?.payload?.params || {}) as Partial<FLANNParams>;
-    return { ...DEFAULT_PARAMS, ...p };
-  }, [data?.payload?.params]);
-  const [form, setForm] = useState<FLANNParams>(savedParams);
-  useEffect(() => setForm(savedParams), [savedParams]);
-
-  const onClose = () => { setForm(savedParams); setOpen(false); };
-  const onSave = () => {
-    rf.setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } } : n));
+  const onClose = () => { setForm(params); setOpen(false); };
+  
+  const onSave = useCallback(() => {
+    rf.setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, payload: { ...n.data?.payload, params: form } } } : n));
     setOpen(false);
-  };
+  }, [rf, id, form]);
 
   const isRunning = data?.status === 'start' || data?.status === 'running';
   const isFault = data?.status === 'fault';
@@ -165,37 +63,37 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
   const onRun = useCallback(() => {
     if (isBusy) return;
     data?.onRunNode?.(id);
-  }, [data, id, isRunning]);
+  }, [data, id, isBusy]);
 
   const visUrl = data?.payload?.vis_url as string | undefined;
   const respJson = data?.payload?.json as any | undefined;
 
-  const inliers = typeof respJson?.inliers === 'number' ? respJson.inliers : respJson?.matching_statistics?.num_inliers;
-  const goodCount = respJson?.matching_statistics?.num_good_matches ?? (Array.isArray(respJson?.good_matches) ? respJson.good_matches.length : undefined);
+  // Logic ดึงข้อมูลหลังรัน
+  const getMeta = (imgKey: 'image1' | 'image2') => {
+    if (!respJson) return null;
+    const featDetails = respJson?.input_features_details?.[imgKey];
+    const inputDetails = respJson?.inputs?.[imgKey];
+    
+    let w = featDetails?.width || inputDetails?.width;
+    let h = featDetails?.height || inputDetails?.height;
+    const shape = featDetails?.image_shape || inputDetails?.image_shape;
+    if (!w && Array.isArray(shape)) { h = shape[0]; w = shape[1]; }
 
-  const summaryRaw = respJson?.matching_statistics?.summary; 
-  const summaryClean = summaryRaw ? summaryRaw.replace(/\(FLANN\)/gi, '').trim() : undefined;
-  const caption = summaryClean ?? (inliers != null && goodCount != null ? `${inliers} inliers / ${goodCount} good matches` : visUrl ? 'Matches preview' : 'Connect two feature nodes and run');
-
-  const metaA = {
-    kps: respJson?.input_features_details?.image1?.num_keypoints ?? upstreamMeta.a?.kps,
-    sizeText: fmtSize(respJson?.inputs?.image1?.width, respJson?.inputs?.image1?.height) ?? 
-              shapeToText(respJson?.input_features_details?.image1?.image_shape) ?? 
-              upstreamMeta.a?.sizeText,
-    label: upstreamMeta.a?.label || 'Input A'
-  };
-  
-  const metaB = {
-    kps: respJson?.input_features_details?.image2?.num_keypoints ?? upstreamMeta.b?.kps,
-    sizeText: fmtSize(respJson?.inputs?.image2?.width, respJson?.inputs?.image2?.height) ?? 
-              shapeToText(respJson?.input_features_details?.image2?.image_shape) ?? 
-              upstreamMeta.b?.sizeText,
-    label: upstreamMeta.b?.label || 'Input B'
+    const kps = featDetails?.num_keypoints || featDetails?.kps_count;
+    return { size: (w && h) ? `${w}×${h}px` : null, kps: kps ?? null };
   };
 
-  const used = respJson?.flann_parameters_used;
-  const usedIndexPretty = humanIndex(used);
-  const usedSearchPretty = humanSearch(used);
+  const metaA = getMeta('image1');
+  const metaB = getMeta('image2');
+
+  // ✅ แก้ไข Logic Caption: ดึงข้อความมาแล้วลบ (FLANN) ออกอย่างเด็ดขาด
+  const rawSummary = (data?.description && !/(running|start)/i.test(data?.description)) 
+    ? data.description 
+    : respJson?.matching_statistics?.summary;
+
+  const caption = rawSummary 
+    ? rawSummary.replace(/\(FLANN\)/gi, '').trim() 
+    : (visUrl ? 'Matches preview' : 'Connect feature nodes and run');
 
   let borderColor = 'border-orange-500'; 
   if (selected) borderColor = 'border-orange-400 ring-2 ring-orange-500'; 
@@ -213,15 +111,19 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
       <div className="bg-gray-700 text-orange-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
         <div className="font-bold">FLANN Matcher</div>
         <div className="flex items-center gap-2">
+          {/* ปุ่ม RUN */}
           <button onClick={onRun} disabled={isBusy} className={['px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white', isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-orange-600 hover:bg-orange-700'].join(' ')}>
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
+          
+          {/* Settings + Tooltip */}
           <span className="relative inline-flex items-center group">
             <button aria-label="Open FLANN settings" onClick={() => setOpen(true)} className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/70">
-              <SettingsSlidersIcon />
+                <SettingsSlidersIcon />
             </button>
-            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100">
-              Settings<span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
+                Settings
+                <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
             </span>
           </span>
         </div>
@@ -230,18 +132,28 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
       <div className="p-4 space-y-3">
         <p className="text-sm text-gray-300">{caption}</p>
 
-        {(isConnected1 || isConnected2 || metaA.kps != null || metaB.kps != null) && (
+        {(isConnected1 || isConnected2 || metaA?.kps != null || metaB?.kps != null) && (
           <div className="grid grid-cols-2 gap-3 text-[11px]">
+            {/* Input A */}
             <div className={`rounded border p-2 transition-colors flex flex-col justify-center ${isConnected1 ? 'border-gray-600 bg-gray-800/50' : 'border-gray-700 border-dashed opacity-50'}`}>
-              <div className="text-gray-400 mb-1 truncate font-semibold border-b border-gray-700 pb-1" title={metaA.label}>Input A</div>
-              {metaA.sizeText && <div className="text-gray-200 font-mono text-[10px]">{metaA.sizeText}</div>}
-              {metaA.kps != null ? <div className="text-green-300 mt-0.5">Kps: {metaA.kps}</div> : <div className="text-gray-500">-</div>}
+              <div className="text-gray-400 mb-1 truncate font-semibold border-b border-gray-700 pb-1" title="Input A">Input A</div>
+              {metaA?.size || metaA?.kps ? (
+                <div className="text-gray-200 font-mono text-[10px]">
+                  <div>{metaA?.size || '-'}</div>
+                  <div className="text-green-300 mt-0.5">Kps: {metaA?.kps || '-'}</div>
+                </div>
+              ) : <div className="text-gray-500">-</div>}
             </div>
             
+            {/* Input B */}
             <div className={`rounded border p-2 transition-colors flex flex-col justify-center ${isConnected2 ? 'border-gray-600 bg-gray-800/50' : 'border-gray-700 border-dashed opacity-50'}`}>
-              <div className="text-gray-400 mb-1 truncate font-semibold border-b border-gray-700 pb-1" title={metaB.label}>Input B</div>
-              {metaB.sizeText && <div className="text-gray-200 font-mono text-[10px]">{metaB.sizeText}</div>}
-              {metaB.kps != null ? <div className="text-green-300 mt-0.5">Kps: {metaB.kps}</div> : <div className="text-gray-500">-</div>}
+              <div className="text-gray-400 mb-1 truncate font-semibold border-b border-gray-700 pb-1" title="Input B">Input B</div>
+              {metaB?.size || metaB?.kps ? (
+                <div className="text-gray-200 font-mono text-[10px]">
+                  <div>{metaB?.size || '-'}</div>
+                  <div className="text-green-300 mt-0.5">Kps: {metaB?.kps || '-'}</div>
+                </div>
+              ) : <div className="text-gray-500">-</div>}
             </div>
           </div>
         )}
@@ -249,15 +161,9 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
         {visUrl && (
           <img src={abs(visUrl)} alt="flann-vis" className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
         )}
-
-        {(usedIndexPretty || usedSearchPretty) && (
-          <div className="mt-1 text-[11px] text-gray-300 space-y-1">
-            {usedIndexPretty && <div><span className="text-gray-400">Index:</span> {usedIndexPretty}</div>}
-            {usedSearchPretty && <div><span className="text-gray-400">Search:</span> {usedSearchPretty}</div>}
-          </div>
-        )}
       </div>
 
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
@@ -265,6 +171,7 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
+      {/* Modal Settings */}
       <Modal open={open} title="FLANN Settings" onClose={onClose}>
         <div className="space-y-3 text-xs text-gray-200">
           <div className="grid grid-cols-2 gap-3">

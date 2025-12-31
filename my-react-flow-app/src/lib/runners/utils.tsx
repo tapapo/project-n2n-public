@@ -1,4 +1,3 @@
-//src/lib/runners/utils.tsx
 import { abs } from '../api';
 import type { Dispatch, SetStateAction, MutableRefObject } from 'react';
 import type { Node, Edge } from 'reactflow';
@@ -50,37 +49,51 @@ export async function updateNodeStatus(
 }
 
 
+// ✅✅ แก้ไขฟังก์ชันนี้: เพิ่ม Logic ให้รองรับ aligned_path และ output_image
 export function findInputImage(
   nodeId: string, 
   nodes: RFNode[], 
   edges: Edge[]
 ): string | undefined {
+  // 1. หาเส้นที่เชื่อมเข้าหา Node ปัจจุบัน
   const incoming = edges.find(e => e.target === nodeId);
   if (!incoming) return undefined;
 
+  // 2. หา Node ต้นทาง
   const parent = nodes.find(n => n.id === incoming.source);
   if (!parent || !parent.data) return undefined;
 
-  const data = parent.data.payload || parent.data.output;
-  if (!data) return undefined;
+  // ดึงข้อมูล Payload (ส่วนใหญ่ข้อมูลจะกองอยู่ในนี้)
+  const p = (parent.data.payload || parent.data.output) as any;
+  if (!p) return undefined;
   
-  if (typeof data === 'string') return data;
+  // --- Priority 1: เช็ค Path ตรงๆ (File Path) ---
+  
+  // 1.1 สำหรับ Homography/Affine Alignment (ที่เราเพิ่งแก้ไป)
+  if (typeof p.aligned_path === 'string') return p.aligned_path;
 
-  if (typeof data === 'object') {
-     if (['homography-align', 'affine-align'].includes(parent.type || '')) {
-        return (data as any).aligned_url || (data as any).url;
-     }
-     
-     return (data as any).url || 
-            (data as any).aligned_url || 
-            (data as any).path || 
-            (data as any).image_path ||
-            (data as any).saved_path || 
-            (data as any).vis_url || 
-            (data as any).binary_url || 
-            (data as any).result_image_url || 
-            undefined;
+  // 1.2 สำหรับ Image Input หรือ Node ทั่วไป
+  if (typeof p.image_path === 'string') return p.image_path;
+  
+  // 1.3 สำหรับ Enhancement Node (บางทีเก็บใน output_path)
+  if (typeof p.output_path === 'string') return p.output_path;
+
+  // --- Priority 2: เช็ค URL (Web Path) ---
+  // ถ้า Backend รองรับการ resolve URL เป็นไฟล์ในเครื่องได้ ก็จะใช้ค่าพวกนี้
+  
+  if (typeof p.output_image === 'string') return p.output_image; // Key มาตรฐานใหม่
+  if (typeof p.vis_url === 'string') return p.vis_url;
+  if (typeof p.url === 'string') return p.url;
+  if (typeof p.aligned_url === 'string') return p.aligned_url;
+
+  // --- Priority 3: เช็คใน object ย่อย (กรณีข้อมูลซ่อนลึก) ---
+  
+  // เช็คใน output object (Backend raw response)
+  if (p.output) {
+     if (typeof p.output.aligned_image === 'string') return p.output.aligned_image;
+     if (typeof p.output.aligned_path === 'string') return p.output.aligned_path;
   }
+
   return undefined;
 }
 
@@ -109,11 +122,13 @@ export function getNodeImageUrl(n?: RFNode): string | undefined {
   if (['bfmatcher', 'flannmatcher'].includes(n.type || '')) {
     return normalize(p?.vis_url);
   }
+  
+  // ✅ เพิ่มให้รองรับ output_image ด้วย
   if (['homography-align', 'affine-align'].includes(n.type || '')) {
-    return normalize(p?.output?.aligned_url) ?? normalize(p?.aligned_url);
+    return normalize(p?.output_image) ?? normalize(p?.output?.aligned_url) ?? normalize(p?.aligned_url);
   }
 
-  return normalize(p?.result_image_url) ?? normalize(p?.url);
+  return normalize(p?.output_image) ?? normalize(p?.result_image_url) ?? normalize(p?.url);
 }
 
 

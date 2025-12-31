@@ -1,10 +1,8 @@
-//src/lib/runners/features.tsx
 import { runSift, runSurf, runOrb, abs } from '../api';
 import { markStartThenRunning, updateNodeStatus, findInputImage } from './utils';
 import type { Edge } from 'reactflow';
 import type { RFNode, SetNodes } from './utils';
 import type { CustomNodeData } from '../../types';
-
 
 export async function runFeature(
   node: RFNode,
@@ -21,7 +19,6 @@ export async function runFeature(
     throw new Error(msg); 
   };
 
-  
   const incoming = getIncoming(nodeId);
   if (incoming.length === 0) {
     return fail('No input connection (Please connect an Image source).');
@@ -42,14 +39,12 @@ export async function runFeature(
     return fail(`Invalid Input: Feature Extraction requires an Image source, not a '${tool}' result.`);
   }
 
-  
   const imagePath = findInputImage(nodeId, nodes, edges);
 
   if (!imagePath) {
     return fail('No input image found (Please check connection or run parent node).');
   }
 
- 
   let prefix = '';
   let runner: any;
 
@@ -65,10 +60,10 @@ export async function runFeature(
   try {
     const params = node.data.payload?.params;
     
+    // 1. เรียกใช้ API (รับ resp ที่มี json_data จาก features.py ตัวใหม่)
     const resp = await runner(imagePath, params);
 
     const num_keypoints = resp.num_keypoints ?? resp.kps_count ?? 0;
-    
     const visUrl = resp.vis_url ? abs(resp.vis_url) : undefined;
 
     setNodes((nds) =>
@@ -82,18 +77,23 @@ export async function runFeature(
                 description: `Found ${num_keypoints} keypoints`,
                 payload: {
                   ...(n.data as CustomNodeData)?.payload,
+                  
+                  // ✅ จุดสำคัญ: กระจาย resp ทั้งหมดลงไป เพื่อให้มี json_data อยู่ในโหนด
+                  ...resp, 
+                  
                   params,
                   json: resp,
                   json_url: resp.json_url,
-                  json_path: resp.json_path,
                   
+                  // ✅ จัดการ URL ให้ถูกต้อง
                   result_image_url: visUrl,
                   vis_url: visUrl,
+                  output_image: visUrl,
                   
                   num_keypoints: num_keypoints,
-                  image_shape: resp?.image?.processed_shape || resp?.image_shape,
-                  image_dtype: resp?.image?.processed_dtype || resp?.image_dtype,
-                  file_name: resp?.image?.file_name || resp?.file_name,
+                  
+                  // ✅ Fallback สำหรับการเข้าถึงขนาดภาพ
+                  image_shape: resp?.json_data?.image?.original_shape || resp?.image_shape,
                   
                   output: {
                     vis_url: visUrl,

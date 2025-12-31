@@ -58,7 +58,7 @@ export async function runOrb(image_path: string, params?: Record<string, any>, s
   return await resp.json();
 }
 
-// ---------- 3. Enhancement (ของเพื่อน) ----------
+// ---------- 3. Enhancement ----------
 export async function runCLAHE(image_path: string, params?: Record<string, any>, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/enhancement/clahe`, {
     method: "POST",
@@ -130,7 +130,7 @@ export async function runAffineAlignment(match_json: string, params?: any, signa
   return await resp.json();
 }
 
-// ---------- 5. Quality Metrics (จุดที่เกิด Error) ----------
+// ---------- 5. Quality Metrics ----------
 export async function runBrisque(image_path: string, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/quality/brisque`, {
     method: "POST",
@@ -151,7 +151,6 @@ export async function runPsnr(originalPath: string, processedPath: string, param
   return await resp.json();
 }
 
-// แก้ไข Error: เพิ่ม runSsim ตามที่ UI เรียกหา
 export async function runSsim(originalPath: string, processedPath: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/quality/ssim`, {
     method: "POST",
@@ -183,7 +182,6 @@ export async function runOtsuClassification(image_path: string, params?: any, si
     return await resp.json();
 }
 
-// โมเดลเพื่อน
 export async function runDeepLab(image_path: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/segmentation/deeplab`, {
     method: "POST",
@@ -204,7 +202,18 @@ export async function runUNET(image_path: string, params?: any, signal?: AbortSi
     return await resp.json();
 }
 
-// ---------- 7. Restoration (ของเพื่อน) ----------
+// ✅ เพิ่ม Mask R-CNN ให้ครบตามโหนด MASK.tsx
+export async function runMaskRCNN(image_path: string, params?: any, signal?: AbortSignal) {
+  const resp = await fetch(`${API_BASE}/api/segmentation/mask_rcnn`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image_path, params }),
+    signal,
+  });
+  return await resp.json();
+}
+
+// ---------- 7. Restoration ----------
 export async function runDncnn(image_path: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/restoration/dncnn`, {
     method: "POST",
@@ -217,6 +226,17 @@ export async function runDncnn(image_path: string, params?: any, signal?: AbortS
 
 export async function runSwinIR(image_path: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/restoration/swinir`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ image_path, params }),
+    signal,
+  });
+  return await resp.json();
+}
+
+// ✅ เพิ่ม Real-ESRGAN ให้ครบตามโหนด REAL.tsx
+export async function runRealESRGAN(image_path: string, params?: any, signal?: AbortSignal) {
+  const resp = await fetch(`${API_BASE}/api/restoration/real_esrgan`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ image_path, params }),

@@ -1,4 +1,3 @@
-//src/components/nodes/AffineAlignNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useStore } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
@@ -69,21 +68,26 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
 
  
   const resp = data?.payload?.json as any | undefined;
-
   const payloadUrl = data?.payload?.aligned_url || data?.payload?.result_image_url;
-
   const jsonPath = resp?.output?.aligned_url || resp?.output?.aligned_image;
-
   const rawUrl = payloadUrl || jsonPath;
-
   const alignedUrl = rawUrl 
     ? `${abs(rawUrl)}?t=${Date.now()}` 
     : undefined;
 
-  const inliers = resp?.num_inliers;
-  const model = (resp?.model as Params['model'] | undefined) ?? savedParams.model;
-  const warpMode = (resp?.warp_mode as Params['warp_mode'] | undefined) ?? savedParams.warp_mode;
-  const blend = typeof resp?.blend === 'boolean' ? resp.blend : savedParams.blend;
+  // ✅ Logic ดึงขนาดภาพ (Output Size)
+  const displaySize = useMemo(() => {
+    const jsonData = data?.payload?.json_data || data?.payload?.output || data?.payload?.json;
+    
+    let shape = jsonData?.output?.aligned_shape;
+    if (!shape) shape = jsonData?.output?.shape;
+    if (!shape) shape = data?.payload?.aligned_shape;
+
+    if (Array.isArray(shape) && shape.length >= 2) {
+      return `${shape[1]}×${shape[0]}px`;
+    }
+    return null;
+  }, [data?.payload]);
 
   let borderColor = 'border-purple-500';
   if (selected) {
@@ -155,39 +159,30 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
       </div>
 
       <div className="p-4 space-y-3">
-        <p className="text-sm text-gray-300">
-          {alignedUrl ? `Alignment complete — ${inliers ?? '?'} inliers` : 'Connect a Matcher node and run'}
-        </p>
-
-        {alignedUrl && (
-          <>
-            <a href={alignedUrl} target="_blank" rel="noreferrer">
-              <img
-                src={alignedUrl}
-                alt="affine-aligned"
-                className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56 bg-black/20"
-                draggable={false}
-                onError={(e) => { e.currentTarget.style.display = 'none'; }}
-              />
-            </a>
-
-            <div className="mt-1 text-[11px] text-gray-300">
-              <div className="mb-1">
-                <span className="px-2 py-0.5 rounded bg-gray-900/70 border border-gray-700">
-                  Model: <span className="text-gray-100">{model}</span>
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <span className="px-2 py-0.5 rounded bg-gray-900/70 border border-gray-700">
-                  Warp: <span className="text-gray-100">{warpMode}</span>
-                </span>
-                <span className="px-2 py-0.5 rounded bg-gray-900/70 border border-gray-700">
-                  Blend: <span className="text-gray-100">{blend ? 'ON' : 'OFF'}</span>
-                </span>
-              </div>
-            </div>
-          </>
+        {/* 1. แสดงขนาดภาพ (Output) ไว้ด้านบน */}
+        {displaySize && (
+          <div className="text-[10px] text-gray-400 mb-2">
+            Output: {displaySize}
+          </div>
         )}
+
+        {/* 2. แสดงรูปภาพ */}
+        {alignedUrl && (
+          <a href={alignedUrl} target="_blank" rel="noreferrer">
+            <img
+              src={alignedUrl}
+              alt="affine-aligned"
+              className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56 bg-black/20"
+              draggable={false}
+              onError={(e) => { e.currentTarget.style.display = 'none'; }}
+            />
+          </a>
+        )}
+
+        {/* 3. Caption ย้ายมาไว้ใต้รูป (เอา inliers ออกแล้ว) */}
+        <p className="text-sm text-gray-300">
+          {alignedUrl ? 'Alignment complete' : 'Connect a Matcher node and run'}
+        </p>
       </div>
 
       <div className="border-t-2 border-gray-700 p-2 text-sm">

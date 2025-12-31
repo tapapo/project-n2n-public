@@ -1,4 +1,3 @@
-
 //src/lib/validation.ts
 import type { Node, Edge } from 'reactflow';
 import type { CustomNodeData } from '../types';
@@ -23,19 +22,35 @@ export function validateNodeInput(
 
   switch (node.type) {
     
+    // 1. Image Source
     case 'image-input':
       if (!node.data?.payload?.url && !node.data?.payload?.image_path) {
         return { isValid: false, message: 'Please upload an image first.' };
       }
       break;
 
-   
+    // 2. Single Input Nodes (ต้องการอย่างน้อย 1 เส้น)
+    // Feature Extraction
     case 'sift':
     case 'surf':
     case 'orb':
-    case 'brisque':    
+    // Quality
+    case 'brisque':
+    // Segmentation / Classification
     case 'otsu':
     case 'snake':
+    case 'deeplab':   // ✅ เพิ่ม
+    case 'unet':      // ✅ เพิ่ม
+    case 'mask-rcnn': // ✅ เพิ่ม
+    // Enhancement
+    case 'clahe':     // ✅ เพิ่ม
+    case 'msrcr':     // ✅ เพิ่ม
+    case 'zero-dce':  // ✅ เพิ่ม
+    // Restoration
+    case 'dncnn':       // ✅ เพิ่ม
+    case 'swinir':      // ✅ เพิ่ม
+    case 'real-esrgan': // ✅ เพิ่ม
+    // Utilities / Alignment
     case 'save-image':    
     case 'save-json':     
     case 'homography-align': 
@@ -45,7 +60,8 @@ export function validateNodeInput(
       }
       break;
 
-    
+    // 3. Dual Input Nodes (ต้องการอย่างน้อย 2 เส้น)
+    // Matchers
     case 'bfmatcher':
     case 'flannmatcher':
       if (inputCount < 2) {
@@ -53,6 +69,7 @@ export function validateNodeInput(
       }
       break;
 
+    // Quality Comparison
     case 'psnr':
     case 'ssim':
       if (inputCount < 2) {
