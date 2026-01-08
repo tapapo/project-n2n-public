@@ -2,7 +2,6 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-
 // Input Image
 const MOON_URL = '/static/samples/Moonsample.jpg';
 
@@ -15,12 +14,10 @@ const SNAKE_JSON = '/static/samples/json/classification/snake_moon.json';
 const SNAKE_VIS  = '/static/samples/json/classification/snake_moon_vis.png';
 const SNAKE_MASK = '/static/samples/json/classification/snake_moon_mask.png';
 
-
-
 const INPUT_NODE: Node = {
   id: 'n1-moon',
   type: 'image-input',
-  position: { x: 250, y: 140.5 },
+  position: { x: 250, y: 75.5 },
   data: {
     label: 'Image Input (Moon)',
     status: 'success',
@@ -71,20 +68,31 @@ It is the most standard way to segment objects without manually guessing the thr
           preview_url: OTSU_BIN,
           json_url: OTSU_JSON,
           json_path: OTSU_JSON,
-          json: { threshold_value: 49, binary_url: OTSU_BIN }
+          // ✅ ใส่ json: resp ให้ครบถ้วน เพื่อให้ Save JSON ดึงไปใช้ได้
+          json: { threshold_value: 49, binary_url: OTSU_BIN, json_url: OTSU_JSON }
         }
       }
     } as Node,
+    // Node Save Image (เดิม)
     {
       id: 'n3-save-otsu',
       type: 'save-image',
-      position: { x: 1100, y: 288.5 },
-      data: { label: 'Save Otsu Mask', status: 'idle' }
+      position: { x: 1100, y: 200 }, // ขยับขึ้นหน่อย
+      data: { label: 'Save Binary Mask', status: 'idle' }
+    } as Node,
+    // ✅ เพิ่ม Node Save JSON
+    {
+      id: 'n4-save-otsu-json',
+      type: 'save-json',
+      position: { x: 1100, y: 370 }, // อยู่ข้างล่าง
+      data: { label: 'Save Threshold Info', status: 'idle' }
     } as Node
   ],
   edges: [
     { id: 'e1', source: 'n1-moon', target: 'n2-otsu', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
     { id: 'e2', source: 'n2-otsu', target: 'n3-save-otsu', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
+    // ✅ เพิ่มเส้นไปหา Save JSON
+    { id: 'e3', source: 'n2-otsu', target: 'n4-save-otsu-json', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
   ]
 };
 
@@ -126,19 +134,28 @@ This is useful for segmenting objects with irregular shapes where simple thresho
           mask_url: SNAKE_MASK,
           json_url: SNAKE_JSON,
           json_path: SNAKE_JSON,
-          json: { iterations: 250, output: { overlay_url: SNAKE_VIS, mask_url: SNAKE_MASK } }
+          json: { iterations: 250, output: { overlay_url: SNAKE_VIS, mask_url: SNAKE_MASK }, json_url: SNAKE_JSON }
         }
       }
     } as Node,
     {
       id: 'n3-save-snake',
       type: 'save-image',
-      position: { x: 1100, y: 288.5 },
+      position: { x: 1100, y: 200 },
       data: { label: 'Save Snake Overlay', status: 'idle' }
+    } as Node,
+    // ✅ แถม: เพิ่ม Save JSON ให้ Snake ด้วย (เผื่ออยากดูพิกัด Contour)
+    {
+      id: 'n4-save-snake-json',
+      type: 'save-json',
+      position: { x: 1100, y: 370 },
+      data: { label: 'Save Contour Points', status: 'idle' }
     } as Node
   ],
   edges: [
     { id: 'e1', source: 'n1-moon', target: 'n2-snake', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
     { id: 'e2', source: 'n2-snake', target: 'n3-save-snake', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
+    // ✅ เส้นใหม่
+    { id: 'e3', source: 'n2-snake', target: 'n4-save-snake-json', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
   ]
 };

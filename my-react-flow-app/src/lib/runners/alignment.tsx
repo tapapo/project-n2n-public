@@ -1,3 +1,4 @@
+// src/lib/runners/alignment.tsx
 import { runHomographyAlignment, runAffineAlignment, abs } from '../api';
 import { markStartThenRunning, updateNodeStatus } from './utils';
 import type { Edge } from 'reactflow';
@@ -92,21 +93,25 @@ export async function runAlignment(
                 status: 'success',
                 description: `${kind === 'affine-align' ? 'Affine' : 'Homography'} aligned (${inliers} inliers)`,
                 payload: {
-                  ...(x.data?.payload || {}),
+                  ...(x.data?.payload || {}), // ของเดิมที่มีค่าเก่าติดอยู่
+                  
                   tool: kind === 'affine-align' ? 'AffineAlignment' : 'HomographyAlignment',
                   output_type: 'alignment', 
                   params,
                   
-                  // ✅ เก็บ raw json
+                  // ✅ 1. แก้ Save JSON ไม่ครบ: ต้องใส่ json: resp เพื่อทับค่าเก่า
+                  json: resp, 
                   json_data: resp, 
                   
-                  // ✅ จัดการเรื่อง URL รูปภาพให้ครบถ้วน
+                  // ✅ 2. แก้รูปไม่เปลี่ยน: ต้องใส่ aligned_url: alignedUrl เพื่อทับค่าเก่า
+                  aligned_url: alignedUrl, 
+                  
+                  // URL อื่นๆ ใส่ให้ครบเพื่อความชัวร์
                   vis_url: alignedUrl, 
                   result_image_url: alignedUrl,
                   output_image: alignedUrl, 
                   
-                  // ✅✅ เพิ่ม Metadata สำคัญ: ขนาดและ Channel
-                  // เพื่อให้ Node ถัดไป (Enhancement) รู้ว่าเป็นภาพสีและมีขนาดเท่าไหร่
+                  // Metadata
                   image_shape: resp.image_shape || resp.output?.aligned_shape,
                   channels: resp.channels || (resp.image_shape ? resp.image_shape[2] : 3),
 

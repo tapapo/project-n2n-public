@@ -140,13 +140,14 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
     addLog('Workflow cleared.', 'warning');
   }, [nodes, setNodes, setEdges, addLog]);
 
+  // ✅ 1. นำฟังก์ชัน setIncomingEdgesStatus กลับมา
   const setIncomingEdgesStatus = useCallback((nodeId: string, status: 'default' | 'error') => {
       setEdges((eds) =>
         eds.map((e) => {
           if (e.target === nodeId) {
             return status === 'error' 
-              ? { ...e, animated: true, style: { ...e.style, stroke: '#ef4444', strokeWidth: 3 } }
-              : { ...e, animated: false, style: { ...e.style, stroke: '#64748b', strokeWidth: 2 } };
+              ? { ...e, animated: true, style: { ...e.style, stroke: '#ef4444', strokeWidth: 3 } } // สีแดง + ขยับ
+              : { ...e, animated: false, style: { ...e.style, stroke: '#64748b', strokeWidth: 2 } }; // สีปกติ
           }
           return e;
         })
@@ -158,13 +159,19 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       if (!node || !node.type) return;
 
       const nodeName = node.data.label || node.type.toUpperCase();
+      
+      // ✅ 2. Reset เส้นเป็น Default ก่อนเริ่มรัน
       setIncomingEdgesStatus(nodeId, 'default');
 
       const check = validateNodeInput(nodeId, nodesRef.current, edgesRef.current);
       if (!check.isValid) {
         const cleanMsg = cleanErrorMessage(check.message || '');
         addLog(`[${nodeName}] ❌ Validation: ${cleanMsg}`, 'error', nodeId);
+        
+        // Update Status เป็น fault
         setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n)));
+        
+        // ✅ 3. ถ้า Validation ไม่ผ่าน ให้เส้นเป็นสีแดง
         setIncomingEdgesStatus(nodeId, 'error');
         return;
       }
@@ -174,7 +181,13 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
 
       try {
         switch (node.type) {
-          case 'image-input': break; 
+          case 'image-input': 
+             if (!node.data.payload?.url) {
+                throw new Error("No image uploaded yet.");
+            }
+            setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, status: 'success' } } : n));
+            await new Promise(r => setTimeout(r, 200)); 
+            break; 
           
           case 'sift': case 'surf': case 'orb':
             await runFeature(node, setNodes, nodesRef.current, edgesRef.current); break;
@@ -194,14 +207,15 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           case 'snake':
             await runSnakeRunner(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           
-          // ✅ Enhancement (รองรับทั้งชื่อสั้นและชื่อยาว)
+          // ✅ Enhancement
           case 'clahe': 
           case 'msrcr': 
           case 'zero': 
-          case 'zeroDce': 
+          case 'zerodce': 
+          case 'zero_dce':
             await runEnhancement(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           
-          // ✅ Restoration (รองรับทั้งชื่อสั้นและชื่อยาว)
+          // ✅ Restoration
           case 'dcnn': 
           case 'dncnn': 
           case 'swinir': 
@@ -209,7 +223,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           case 'realesrgan': 
             await runRestoration(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           
-          // ✅ Segmentation (รองรับทั้งชื่อสั้นและชื่อยาว)
+          // ✅ Segmentation
           case 'deep': 
           case 'deeplab': 
           case 'mask': 
@@ -230,11 +244,15 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       } catch (err: any) {
         const cleanMsg = cleanErrorMessage(err.message || 'Unknown Error');
         addLog(`[${nodeName}] 💥 Error: ${cleanMsg}`, 'error', nodeId);
+        
+        // Update Status เป็น fault
         setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n)));
+        
+        // ✅ 4. ถ้า Error จากการรัน (เช่น Backend Error) ให้เส้นเป็นสีแดง
         setIncomingEdgesStatus(nodeId, 'error');
         throw err;
       }
-    }, [setNodes, addLog, setIncomingEdgesStatus]);
+    }, [setNodes, addLog, setIncomingEdgesStatus]); // เพิ่ม dependency
 
   useFlowHotkeys({ getPastePosition: () => lastMousePosRef.current, runNodeById, undo, redo });
 
@@ -259,7 +277,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       
       const executionPriority: Record<string, number> = {
           'image-input': 1, 
-          'clahe': 5, 'msrcr': 5, 'zero': 5, 'zeroDce': 5,
+          'clahe': 5, 'msrcr': 5, 'zero': 5, 'zerodce': 5, 'zero_dce': 5,
           'dcnn': 10, 'dncnn': 10, 'swinir': 10, 'real': 10, 'realesrgan': 10,
           'sift': 20, 'surf': 20, 'orb': 20, 
           'deep': 25, 'deeplab': 25, 'mask': 25, 'maskrcnn': 25, 'unet': 25,
@@ -279,6 +297,12 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       for (const node of sortedNodes) {
         if (isCanceledRef.current) { addLog('Pipeline stopped by user.', 'warning'); break; }
         if (!node?.id || !node?.type) continue;
+
+        // ข้าม Save Nodes
+        if (node.type === 'save-image' || node.type === 'save-json') {
+           continue; 
+        }
+
         try { await runNodeById(node.id); } catch (e) { console.warn(`Node ${node.id} failed, skipping.`); continue; }
       }
       if (!isCanceledRef.current) addLog('Pipeline Finished', 'success');

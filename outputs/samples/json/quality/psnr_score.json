@@ -10,8 +10,8 @@
   },
   "images": {
     "original": {
-      "file_name": "d9bc7f5546d64727b51db3c242b0ecd5.png",
-      "path": "/Users/pop/Desktop/project_n2n/outputs/uploads/d9bc7f5546d64727b51db3c242b0ecd5.png",
+      "file_name": "psnr_ref.png",
+      "path": "psnr_ref.png",
       "shape": [
         172,
         172
@@ -19,8 +19,8 @@
       "dtype": "uint8"
     },
     "processed": {
-      "file_name": "d00d9ca5cc27440e822a72df435f1fc6.jpg",
-      "path": "/Users/pop/Desktop/project_n2n/outputs/uploads/d00d9ca5cc27440e822a72df435f1fc6.jpg",
+      "file_name": "psnr_test.jpg",
+      "path": "psnr_test.jpg",
       "shape": [
         172,
         172
@@ -34,8 +34,8 @@
     "mse": 1384.4535897782584
   },
   "parameters_hash": {
-    "img1": "d9bc7f5546d64727b51db3c242b0ecd5.png",
-    "img2": "d00d9ca5cc27440e822a72df435f1fc6.jpg",
+    "img1": "psnr_ref.png",
+    "img2": "psnr_test.jpg",
     "luma": true
   }
 }

@@ -11,7 +11,6 @@ export async function runFeature(
   edges: Edge[]
 ) {
   const nodeId = node.id;
-  
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
 
   const fail = async (msg: string) => {
@@ -25,14 +24,7 @@ export async function runFeature(
   }
 
   const prevNode = nodes.find((n) => n.id === incoming[0].source);
-  
-  const BAD_SOURCES = [
-    'sift', 'surf', 'orb',           
-    'bfmatcher', 'flannmatcher',     
-    'otsu', 'snake',               
-    'psnr', 'ssim', 'brisque',       
-    'save-json', 'save-image'        
-  ];
+  const BAD_SOURCES = ['sift', 'surf', 'orb', 'bfmatcher', 'flannmatcher', 'otsu', 'snake', 'psnr', 'ssim', 'brisque', 'save-json', 'save-image'];
 
   if (prevNode && BAD_SOURCES.includes(prevNode.type || '')) {
     const tool = prevNode.data.label || prevNode.type;
@@ -59,12 +51,15 @@ export async function runFeature(
 
   try {
     const params = node.data.payload?.params;
-    
-    // 1. เรียกใช้ API (รับ resp ที่มี json_data จาก features.py ตัวใหม่)
     const resp = await runner(imagePath, params);
 
     const num_keypoints = resp.num_keypoints ?? resp.kps_count ?? 0;
     const visUrl = resp.vis_url ? abs(resp.vis_url) : undefined;
+
+    // ✅ FIX: หา Image Shape ให้เจอไม่ว่าจะซ่อนอยู่ที่ไหน
+    const foundShape = resp?.json_data?.image?.original_shape 
+                    || resp?.image_shape 
+                    || resp?.shape;
 
     setNodes((nds) =>
       nds.map((n) =>
@@ -77,23 +72,17 @@ export async function runFeature(
                 description: `Found ${num_keypoints} keypoints`,
                 payload: {
                   ...(n.data as CustomNodeData)?.payload,
-                  
-                  // ✅ จุดสำคัญ: กระจาย resp ทั้งหมดลงไป เพื่อให้มี json_data อยู่ในโหนด
                   ...resp, 
-                  
                   params,
                   json: resp,
                   json_url: resp.json_url,
-                  
-                  // ✅ จัดการ URL ให้ถูกต้อง
                   result_image_url: visUrl,
                   vis_url: visUrl,
                   output_image: visUrl,
-                  
                   num_keypoints: num_keypoints,
                   
-                  // ✅ Fallback สำหรับการเข้าถึงขนาดภาพ
-                  image_shape: resp?.json_data?.image?.original_shape || resp?.image_shape,
+                  // ✅ FIX: ส่ง image_shape ต่อไปให้ FLANN
+                  image_shape: foundShape,
                   
                   output: {
                     vis_url: visUrl,

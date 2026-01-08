@@ -1,4 +1,3 @@
-//src/lib/validation.ts
 import type { Node, Edge } from 'reactflow';
 import type { CustomNodeData } from '../types';
 
@@ -20,7 +19,10 @@ export function validateNodeInput(
   const incomingEdges = edges.filter((e) => e.target === nodeId);
   const inputCount = incomingEdges.length;
 
-  switch (node.type) {
+  // แปลง type เป็น lowercase เพื่อให้เช็คได้ง่ายขึ้น (เผื่อมี zeroDce, ZeroDCE)
+  const type = (node.type || '').toLowerCase();
+
+  switch (type) {
     
     // 1. Image Source
     case 'image-input':
@@ -39,17 +41,23 @@ export function validateNodeInput(
     // Segmentation / Classification
     case 'otsu':
     case 'snake':
-    case 'deeplab':   // ✅ เพิ่ม
-    case 'unet':      // ✅ เพิ่ม
-    case 'mask-rcnn': // ✅ เพิ่ม
+    case 'deep':      // ✅ แก้ให้ตรง Config
+    case 'deeplab':   
+    case 'unet':      
+    case 'mask':      // ✅ แก้ให้ตรง Config
+    case 'maskrcnn':  
     // Enhancement
-    case 'clahe':     // ✅ เพิ่ม
-    case 'msrcr':     // ✅ เพิ่ม
-    case 'zero-dce':  // ✅ เพิ่ม
+    case 'clahe':     
+    case 'msrcr':     
+    case 'zero':      // ✅ แก้ให้ตรง Config
+    case 'zerodce':   
+    case 'zero_dce':  // เผื่อไว้
     // Restoration
-    case 'dncnn':       // ✅ เพิ่ม
-    case 'swinir':      // ✅ เพิ่ม
-    case 'real-esrgan': // ✅ เพิ่ม
+    case 'dcnn':      // ✅ แก้ให้ตรง Config
+    case 'dncnn':       
+    case 'swinir':      
+    case 'real':      // ✅ แก้ให้ตรง Config
+    case 'realesrgan': 
     // Utilities / Alignment
     case 'save-image':    
     case 'save-json':     

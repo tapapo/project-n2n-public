@@ -55,7 +55,7 @@ export async function runEnhancement(
   // 3. หา Path รูปภาพ
   const imagePath = findInputImage(nodeId, nodes, edges);
   if (!imagePath) {
-    return fail('No input image found. Please connect and run an Image source.');
+    return fail('No input image found (Please check connection or run parent node).');
   }
 
   // 4. ระบุ Algorithm

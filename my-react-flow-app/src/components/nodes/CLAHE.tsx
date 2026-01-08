@@ -4,10 +4,9 @@ import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 
-/* ---------------- UI Helpers ---------------- */
-const statusDot = (active: boolean, color: string) => (
-  <div className={`h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`} />
-);
+/* ---------------- UI Helpers (Master Design) ---------------- */
+const statusDot = (active: boolean, color: string) => 
+  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -30,7 +29,7 @@ type Params = typeof DEFAULT_PARAMS;
 
 const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
-  const edges = useEdges(); // ✅ ยังต้องใช้สำหรับการเช็ค connection (จุดแดง)
+  const edges = useEdges(); 
   const [open, setOpen] = useState(false);
 
   // 1. Parameter Management
@@ -72,21 +71,16 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const isRunning = data?.status === 'start' || data?.status === 'running';
   const isFault = data?.status === 'fault';
   
-  // ✅ Logic: Check connection (สำหรับจัดการจุดแดง Fault)
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // ✅ แก้ไข: Logic ดึงขนาดภาพ (เอาเฉพาะจาก Backend หลังรันเสร็จเท่านั้น)
   const displaySize = useMemo(() => {
-    // เช็คเฉพาะ payload ที่ได้หลังรันเสร็จแล้ว
     const internalShape = data?.payload?.json_data?.image?.original_shape || data?.payload?.image_shape;
     
     if (Array.isArray(internalShape) && internalShape.length >= 2) {
       return `${internalShape[1]}×${internalShape[0]}px`;
     }
-
-    // ❌ ลบส่วนที่ดึงจาก incomingEdge ออกแล้ว
     return null;
-  }, [data?.payload]); // ตัด dependency edges/rf ออก
+  }, [data?.payload]);
   
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
@@ -100,7 +94,6 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   if (selected) borderColor = 'border-indigo-400 ring-2 ring-indigo-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // ✅ Logic Handle Class: จัดการสีจุดเชื่อมต่อ
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected 
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' 
@@ -112,14 +105,15 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
+      {/* Header (Master Design: px-2 py-2) */}
       <div className="bg-gray-700 text-indigo-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>CLAHE</div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2"> {/* Gap-2 */}
+          {/* Run Button (px-2 py-1 + cursor-pointer) */}
           <button
             onClick={handleRun}
             disabled={isRunning}
-            className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white ${
+            className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white cursor-pointer ${
               isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-indigo-600 hover:bg-indigo-700'
             }`}
           >
@@ -158,24 +152,12 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </p>
       </div>
 
-      {/* Status Indicators */}
-      <div className="border-t-2 border-gray-700 p-2 text-sm">
-        <div className="flex justify-between items-center py-1">
-          <span className="text-red-400">start</span>
-          {statusDot(data?.status === 'start', 'bg-red-500')}
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-cyan-400">running</span>
-          {statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')}
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-green-400">success</span>
-          {statusDot(data?.status === 'success', 'bg-green-500')}
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          {statusDot(data?.status === 'fault', 'bg-yellow-500')}
-        </div>
+      {/* Status Table (Master Style) */}
+      <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
       {/* Modal Settings */}
@@ -183,36 +165,36 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <div className="space-y-4 text-xs text-gray-300">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
-              <label className="text-gray-400 block mb-1 uppercase font-bold text-[10px]">Clip Limit</label>
+              <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Clip Limit</label>
               <input 
                 type="number" step="0.1" 
-                className="w-full bg-gray-900 rounded border border-gray-700 p-2 outline-none focus:border-indigo-500 text-white" 
+                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
                 value={form.clipLimit} 
                 onChange={(e) => setForm(s => ({ ...s, clipLimit: Number(e.target.value) }))} 
               />
             </div>
             <div>
-              <label className="text-gray-400 block mb-1 uppercase font-bold text-[10px]">Tile X</label>
+              <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Tile X</label>
               <input 
                 type="number" 
-                className="w-full bg-gray-900 rounded border border-gray-700 p-2 outline-none focus:border-indigo-500 text-white" 
+                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
                 value={form.tileGridSizeX} 
                 onChange={(e) => setForm(s => ({ ...s, tileGridSizeX: Number(e.target.value) }))} 
               />
             </div>
             <div>
-              <label className="text-gray-400 block mb-1 uppercase font-bold text-[10px]">Tile Y</label>
+              <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Tile Y</label>
               <input 
                 type="number" 
-                className="w-full bg-gray-900 rounded border border-gray-700 p-2 outline-none focus:border-indigo-500 text-white" 
+                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
                 value={form.tileGridSizeY} 
                 onChange={(e) => setForm(s => ({ ...s, tileGridSizeY: Number(e.target.value) }))} 
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-4 border-t border-gray-700">
-            <button onClick={() => setOpen(false)} className="px-4 py-1.5 rounded bg-gray-700 text-gray-200 hover:bg-gray-600 transition">Close</button>
-            <button onClick={onSave} className="px-4 py-1.5 rounded bg-indigo-600 text-white font-bold hover:bg-indigo-500 transition">Save</button>
+          <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-2">
+            <button onClick={() => setOpen(false)} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Close</button>
+            <button onClick={onSave} className="px-4 py-1.5 rounded bg-indigo-600 text-white text-xs font-bold cursor-pointer hover:bg-indigo-500 transition">Save</button>
           </div>
         </div>
       </Modal>

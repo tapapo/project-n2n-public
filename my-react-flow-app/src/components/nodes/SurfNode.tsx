@@ -4,20 +4,17 @@ import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api'; 
 
-/* --- Helpers --- */
+/* --- Helpers (ยึดตาม SwinIR Master) --- */
 
-// ✅ Status Dot (ใช้ div เพื่อความชัวร์ในการ render)
-const statusDot = (active: boolean, color: string) => (
-  <div className={`h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`} />
-);
+// ✅ 1. ใช้ statusDot แบบ String Class (เหมือน SwinIR)
+const statusDot = (active: boolean, color: string) => 
+  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
 
-const SettingsSlidersIcon = ({ className = 'h-3.5 w-3.5' }: { className?: string }) => (
+const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
-      <path d="M3 7h18" />
-      <circle cx="9" cy="7" r="3.4" fill="white" />
-      <path d="M3 17h18" />
-      <circle cx="15" cy="17" r="3.4" fill="white" />
+      <path d="M3 7h18" /><circle cx="9" cy="7" r="3.4" fill="white" />
+      <path d="M3 17h18" /><circle cx="15" cy="17" r="3.4" fill="white" />
     </g>
   </svg>
 );
@@ -102,11 +99,12 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ? data.description
     : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
 
+  // Border Style (ใช้ธีมสีเขียว)
   let borderStyle = 'border-green-500';
   if (selected) borderStyle = 'border-green-400 ring-2 ring-green-500';
   else if (isRunning) borderStyle = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // Handle styles like Otsu (ตาม SIFT)
+  // Handle styles
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected 
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' 
@@ -120,31 +118,32 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header Style แบบ Otsu (px-3 py-2, gap-3) */}
-      <div className="bg-gray-700 text-green-400 rounded-t-xl px-3 py-2 flex items-center justify-between">
-        <div className="font-bold mr-2">SURF</div>
-        <div className="flex items-center gap-3">
-          {/* ปุ่ม Run แบบ Otsu (text-xs) */}
+      {/* Header Style (Layout แบบ SwinIR: px-2 py-2) */}
+      <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
+        <div>SURF</div>
+        <div className="flex items-center gap-2"> {/* ✅ Gap-2 ตาม SwinIR */}
           <button 
             onClick={() => !isRunning && data?.onRunNode?.(id)} 
             disabled={isRunning} 
-            className={`ml-1 px-3 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white ${
+            // ✅ Button size: px-2 py-1 ตาม SwinIR
+            className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white ${
               isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700'
             }`}
           >
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
 
-          {/* Settings + Tooltip แบบ Otsu เป๊ะๆ */}
           <span className="relative inline-flex items-center group">
             <button 
               aria-label="Open SURF settings"
               onClick={() => setOpen(true)} 
+              // ✅ Settings button: h-5 w-5 ตาม SwinIR
               className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition hover:bg-gray-100 focus:outline-none"
             >
-              <SettingsSlidersIcon />
+              <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 shadow-lg transition-opacity duration-200">
+            {/* ✅ Tooltip แบบ SwinIR */}
+            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
               Settings
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
             </span>
@@ -155,86 +154,76 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       {/* Body */}
       <div className="p-4 space-y-3">
         {displaySize && (
-          <div className="text-[10px] text-gray-400">
+          <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
             Input: {displaySize}
           </div>
         )}
 
         {displayUrl && <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />}
-        <p className="text-sm text-gray-300">{caption}</p>
+        <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
-      {/* Footer / Status Table แบบ Otsu (text-sm, ตัวเล็ก) */}
-      <div className="border-t-2 border-gray-700 p-2 text-sm">
-        <div className="flex justify-between items-center py-1">
-          <span className="text-red-400">start</span>
-          {statusDot(data?.status === 'start', 'bg-red-500')}
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-cyan-400">running</span>
-          {statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')}
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-green-400">success</span>
-          {statusDot(data?.status === 'success', 'bg-green-500')}
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          {statusDot(data?.status === 'fault', 'bg-yellow-500')}
-        </div>
+      {/* Status Table (Structure แบบ SwinIR) */}
+      <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Settings Modal (ปรับให้ Label เหมือน Sift/Otsu) */}
+      {/* Settings Modal (ปรับ Style ให้เหมือน SwinIR Modal) */}
       <Modal open={open} title="SURF Settings" onClose={() => setOpen(false)}>
         <div className="grid grid-cols-2 gap-4 text-xs text-gray-300">
           <div className="col-span-2">
-            <label className="block mb-1 font-bold">Hessian Threshold</label>
+            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Hessian Threshold</label>
             <input 
               type="number" 
-              className="w-full bg-gray-900 rounded border border-gray-700 p-2 text-white outline-none focus:border-green-500" 
+              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.hessianThreshold} 
               onChange={(e) => setForm((s: Params) => ({ ...s, hessianThreshold: Number(e.target.value) }))} 
             />
           </div>
           <div>
-            <label className="block mb-1 font-bold">Octaves</label>
+            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Octaves</label>
             <input 
               type="number" 
-              className="w-full bg-gray-900 rounded border border-gray-700 p-2 text-white outline-none focus:border-green-500" 
+              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.nOctaves} 
               onChange={(e) => setForm((s: Params) => ({ ...s, nOctaves: Number(e.target.value) }))} 
             />
           </div>
           <div>
-            <label className="block mb-1 font-bold">Layers</label>
+            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Layers</label>
             <input 
               type="number" 
-              className="w-full bg-gray-900 rounded border border-gray-700 p-2 text-white outline-none focus:border-green-500" 
+              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.nOctaveLayers} 
               onChange={(e) => setForm((s: Params) => ({ ...s, nOctaveLayers: Number(e.target.value) }))} 
             />
           </div>
           <div className="col-span-2 space-y-2 pt-2 text-[10px] font-bold text-gray-300">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.extended} onChange={(e) => setForm((s: Params) => ({ ...s, extended: e.target.checked }))} /> 
+              <input type="checkbox" checked={form.extended} onChange={(e) => setForm((s: Params) => ({ ...s, extended: e.target.checked }))} className="accent-green-500" /> 
               Extended (128-d)
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={form.upright} onChange={(e) => setForm((s: Params) => ({ ...s, upright: e.target.checked }))} /> 
+              <input type="checkbox" checked={form.upright} onChange={(e) => setForm((s: Params) => ({ ...s, upright: e.target.checked }))} className="accent-green-500" /> 
               Upright (No rotation)
             </label>
           </div>
         </div>
+        
+        {/* Modal Buttons (ขนาด px-4 py-1.5) */}
         <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">
           <button 
             onClick={() => setOpen(false)} 
-            className="px-4 py-1.5 rounded bg-gray-700 text-white transition hover:bg-gray-600 font-medium text-xs"
+            className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white"
           >
             Cancel
           </button>
           <button 
             onClick={saveParams} 
-            className="px-4 py-1.5 rounded bg-green-600 text-white font-bold transition hover:bg-green-500 text-xs"
+            className="px-4 py-1.5 rounded bg-green-600 text-white text-xs font-bold cursor-pointer hover:bg-green-500 transition"
           >
             Save
           </button>

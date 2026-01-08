@@ -1,8 +1,5 @@
-# server/algos/matching/flannmatcher_adapter.py
-
-import os, json, cv2, sys, uuid
-import hashlib # ✅ Use hashlib
-from datetime import datetime # ✅ Use datetime
+import os, json, cv2, sys
+import hashlib 
 import numpy as np
 from typing import Optional, Dict, Any, List, Tuple
 
@@ -16,21 +13,42 @@ def _read_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-# ✅ Helper to resolve image paths
+# ✅ Helper to resolve image paths (Smart Version)
 def _resolve_image_path(path: str) -> str:
+    """
+    พยายามหาไฟล์รูปภาพให้เจอ ไม่ว่าจะส่งมาเป็น Absolute Path, Relative Path, หรือแค่ชื่อไฟล์
+    """
     if not path: return path
+    
+    # 1. เช็ค Path ที่ส่งมาตรงๆ ก่อน
     if os.path.exists(path): return path
     
-    # Try relative to project root
+    # 2. ถ้าหาไม่เจอ ให้ลองดึงแค่ "ชื่อไฟล์" แล้วค้นหาในโฟลเดอร์มาตรฐาน
+    filename = os.path.basename(path)
+    search_dirs = [
+        os.path.join(PROJECT_ROOT, "outputs", "samples"),
+        os.path.join(PROJECT_ROOT, "outputs", "uploads"),
+        os.path.join(PROJECT_ROOT, "outputs"),
+    ]
+
+    for d in search_dirs:
+        candidate = os.path.join(d, filename)
+        if os.path.exists(candidate):
+            return candidate
+
+    # 3. ลองต่อ Path กับ Project Root ตรงๆ
     rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
     if os.path.exists(rel_path): return rel_path
     
     return path
 
 def _image_size(img_path: str) -> Tuple[Optional[int], Optional[int], Optional[int]]:
-    if not img_path or not os.path.exists(img_path):
+    if not img_path: return None, None, None
+    real_path = _resolve_image_path(img_path)
+    if not os.path.exists(real_path):
         return None, None, None
-    img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+        
+    img = cv2.imread(real_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         return None, None, None
     h, w = img.shape[:2]
@@ -40,27 +58,18 @@ def _image_size(img_path: str) -> Tuple[Optional[int], Optional[int], Optional[i
 
 # ---------- load features ----------
 def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray, str, str, Dict[str, Any]]:
-    """
-    อ่าน feature JSON แล้วคืน:
-      keypoints, descriptors, tool_name, img_path, extra (เก็บ WTA_K หากเป็น ORB)
-    """
     data = _read_json(json_path)
 
-    # ✅ VALIDATION
     if "matching_tool" in data:
         raise ValueError(f"Invalid input: Input is a '{data['matching_tool']}' result. FLANN requires Feature files (SIFT/SURF/ORB).")
     
-    # Allow files without 'tool' if they have keypoints (legacy/custom), but warn/default
     tool = str(data.get("tool", "UNKNOWN")).upper()
-    
     kps_raw = data.get("keypoints", [])
     
-    # Path extraction with priority
     img_path = data.get("image", {}).get("original_path")
-    if not img_path and data.get("image", {}).get("file_name"):
+    if not img_path:
          img_path = data.get("image", {}).get("file_name")
     
-    # Resolve Path
     if img_path:
         img_path = _resolve_image_path(img_path)
 
@@ -97,11 +106,9 @@ def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray
         except Exception:
             extra["WTA_K"] = None
     else:
-        # Fallback for unknown tools: assume float/L2 if not empty
         if desc_list:
              descriptors = np.array(desc_list)
         else:
-             # If empty and unknown, maybe raise error or just warn
              descriptors = np.empty((0, 0))
 
     return keypoints, descriptors, tool, img_path, extra
@@ -148,30 +155,39 @@ def run(
     max_draw: Optional[int] = None,
 ) -> Dict[str, Any]:
 
-    # --- load descriptors ---
+    # 1. Load Data
     kp1, des1, tool1, img1_path, extra1 = load_descriptor_data(json_a)
     kp2, des2, tool2, img2_path, extra2 = load_descriptor_data(json_b)
 
     if tool1 != tool2 and tool1 != "UNKNOWN" and tool2 != "UNKNOWN":
-        raise ValueError(f"Descriptor type mismatch: {tool1} vs {tool2}")
+        raise ValueError(f"Mismatch: Input 1 is '{tool1}' but Input 2 is '{tool2}'. They must be the same.")
 
-    # --- select & validate index ---
+    # 2. Select Index & Validate STRICTLY 
     requested = (index_mode or "AUTO").upper()
+
+    # 🔥 GUARD CLAUSE: ดักจับการตั้งค่าผิดทันที
+    if tool1 in ("SIFT", "SURF"):
+        if requested == "LSH":
+            raise ValueError(
+                f"Configuration Error: You selected 'LSH' index for '{tool1}'. "
+                f"LSH is designed for binary features (ORB). Please use 'KD-Tree' or 'Auto'."
+            )
+        
+    if tool1 == "ORB":
+        if requested == "KD_TREE" or "KD" in requested:
+            raise ValueError(
+                f"Configuration Error: You selected 'KD-Tree' index for 'ORB'. "
+                f"KD-Tree requires floating-point features. Please use 'LSH' or 'Auto'."
+            )
+
     if requested == "AUTO":
         index_selected = "KD_TREE" if tool1 in ("SIFT", "SURF") else "LSH"
         index_selected_reason = "auto_by_tool"
     else:
-        if requested == "KD_TREE" and tool1 == "ORB":
-            raise ValueError("KD_TREE requires float descriptors (SIFT/SURF); ORB must use LSH.")
-        elif requested == "LSH" and tool1 in ("SIFT", "SURF"):
-            raise ValueError("LSH is for ORB; SIFT/SURF must use KD_TREE.")
-        elif requested in ("KD_TREE", "LSH"):
-            index_selected = requested
-            index_selected_reason = "override_respected"
-        else:
-            raise ValueError(f"Invalid index_mode: {requested}. Use AUTO, KD_TREE or LSH.")
+        index_selected = requested
+        index_selected_reason = "override_respected"
 
-    # --- dtype setup ---
+    # Setup DType & Index Params
     if index_selected == "KD_TREE":
         des1 = des1.astype(np.float32, copy=False)
         des2 = des2.astype(np.float32, copy=False)
@@ -182,30 +198,24 @@ def run(
         t = max(1, int(lsh_table_number))
         k = max(1, int(lsh_key_size))
         m = max(0, int(lsh_multi_probe_level))
-        index_params = dict(
-            algorithm=6,
-            table_number=t,
-            key_size=k,
-            multi_probe_level=m,
-        )
+        index_params = dict(algorithm=6, table_number=t, key_size=k, multi_probe_level=m)
 
     search_checks = max(1, int(search_checks))
     search_params = dict(checks=search_checks)
 
-    # --- lowe ratio setup ---
+    # Setup Lowe & RANSAC
     eff_ratio = 0.8 if (lowe_ratio is None and tool1 == "ORB") else (0.75 if lowe_ratio is None else float(lowe_ratio))
     if not (0.0 < eff_ratio < 1.0):
         raise ValueError("lowe_ratio must be in (0,1)")
-
     if ransac_thresh <= 0:
         raise ValueError("ransac_thresh must be > 0")
 
-    # --- draw mode ---
+    # Draw Mode
     mode_in = (draw_mode or "good").lower()
     if mode_in not in ("good", "inliers"):
         mode_in = "good"
 
-    # --- Output Dir ---
+    # 3. Output Directory
     if out_root is None:
         out_root = os.path.join(PROJECT_ROOT, "outputs")
         
@@ -213,7 +223,7 @@ def run(
     if not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
-    # ✅ Generate Hash for deduplication
+    # 4. Caching
     config_map = {
         "json1": os.path.basename(json_a),
         "json2": os.path.basename(json_b),
@@ -226,13 +236,11 @@ def run(
     }
     config_str = json.dumps(config_map, sort_keys=True, default=str)
     param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
-    
     stem = f"flann_{param_hash}"
     
     out_json_path = os.path.join(out_dir, f"{stem}.json")
     out_vis_path = os.path.join(out_dir, f"{stem}_vis.jpg")
 
-    # Check Cache
     if os.path.exists(out_json_path) and os.path.exists(out_vis_path):
          try:
             with open(out_json_path, "r", encoding="utf-8") as f:
@@ -242,7 +250,7 @@ def run(
          except:
             pass
 
-    # --- flann matching ---
+    # 5. Matching Process
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     raw_matches: List[Any] = []
     good_matches: List[cv2.DMatch] = []
@@ -259,10 +267,9 @@ def run(
                     good_matches.append(m)
             good_matches.sort(key=lambda x: x.distance)
         except Exception as e:
-            # Fallback for rare FLANN errors
             print(f"FLANN Match error: {e}")
 
-    # --- ransac / inliers + matched_points ---
+    # 6. RANSAC & Homography
     inliers = 0
     inlier_mask = None
     homography_reason = None
@@ -276,9 +283,7 @@ def run(
             inliers = int(mask.sum())
             inlier_mask = mask.ravel().tolist()
             for i, m in enumerate(good_matches):
-                inlier_flag = bool(inlier_mask[i]) if i < len(inlier_mask) else False
-                # ✅ เก็บจุดสำหรับ Alignment
-                if inlier_flag:
+                if i < len(inlier_mask) and inlier_mask[i]:
                     matched_points.append({
                         "queryIdx": m.queryIdx,
                         "trainIdx": m.trainIdx,
@@ -292,19 +297,15 @@ def run(
     else:
         homography_reason = "not_enough_good_matches"
 
-    # --- visualization ---
+    # 7. Visualization
     w1, h1, c1 = _image_size(img1_path)
     w2, h2, c2 = _image_size(img2_path)
 
-    img1 = None
-    img2 = None
+    img1 = cv2.imread(img1_path) if img1_path and os.path.exists(img1_path) else None
+    img2 = cv2.imread(img2_path) if img2_path and os.path.exists(img2_path) else None
+
     vis_path_rel = None
     
-    if img1_path and os.path.exists(img1_path):
-        img1 = cv2.imread(img1_path)
-    if img2_path and os.path.exists(img2_path):
-        img2 = cv2.imread(img2_path)
-
     if img1 is not None and img2 is not None and len(good_matches) > 0:
         draw_list = good_matches
         if mode_in == "inliers" and inlier_mask is not None:
@@ -318,13 +319,10 @@ def run(
                 img1, kp1, img2, kp2, draw_list, None,
                 flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
             )
-            
-            # ✅ Save without subfolder
             cv2.imwrite(out_vis_path, vis)
             vis_path_rel = f"/static/features/flannmatcher_outputs/{stem}_vis.jpg"
 
-    # --- json output ---
-    # ลดขนาด JSON output
+    # 8. Save Result
     matches_output_data = [
         {"queryIdx": m.queryIdx, "trainIdx": m.trainIdx, "distance": round(float(m.distance), 4)}
         for m in good_matches
