@@ -1,3 +1,4 @@
+// File: my-react-flow-app/src/lib/templates/segmentation.ts
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 

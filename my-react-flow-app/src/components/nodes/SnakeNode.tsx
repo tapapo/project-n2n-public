@@ -1,3 +1,4 @@
+// File: my-react-flow-app/src/components/nodes/SnakeNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';

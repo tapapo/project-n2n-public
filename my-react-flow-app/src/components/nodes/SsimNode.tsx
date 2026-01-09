@@ -1,3 +1,4 @@
+// File: my-react-flow-app/src/components/nodes/SsimNode.tsx
 import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position, type NodeProps, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';

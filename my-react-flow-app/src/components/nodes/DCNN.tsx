@@ -1,3 +1,4 @@
+// File: my-react-flow-app/src/components/nodes/DnCNNNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';

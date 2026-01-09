@@ -1,3 +1,4 @@
+// File: my-react-flow-app/src/components/nodes/RealESRGANNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from "react"
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from "reactflow"
 import Modal from "../common/Modal"

@@ -360,7 +360,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           isValidConnection={isValidConnection}
         >
           <MiniMap
-            style={{ position: 'absolute', bottom: 0, left: 50, width: 200, height: 140, borderRadius: 8, background: 'rgba(15,23,42,0.9)', border: '1px solid #475569' }}
+            style={{ position: 'absolute', bottom: 0, left: 40, width: 200, height: 110, borderRadius: 8, background: 'rgba(15,23,42,0.9)', border: '1px solid #475569' }}
             maskColor="rgba(0,0,0,0.6)"
             nodeColor={(n) => n.data?.status === 'fault' ? '#ef4444' : n.data?.status === 'success' ? '#22c55e' : '#94a3b8'}
           />

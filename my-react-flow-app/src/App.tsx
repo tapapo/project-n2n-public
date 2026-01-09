@@ -21,7 +21,6 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   
   //  TAB MANAGEMENT STATE
-  
   const [tabs, setTabs] = useState<WorkflowTab[]>(() => {
     try {
       const savedTabs = localStorage.getItem(STORAGE_KEY_APP_TABS);
@@ -47,7 +46,6 @@ export default function App() {
   const canvasRef = useRef<FlowCanvasHandle>(null);
 
   //  AUTO-SAVE EFFECTS
-
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_APP_TABS, JSON.stringify(tabs));
@@ -72,7 +70,6 @@ export default function App() {
   }, []); 
 
   //  TAB LOGIC HANDLERS
-
   const syncCanvasToCurrentTab = useCallback(() => {
     if (!canvasRef.current) return;
     const snapshot = canvasRef.current.getSnapshot();
@@ -186,14 +183,18 @@ export default function App() {
   const handleStart = () => setIsRunning(true);
   const handleStop = () => setIsRunning(false);
 
-  // หาชื่อ Tab ปัจจุบันเพื่อส่งลงไป
   const activeTabName = tabs.find(t => t.id === activeTabId)?.name || 'Untitled';
 
   return (
-    <div className="w-screen h-screen flex flex-col bg-gray-900 text-white overflow-hidden">
-      <h1 className="text-4xl font-extrabold p-3 text-center text-teal-400 border-b-2 border-teal-500 shadow-lg bg-gray-900 z-20">
-        N2N Image Processing
-      </h1>
+    // ✅ เปลี่ยน h-screen เป็น h-[100dvh] เพื่อความชัวร์ (Dynamic Viewport Height)
+    <div className="w-screen h-[100dvh] flex flex-col bg-gray-900 text-white overflow-hidden">
+      
+      {/* Header แบบ Desktop สวยๆ */}
+      <div className="relative z-30 bg-gray-900 shadow-lg border-b-2 border-teal-500 flex items-center justify-center p-3">
+        <h1 className="text-2xl md:text-4xl font-extrabold text-teal-400 tracking-wide drop-shadow-md">
+          N2N Image Processing
+        </h1>
+      </div>
 
       <WorkflowControls isRunning={isRunning} onStart={handleStart} onStop={handleStop} />
 
@@ -208,6 +209,7 @@ export default function App() {
 
       <div className="flex flex-grow overflow-hidden relative">
         <ReactFlowProvider>
+          {/* Sidebar วางตรงๆ ไม่ต้องมี Wrapper ซับซ้อน */}
           <Sidebar onLoadTemplate={handleLoadTemplate} />
           
           <div className="flex-1 h-full relative">

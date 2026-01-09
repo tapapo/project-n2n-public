@@ -1,3 +1,4 @@
+// File: my-react-flow-app/src/components/nodes/DEEP.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from "react";
 import { Handle, Position, useReactFlow, type NodeProps, useEdges } from "reactflow"; // ✅ นำ useEdges กลับมาใช้เปลี่ยนสี Handle
 import Modal from "../common/Modal";

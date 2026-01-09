@@ -1,3 +1,4 @@
+// File: my-react-flow-app/src/components/nodes/ImageInputNode.tsx
 import { memo, useRef, useState } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from 'reactflow';
 import type { CustomNodeData } from '../../types';

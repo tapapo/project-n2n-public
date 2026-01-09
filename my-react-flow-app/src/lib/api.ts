@@ -1,3 +1,4 @@
+// src/lib/api.ts
 export const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 /**
@@ -173,7 +174,7 @@ export async function runSsim(originalPath: string, processedPath: string, param
 
 // ---------- 6. Segmentation & Classification ----------
 export async function runSnake(req: any, signal?: AbortSignal) {
-  const resp = await fetch(`${API_BASE}/api/segmentation/snake`, {
+  const resp = await fetch(`${API_BASE}/api/classify/snake`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),

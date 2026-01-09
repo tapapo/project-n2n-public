@@ -1,3 +1,4 @@
+// File: my-react-flow-app/src/components/nodes/FLANNMatcherNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';

@@ -1,3 +1,4 @@
+// File: my-react-flow-app/src/components/nodes/ZERO.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react'
 import { Handle, Position, useReactFlow, useEdges, type NodeProps } from 'reactflow' 
 import type { CustomNodeData } from '../../types'
