@@ -4,10 +4,7 @@ import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactf
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api'; 
-
-/* ---------------- UI helpers (ยึดตาม SwinIR) ---------------- */
-const statusDot = (active: boolean, color: string) => 
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -18,7 +15,7 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
   </svg>
 );
 
-// ✅ Parameters เดิมของ SIFT
+// Parameters เดิมของ SIFT
 const DEFAULT_SIFT = {
   nfeatures: 500,
   nOctaveLayers: 3,
@@ -33,6 +30,9 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges(); 
   const [open, setOpen] = useState(false);
+
+  // ✅ เรียกใช้ Hook: ดึงสถานะที่คำนวณมาอย่างถูกต้อง (รองรับ Copy Paste)
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   // 1. Parameter Logic
   const params = useMemo(
@@ -69,20 +69,16 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ));
     setOpen(false);
   }, [rf, id, form]);
-
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
   
   // Logic: Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // Logic: Display Size (เฉพาะของ SIFT)
+  // Logic: Display Size
   const displaySize = useMemo(() => {
     const processedShape = data?.payload?.json_data?.image?.processed_sift_shape || data?.payload?.image_shape;
     if (Array.isArray(processedShape) && processedShape.length >= 2) {
       return `${processedShape[1]}×${processedShape[0]}px`;
     }
-    // Fallback logic
     const incomingEdge = rf.getEdges().find((e) => e.target === id);
     if (incomingEdge) {
       const sourceNode = rf.getNodes().find((n) => n.id === incomingEdge.source);
@@ -99,8 +95,8 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rawUrl = data?.payload?.vis_url || data?.payload?.result_image_url;
   const displayUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
   
-  // Caption
-  const caption = (data?.status === 'success' && data?.description) 
+  // Caption: ถ้า Success (หรือมีรูปจาก Copy) ให้โชว์คำอธิบาย
+  const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
 
@@ -108,7 +104,7 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
-  // Border logic (ใช้ธีมสีเขียวสำหรับ SIFT)
+  // Border logic
   let borderColor = 'border-green-500';
   if (selected) borderColor = 'border-green-400 ring-2 ring-green-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -127,7 +123,7 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header (Layout แบบ SwinIR เป๊ะๆ แต่เปลี่ยนสี text เป็น green) */}
+      {/* Header */}
       <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>SIFT</div>
         <div className="flex items-center gap-2">
@@ -148,7 +144,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             >
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            {/* Tooltip แบบ SwinIR */}
             <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
               Settings
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
@@ -172,12 +167,26 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
-      {/* Status Table (Layout แบบ SwinIR) */}
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-red-400">start</span>
+          {/* ใช้ data.status เดิมสำหรับ start/running เพื่อคง Animation */}
+          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-cyan-400">running</span>
+          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-green-400">success</span>
+          {/* ✅ ใช้ isSuccess จาก Hook เพื่อให้ไฟเขียวติดถ้ามีข้อมูล */}
+          <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-yellow-400">fault</span>
+          <div className={statusDot(isFault, 'bg-yellow-500')} />
+        </div>
       </div>
 
       {/* Modal Settings */}
@@ -192,7 +201,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm((s: Params) => ({ ...s, nfeatures: Number(e.target.value) }))} 
             />
           </div>
-
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Octave Layers</label>
             <input 
@@ -202,7 +210,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm((s: Params) => ({ ...s, nOctaveLayers: Number(e.target.value) }))} 
             />
           </div>
-
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Sigma</label>
             <input 
@@ -212,7 +219,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm((s: Params) => ({ ...s, sigma: Number(e.target.value) }))} 
             />
           </div>
-
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Contrast Th.</label>
             <input 
@@ -222,7 +228,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm((s: Params) => ({ ...s, contrastThreshold: Number(e.target.value) }))} 
             />
           </div>
-
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Edge Th.</label>
             <input 

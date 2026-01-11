@@ -1,13 +1,10 @@
-// File: my-react-flow-app/src/components/nodes/OtsuNode.tsx
+// File: src/components/nodes/OtsuNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
-
-/* --- Helpers (Master Design) --- */
-const statusDot = (active: boolean, color: string) => 
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -38,6 +35,9 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const [open, setOpen] = useState(false);
   
+  // ✅ เรียกใช้ Hook
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
+
   const imgRef = useRef<HTMLImageElement>(null); 
   const [imgSize, setImgSize] = useState<{w: number, h: number} | null>(null);
 
@@ -46,9 +46,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const savedParams = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
   const [form, setForm] = useState<Params>(savedParams);
   useEffect(() => setForm(savedParams), [savedParams]);
-
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
 
   const onRun = useCallback(() => {
     if (!isRunning) data?.onRunNode?.(id);
@@ -77,7 +74,10 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rawUrl = resultImage;
   const displayImage = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
 
-  const caption = resultImage ? `Threshold = ${thr ?? '?'}` : 'Connect Image Input and run';
+  // ปรับ Caption: ถ้า Success หรือมีรูป ให้โชว์ค่า Threshold
+  const caption = (isSuccess || resultImage) 
+    ? `Threshold = ${thr ?? '?'}` 
+    : 'Connect Image Input and run';
 
   const onImgLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement, Event>) => {
     const img = e.currentTarget;
@@ -89,7 +89,7 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     }
   }, [imgSize]); 
 
-  // Style (Pink Theme)
+  // Style
   let borderColor = 'border-pink-500';
   if (selected) {
     borderColor = 'border-pink-400 ring-2 ring-pink-500';
@@ -109,11 +109,10 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header (Layout แบบ SwinIR: px-2 py-2) */}
+      {/* Header */}
       <div className="bg-gray-700 text-pink-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>Otsu Threshold</div>
-        <div className="flex items-center gap-2"> {/* Gap-2 */}
-          {/* Run Button (px-2 py-1) */}
+        <div className="flex items-center gap-2">
           <button 
             onClick={onRun} 
             disabled={isRunning} 
@@ -128,12 +127,10 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             <button 
               aria-label="Open Otsu settings" 
               onClick={() => setOpen(true)} 
-              // Settings Button (h-5 w-5)
               className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80 transition focus:outline-none"
             >
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            {/* Tooltip */}
             <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
               Settings
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
@@ -166,15 +163,17 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         )}
       </div>
 
-      {/* Status Table (Master Style) */}
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
+           {/* ✅ ใช้ isSuccess */}
+           <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings (Master Style) */}
       <Modal open={open} title="Otsu Settings" onClose={onClose}>
         <div className="space-y-4 text-xs text-gray-300">
           <label className="flex items-center gap-2 cursor-pointer">

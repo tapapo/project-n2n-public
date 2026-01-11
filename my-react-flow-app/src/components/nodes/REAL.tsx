@@ -1,14 +1,12 @@
-// File: my-react-flow-app/src/components/nodes/RealESRGANNode.tsx
+// File: src/components/nodes/RealESRGANNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from "react"
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from "reactflow"
 import Modal from "../common/Modal"
 import { abs } from "../../lib/api"
 import type { CustomNodeData } from "../../types"
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
-/* ---------------- UI helpers (Master Design) ---------------- */
-const statusDot = (active: boolean, color: string) => 
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
-
+/* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -33,6 +31,9 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
   const edges = useEdges();
   const [open, setOpen] = useState(false);
 
+  // ✅ เรียกใช้ Hook
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
+
   // Logic Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
@@ -51,9 +52,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
     setOpen(false);
   }, [rf, id, form]);
 
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
-
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
   const respJson = data?.payload?.json || data?.payload?.json_data;
 
@@ -63,9 +61,8 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
 
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
   
-  // ✅ แก้ไขตรงนี้ครับ: แสดง Description เฉพาะตอน Success เท่านั้น
-  // ถ้า Error (Fault) มันจะไม่เข้าเงื่อนไขแรก และไปตกที่เงื่อนไขหลังแทน (ไม่เอา Error Message มาโชว์)
-  const caption = (data?.status === 'success' && data?.description) 
+  // Caption (ใช้ isSuccess ช่วย)
+  const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
 
@@ -86,11 +83,10 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header (Master Design: px-2 py-2) */}
+      {/* Header */}
       <div className="bg-gray-700 text-red-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>Real-ESRGAN</div>
-        <div className="flex items-center gap-2"> {/* Gap-2 */}
-          {/* Run Button (px-2 py-1) */}
+        <div className="flex items-center gap-2">
           <button
             onClick={() => !isRunning && data?.onRunNode?.(id)}
             disabled={isRunning}
@@ -104,12 +100,10 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
           <span className="relative inline-flex items-center group">
             <button
               onClick={handleOpen}
-              // Settings Button (h-5 w-5)
               className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition focus-visible:outline-none cursor-pointer hover:bg-gray-100"
             >
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            {/* Tooltip */}
             <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
               Settings
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
@@ -139,19 +133,21 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
           </div>
         )}
         
-        {/* Caption */}
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
-      {/* Status Table (Master Style) */}
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
+           {/* ✅ ใช้ isSuccess */}
+           <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings (Master Style: Uppercase Labels, Mono Inputs) */}
+      {/* Modal Settings */}
       <Modal open={open} title="Real-ESRGAN Settings" onClose={handleClose}>
         <div className="grid grid-cols-1 gap-3 text-xs text-gray-300">
           <div>

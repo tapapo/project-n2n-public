@@ -1,20 +1,17 @@
-// File: my-react-flow-app/src/components/nodes/PsnrNode.tsx
+// File: src/components/nodes/PsnrNode.tsx
 import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position, type NodeProps, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
-
-// ✅ Helper (Master Design)
-const statusDot = (active: boolean, color: string) =>
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
 const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const edges = useEdges(); 
 
+  // ✅ เรียกใช้ Hook
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
+
   const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'input1'), [edges, id]);
   const isConnected2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'input2'), [edges, id]);
-
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
 
   const handleRun = useCallback(() => {
     if (isRunning) return;
@@ -23,13 +20,13 @@ const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const val = data?.payload?.json?.quality_score;
   const caption =
-  (typeof data?.description === 'string' && !/(running|start)/i.test(data.description)) 
+  (isSuccess && data?.description && !/(running|start)/i.test(data.description)) 
     ? data.description
     : (typeof val === 'number'
         ? `PSNR = ${val.toFixed(2)} dB`
         : 'Connect two Image Input and run');
 
-  // Style (Blue Theme)
+  // Style
   let borderColor = 'border-blue-500';
   if (selected) borderColor = 'border-blue-400 ring-2 ring-blue-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -47,10 +44,9 @@ const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} id="input2" className={getHandleClass(isConnected2)} style={{ top: '65%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} id="json" className={getHandleClass(true)} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header (Master Design: px-2 py-2) */}
+      {/* Header */}
       <div className="bg-gray-700 text-blue-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>PSNR</div>
-        {/* Run Button (Copy exact classes from SwinIR) */}
         <button
           onClick={handleRun}
           disabled={isRunning}
@@ -71,12 +67,25 @@ const PSNRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         )}
       </div>
 
-      {/* Status Table (Master Style) */}
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-red-400">start</span>
+          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-cyan-400">running</span>
+          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-green-400">success</span>
+          {/* ✅ ใช้ isSuccess */}
+          <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-yellow-400">fault</span>
+          <div className={statusDot(isFault, 'bg-yellow-500')} />
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-// File: my-react-flow-app/src/lib/runners/matching.tsx
+// File: src/lib/runners/matching.tsx
 import { runBfmatcher, runFlannmatcher, abs } from '../api';
 import { markStartThenRunning, updateNodeStatus } from './utils';
 import type { Edge } from 'reactflow';
@@ -14,7 +14,7 @@ export async function runMatcher(
   const nodeId = node.id;
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
 
-  // Helper แบบเรียบง่าย (เหมือนไฟล์อื่น)
+  // Helper สำหรับ Fail และเปลี่ยนสถานะเป็น Fault
   const fail = async (msg: string) => {
     await updateNodeStatus(nodeId, 'fault', setNodes);
     throw new Error(msg);
@@ -39,7 +39,7 @@ export async function runMatcher(
   const e1 = incoming.find((e) => e.targetHandle === 'file1');
   const e2 = incoming.find((e) => e.targetHandle === 'file2');
 
-  // --- 1. Validation Checks ---
+  // --- 1. Validation Checks (Basic) ---
   if (!e1 || !e2) {
     await fail('Need two feature inputs. Please connect Feature Extraction nodes.');
   }
@@ -55,15 +55,33 @@ export async function runMatcher(
      await fail(`Invalid input: Requires SIFT/SURF/ORB nodes.`);
   }
 
+  // --- 2. Check Tool Mismatch ---
   if (type1 !== type2) {
-    await fail(`Mismatch: Cannot match '${type1}' with '${type2}'.`);
+    await fail(`Mismatch: Cannot match '${type1.toUpperCase()}' with '${type2.toUpperCase()}'. Both inputs must be the same type.`);
+  }
+
+  // --- 3. 🔥 Check ORB WTA_K Mismatch (Frontend Check) 🔥 ---
+  if (type1 === 'orb' && type2 === 'orb') {
+    const p1 = (n1?.data?.payload?.params as any) || {};
+    const p2 = (n2?.data?.payload?.params as any) || {};
+
+    // Default WTA_K is usually 2 if not set
+    const k1 = p1.WTA_K ?? 2;
+    const k2 = p2.WTA_K ?? 2;
+
+    if (Number(k1) !== Number(k2)) {
+      await fail(
+        `ORB Configuration Mismatch: Input 1 has WTA_K=${k1}, but Input 2 has WTA_K=${k2}. ` +
+        `They must be identical to generate compatible descriptors.`
+      );
+    }
   }
 
   const jsonA = findFeatureJson(n1);
   const jsonB = findFeatureJson(n2);
 
   if (!jsonA || !jsonB) {
-    await fail('Upstream features not ready.');
+    await fail('Upstream features not ready. Please run the feature nodes first.');
   }
 
   const kind = node.type as 'bfmatcher' | 'flannmatcher';

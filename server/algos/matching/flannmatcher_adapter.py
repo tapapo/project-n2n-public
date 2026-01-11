@@ -1,3 +1,4 @@
+# File: server/algos/matching/flannmatcher_adapter.py
 import os, json, cv2, sys
 import hashlib 
 import numpy as np
@@ -13,17 +14,10 @@ def _read_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-# ✅ Helper to resolve image paths (Smart Version)
 def _resolve_image_path(path: str) -> str:
-    """
-    พยายามหาไฟล์รูปภาพให้เจอ ไม่ว่าจะส่งมาเป็น Absolute Path, Relative Path, หรือแค่ชื่อไฟล์
-    """
     if not path: return path
-    
-    # 1. เช็ค Path ที่ส่งมาตรงๆ ก่อน
     if os.path.exists(path): return path
     
-    # 2. ถ้าหาไม่เจอ ให้ลองดึงแค่ "ชื่อไฟล์" แล้วค้นหาในโฟลเดอร์มาตรฐาน
     filename = os.path.basename(path)
     search_dirs = [
         os.path.join(PROJECT_ROOT, "outputs", "samples"),
@@ -36,7 +30,6 @@ def _resolve_image_path(path: str) -> str:
         if os.path.exists(candidate):
             return candidate
 
-    # 3. ลองต่อ Path กับ Project Root ตรงๆ
     rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
     if os.path.exists(rel_path): return rel_path
     
@@ -61,8 +54,8 @@ def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray
     data = _read_json(json_path)
 
     if "matching_tool" in data:
-        raise ValueError(f"Invalid input: Input is a '{data['matching_tool']}' result. FLANN requires Feature files (SIFT/SURF/ORB).")
-    
+        raise ValueError(f"Error: Invalid input. Input is a '{data['matching_tool']}' result, expected Feature files.")
+
     tool = str(data.get("tool", "UNKNOWN")).upper()
     kps_raw = data.get("keypoints", [])
     
@@ -160,25 +153,37 @@ def run(
     kp2, des2, tool2, img2_path, extra2 = load_descriptor_data(json_b)
 
     if tool1 != tool2 and tool1 != "UNKNOWN" and tool2 != "UNKNOWN":
-        raise ValueError(f"Mismatch: Input 1 is '{tool1}' but Input 2 is '{tool2}'. They must be the same.")
+        raise ValueError(f": Tool mismatch: {tool1} vs {tool2}")
+
+    # 🔥 GUARD CLAUSE: Strict Validation 🔥
+    if len(des1) == 0 or len(des2) == 0:
+         raise ValueError(f": Descriptor Empty (0 features found)")
+
+    # 1.1 Check WTA_K mismatch for ORB (Simplified Message)
+    if tool1 == "ORB" and tool2 == "ORB":
+        wta1 = extra1.get("WTA_K")
+        wta2 = extra2.get("WTA_K")
+        if wta1 is not None and wta2 is not None and wta1 != wta2:
+            raise ValueError(f": ORB WTA_K mismatch: {wta1} vs {wta2}")
+
+    # 1.2 Check general descriptor compatibility
+    if des1.dtype != des2.dtype:
+        raise ValueError(f": Type mismatch: {des1.dtype} vs {des2.dtype}")
+
+    if des1.shape[1] != des2.shape[1]:
+        raise ValueError(f": Dimension mismatch: {des1.shape[1]} vs {des2.shape[1]}")
+
 
     # 2. Select Index & Validate STRICTLY 
     requested = (index_mode or "AUTO").upper()
 
-    # 🔥 GUARD CLAUSE: ดักจับการตั้งค่าผิดทันที
     if tool1 in ("SIFT", "SURF"):
         if requested == "LSH":
-            raise ValueError(
-                f"Configuration Error: You selected 'LSH' index for '{tool1}'. "
-                f"LSH is designed for binary features (ORB). Please use 'KD-Tree' or 'Auto'."
-            )
-        
+            raise ValueError(f": Invalid Index: LSH not supported for {tool1}")
+
     if tool1 == "ORB":
         if requested == "KD_TREE" or "KD" in requested:
-            raise ValueError(
-                f"Configuration Error: You selected 'KD-Tree' index for 'ORB'. "
-                f"KD-Tree requires floating-point features. Please use 'LSH' or 'Auto'."
-            )
+            raise ValueError(f": Invalid Index: KD-Tree not supported for ORB")
 
     if requested == "AUTO":
         index_selected = "KD_TREE" if tool1 in ("SIFT", "SURF") else "LSH"
@@ -206,9 +211,9 @@ def run(
     # Setup Lowe & RANSAC
     eff_ratio = 0.8 if (lowe_ratio is None and tool1 == "ORB") else (0.75 if lowe_ratio is None else float(lowe_ratio))
     if not (0.0 < eff_ratio < 1.0):
-        raise ValueError("lowe_ratio must be in (0,1)")
+        raise ValueError(": lowe_ratio must be between 0 and 1")
     if ransac_thresh <= 0:
-        raise ValueError("ransac_thresh must be > 0")
+        raise ValueError(": ransac_thresh must be > 0")
 
     # Draw Mode
     mode_in = (draw_mode or "good").lower()
@@ -267,7 +272,8 @@ def run(
                     good_matches.append(m)
             good_matches.sort(key=lambda x: x.distance)
         except Exception as e:
-            print(f"FLANN Match error: {e}")
+            # Catch internal OpenCV errors (Simplified Message)
+            raise RuntimeError(f"[FLANN] 💥 Error: Internal failed: {str(e)}")
 
     # 6. RANSAC & Homography
     inliers = 0

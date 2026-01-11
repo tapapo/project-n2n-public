@@ -180,16 +180,18 @@ export default function App() {
     );
   };
 
-  const handleStart = () => setIsRunning(true);
-  const handleStop = () => setIsRunning(false);
+  const handleStart = useCallback(() => setIsRunning(true), []);
+  
+  // 🔥🔥🔥 [แก้ตรงนี้] ใช้ useCallback หุ้ม เพื่อไม่ให้ฟังก์ชันเปลี่ยน Address ทุกครั้งที่ render 🔥🔥🔥
+  const handleStop = useCallback(() => {
+    setIsRunning(false);
+  }, []);
 
   const activeTabName = tabs.find(t => t.id === activeTabId)?.name || 'Untitled';
 
   return (
-    // ✅ เปลี่ยน h-screen เป็น h-[100dvh] เพื่อความชัวร์ (Dynamic Viewport Height)
     <div className="w-screen h-[100dvh] flex flex-col bg-gray-900 text-white overflow-hidden">
       
-      {/* Header แบบ Desktop สวยๆ */}
       <div className="relative z-30 bg-gray-900 shadow-lg border-b-2 border-teal-500 flex items-center justify-center p-3">
         <h1 className="text-2xl md:text-4xl font-extrabold text-teal-400 tracking-wide drop-shadow-md">
           N2N Image Processing
@@ -209,14 +211,13 @@ export default function App() {
 
       <div className="flex flex-grow overflow-hidden relative">
         <ReactFlowProvider>
-          {/* Sidebar วางตรงๆ ไม่ต้องมี Wrapper ซับซ้อน */}
           <Sidebar onLoadTemplate={handleLoadTemplate} />
           
           <div className="flex-1 h-full relative">
             <FlowCanvas
               ref={canvasRef}
               isRunning={isRunning}
-              onPipelineDone={handleStop}
+              onPipelineDone={handleStop} // ตอนนี้ handleStop ถูก memoize แล้ว จะไม่กระตุ้น useEffect ใน FlowCanvas ซ้ำๆ
               onFlowChange={handleFlowChange}
               currentTabName={activeTabName} 
             />

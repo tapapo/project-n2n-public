@@ -1,13 +1,10 @@
-// File: my-react-flow-app/src/components/nodes/AffineAlignNode.tsx
+// File: src/components/nodes/AffineAlignNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useStore } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
-
-/* --- Helpers (Master Design) --- */
-const statusDot = (active: boolean, color: string) => 
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
+import { useNodeStatus } from '../../hooks/useNodeStatus';
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -40,6 +37,9 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
 
+  // ✅ เรียกใช้ Hook (statusDot มาจากที่นี่แล้ว)
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
+
   const isConnected = useStore(
     useCallback((s: any) => s.edges.some((e: any) => e.target === id), [id])
   );
@@ -70,9 +70,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
     setOpen(false);
   };
 
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
-
   const onRun = useCallback(() => {
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
@@ -86,7 +83,7 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
     ? `${abs(rawUrl)}?t=${Date.now()}` 
     : undefined;
 
-  // Logic ดึงขนาดภาพ (Output Size)
+  // Logic ดึงขนาดภาพ
   const displaySize = useMemo(() => {
     const jsonData = data?.payload?.json_data || data?.payload?.output || data?.payload?.json;
     
@@ -100,7 +97,7 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
     return null;
   }, [data?.payload]);
 
-  // Style (Purple Theme)
+  // Style
   let borderColor = 'border-purple-500';
   if (selected) borderColor = 'border-purple-400 ring-2 ring-purple-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -119,11 +116,10 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header (Master Design: px-2 py-2) */}
+      {/* Header */}
       <div className="bg-gray-700 text-purple-500 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>Affine Align</div>
-        <div className="flex items-center gap-2"> {/* Gap-2 */}
-          {/* Run Button (px-2 py-1) */}
+        <div className="flex items-center gap-2">
           <button
             onClick={onRun}
             disabled={isRunning}
@@ -138,12 +134,10 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
             <button
               aria-label="Open Affine settings"
               onClick={() => setOpen(true)}
-              // Settings Button (h-5 w-5)
               className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80 transition focus:outline-none"
             >
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            {/* Tooltip */}
             <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
               Settings
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
@@ -172,19 +166,30 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
         )}
 
         <p className="text-sm text-gray-300">
-          {alignedUrl ? 'Alignment complete' : 'Connect a Matcher node and run'}
+          {(isSuccess || alignedUrl) ? 'Alignment complete' : 'Connect a Matcher node and run'}
         </p>
       </div>
 
-      {/* Status Table (Master Style) */}
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-red-400">start</span>
+          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-cyan-400">running</span>
+          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-green-400">success</span>
+          <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-yellow-400">fault</span>
+          <div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} />
+        </div>
       </div>
 
-      {/* Modal Settings (Master Style: Uppercase Labels, Mono Inputs) */}
       <Modal open={open} title="Affine Settings" onClose={onClose}>
         <div className="space-y-3 text-xs text-gray-300">
           <div>

@@ -1,4 +1,4 @@
-// File: my-react-flow-app/src/components/nodes/ImageInputNode.tsx
+// File: src/components/nodes/ImageInputNode.tsx
 import { memo, useRef, useState } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from 'reactflow';
 import type { CustomNodeData } from '../../types';
@@ -77,15 +77,14 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
   const displayUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
 
   const isRunning = uploading || data?.status === 'running';
-  const isSuccess = data?.status === 'success';
+  
+  // ✅ แก้ไข: เช็คว่าถ้ามี status success หรือ มีรูปภาพอยู่แล้ว (และไม่ error/running) ให้ถือว่า Success
+  const isSuccess = data?.status === 'success' || (!!rawUrl && !isRunning && data?.status !== 'fault');
 
-  // ✅ Style: กลับมาเป็นแบบเดิม (Teal ตลอด ยกเว้นตอน Running หรือ Selected)
-  // ตัดเงื่อนไข isSuccess ออก เพื่อให้ขอบเป็นสี Teal เสมอเมื่อเสร็จ
   let borderColor = 'border-teal-500';
   if (selected) borderColor = 'border-teal-400 ring-2 ring-teal-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // ✅ Handle: สีขาวตลอด
   const handleClasses = `w-2 h-2 rounded-full border-2 transition-all duration-300 bg-white border-gray-500`;
 
   return (
@@ -154,7 +153,6 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
         </div>
         <div className="flex justify-between items-center py-1">
             <span className="text-yellow-400">fault</span>
-            {/* จุด Fault ดับตลอด (false) */}
             <div className={statusDot(false, 'bg-red-500')} />
         </div>
       </div>

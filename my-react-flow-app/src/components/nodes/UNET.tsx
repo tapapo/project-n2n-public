@@ -1,14 +1,12 @@
-// File: my-react-flow-app/src/components/nodes/UNET.tsx
+// File: src/components/nodes/UNET.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from "react";
 import { Handle, Position, useReactFlow, type NodeProps, useEdges } from "reactflow";
 import Modal from "../common/Modal";
 import { abs } from "../../lib/api";
 import type { CustomNodeData } from "../../types";
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
-/* ---------------- UI helpers (Master Design) ---------------- */
-const statusDot = (active: boolean, color: string) => 
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
-
+/* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -18,7 +16,6 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
   </svg>
 );
 
-// ✅ รวมพารามิเตอร์ตามต้นฉบับเพื่อน: threshold, blend, palette
 const DEFAULT_PARAMS = {
   threshold: 0.5,
   blend: true,
@@ -32,7 +29,10 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const edges = useEdges(); // ✅ ใช้เช็ค Connection
   const [open, setOpen] = useState(false);
 
-  // Logic: Check connection (สำหรับเปลี่ยนสี Handle)
+  // ✅ เรียกใช้ Hook
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
+
+  // Logic: Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
   const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
@@ -50,9 +50,6 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     setOpen(false);
   }, [rf, id, form]);
 
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
-
   const visUrl = data?.payload?.vis_url || data?.payload?.segmented_image;
   const respJson = data?.payload?.json || data?.payload?.json_data;
 
@@ -60,17 +57,16 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
   
-  // Logic Caption: ถ้า Success โชว์ Description / ถ้า Error ให้โชว์ Default
-  const caption = (data?.status === 'success' && data?.description) 
+  // Logic Caption (ใช้ isSuccess)
+  const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'U-Net segmentation output' : 'Connect Image and run');
 
-  // Style (Yellow Theme)
+  // Style
   let borderColor = 'border-yellow-600';
   if (selected) borderColor = 'border-yellow-400 ring-2 ring-yellow-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // ✅ Handle Style: สีแดงเมื่อ Fault และไม่มีสาย (แต่จุด Status สีเหลือง)
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected 
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' 
@@ -133,10 +129,12 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
+           {/* ✅ ใช้ isSuccess */}
+           <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
         <div className="flex justify-between items-center py-1">
           <span className="text-yellow-400">fault</span>
-          {/* ✅ กลับเป็นสีเหลืองตามเดิมครับ */}
           <div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} />
         </div>
       </div>

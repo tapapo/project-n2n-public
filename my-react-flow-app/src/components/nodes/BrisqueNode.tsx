@@ -1,26 +1,23 @@
-// File: my-react-flow-app/src/components/nodes/BrisqueNode.tsx
+// File: src/components/nodes/BrisqueNode.tsx
 import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position, type NodeProps, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
-
-// ✅ Helper (Master Design)
-const statusDot = (active: boolean, color: string) =>
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
 const BrisqueNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const edges = useEdges();
 
-  const isConnected = useMemo(() => edges.some((e) => e.target === id), [edges, id]);
+  // ✅ เรียกใช้ Hook
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
+  const isConnected = useMemo(() => edges.some((e) => e.target === id), [edges, id]);
 
   const handleRun = useCallback(() => {
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
   const caption =
-  (typeof data?.description === 'string' && !/(running|start)/i.test(data.description)) 
+  (isSuccess && data?.description && !/(running|start)/i.test(data.description)) 
     ? data.description
     : (typeof data?.payload?.quality_score === 'number'
         ? `BRISQUE score = ${Number(data.payload.quality_score).toFixed(2)}`
@@ -44,10 +41,9 @@ const BrisqueNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header (Master Design: px-2 py-2) */}
+      {/* Header */}
       <div className="bg-gray-700 text-blue-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>BRISQUE</div>
-        {/* Run Button (Copy exact classes from SwinIR) */}
         <button
           onClick={handleRun}
           disabled={isRunning}
@@ -68,12 +64,25 @@ const BrisqueNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
         )}
       </div>
 
-      {/* Status Table (Master Style) */}
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-red-400">start</span>
+          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-cyan-400">running</span>
+          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-green-400">success</span>
+          {/* ✅ ใช้ isSuccess จาก Hook */}
+          <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-yellow-400">fault</span>
+          <div className={statusDot(isFault, 'bg-yellow-500')} />
+        </div>
       </div>
     </div>
   );

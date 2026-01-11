@@ -1,14 +1,12 @@
-// File: my-react-flow-app/src/components/nodes/DnCNNNode.tsx
+// File: src/components/nodes/DnCNNNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
 /* ---------------- UI helpers ---------------- */
-const statusDot = (active: boolean, color: string) => 
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
-
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -26,6 +24,9 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
   const [open, setOpen] = useState(false);
+
+  // ✅ เรียกใช้ Hook
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   // 1. Parameters logic
   const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
@@ -46,9 +47,6 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ));
     setOpen(false);
   }, [rf, id, form]);
-
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
   
   // Logic: Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
@@ -63,8 +61,8 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
   
-  // Caption
-  const caption = (data?.status === 'success' && data?.description) 
+  // Caption (ใช้ isSuccess ช่วย)
+  const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'Restoration complete' : 'Connect Noisy Image and run');
 
@@ -107,7 +105,6 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
             
-            {/* ✅ เติม font-normal เพื่อไม่ให้ตัวหนาตาม Header */}
             <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
               Settings
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
@@ -147,8 +144,11 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <div className="border-t-2 border-gray-700 p-2 text-sm">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
+           {/* ✅ ใช้ isSuccess */}
+           <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
       {/* Settings Modal */}

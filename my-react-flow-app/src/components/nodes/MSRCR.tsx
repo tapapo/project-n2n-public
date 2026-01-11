@@ -1,13 +1,10 @@
-// File: my-react-flow-app/src/components/nodes/MSRCRNode.tsx
+// File: src/components/nodes/MSRCRNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
-
-/* ---------------- UI Helpers (Master Design) ---------------- */
-const statusDot = (active: boolean, color: string) => 
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -32,6 +29,9 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
   const [open, setOpen] = useState(false);
+
+  // ✅ เรียกใช้ Hook
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   // 1. Parameter Management
   const params = useMemo(() => ({
@@ -58,15 +58,12 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   }, [rf, id, form]);
 
   const handleRun = useCallback(() => {
-    if (data?.status !== 'running' && data?.status !== 'start') {
+    if (!isRunning) {
       data?.onRunNode?.(id);
     }
-  }, [data, id]);
+  }, [data, id, isRunning]);
 
   // 2. Display Logic
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
-  
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
   const displaySize = useMemo(() => {
@@ -81,7 +78,7 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
 
-  const caption = (data?.status === 'success' && data?.description) 
+  const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'Enhancement complete' : 'Connect Color Image and run');
 
@@ -101,11 +98,10 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header (Master Design: px-2 py-2) */}
+      {/* Header */}
       <div className="bg-gray-700 text-indigo-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>MSRCR</div>
-        <div className="flex items-center gap-2"> {/* Gap-2 */}
-          {/* Run Button (px-2 py-1 + cursor-pointer) */}
+        <div className="flex items-center gap-2">
           <button 
             onClick={handleRun}
             disabled={isRunning} 
@@ -148,12 +144,15 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </p>
       </div>
 
-      {/* Status Table (Master Style) */}
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
+           {/* ✅ ใช้ isSuccess */}
+           <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
       {/* Modal Settings */}

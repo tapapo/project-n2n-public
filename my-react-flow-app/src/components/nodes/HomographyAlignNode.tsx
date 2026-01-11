@@ -1,13 +1,10 @@
-// File: my-react-flow-app/src/components/nodes/HomographyAlignNode.tsx
+// File: src/components/nodes/HomographyAlignNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useStore } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
-
-/* --- Helpers (Master Design) --- */
-const statusDot = (active: boolean, color: string) =>
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
+import { useNodeStatus } from '../../hooks/useNodeStatus';
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -27,6 +24,9 @@ type Params = typeof DEFAULT_PARAMS;
 const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
+
+  // ✅ เรียกใช้ Hook (statusDot มาจากที่นี่แล้ว)
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   const isConnected = useStore(
     useCallback((s: any) => s.edges.some((e: any) => e.target === id), [id])
@@ -52,19 +52,15 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
     setOpen(false);
   };
 
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
-
   const onRun = useCallback(() => {
     if (isRunning) return;
     data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
-  // --- Image URL Logic (Fixed) ---
+  // --- Image URL Logic ---
   const resp = data?.payload?.json as any | undefined;
   const rawUrl = data?.payload?.aligned_url || data?.payload?.result_image_url || resp?.output?.aligned_url || resp?.output?.aligned_image;
 
-  // ✅ FIX: ใช้ useMemo และลบ Date.now() ออก เพื่อป้องกันภาพกระพริบ
   const alignedUrl = useMemo(() => {
     if (!rawUrl) return undefined;
     return abs(rawUrl); 
@@ -75,7 +71,7 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
   const blend = typeof resp?.blend === 'boolean' ? resp.blend : undefined;
 
   const caption =
-    alignedUrl
+    (isSuccess || alignedUrl)
       ? `Alignment complete${inliers != null ? ` — ${inliers} inliers` : ''}`
       : 'Connect a Matcher node and run';
 
@@ -183,11 +179,24 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
         )}
       </div>
 
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-red-400">start</span>
+          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-cyan-400">running</span>
+          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-green-400">success</span>
+          <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+          <span className="text-yellow-400">fault</span>
+          <div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} />
+        </div>
       </div>
 
       <Modal open={open} title="Homography Settings" onClose={onClose}>

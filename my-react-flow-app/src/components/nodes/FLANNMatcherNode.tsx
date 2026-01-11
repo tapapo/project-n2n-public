@@ -1,14 +1,12 @@
-// File: my-react-flow-app/src/components/nodes/FLANNMatcherNode.tsx
+// File: src/components/nodes/FLANNMatcherNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ เพิ่ม Hook
 
 /* --- Helpers --- */
-const statusDot = (active: boolean, color: string) => 
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
-
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -40,6 +38,10 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
   const edges = useEdges(); 
   const [open, setOpen] = useState(false);
 
+  // ✅ เรียกใช้ Hook
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
+  const isBusy = isRunning;
+
   const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file1'), [edges, id]);
   const isConnected2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file2'), [edges, id]);
 
@@ -54,10 +56,6 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
     setOpen(false);
   }, [rf, id, form]);
 
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
-  const isBusy = isRunning;
-
   const onRun = useCallback(() => {
     if (isBusy) return;
     data?.onRunNode?.(id);
@@ -65,8 +63,6 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
 
   const payload = data?.payload || {};
   const rawUrl = payload.vis_url || payload.result_image_url;
-  
-  // ✅ Fix: สร้าง URL พร้อม Cache Buster เพื่อบังคับโหลดรูปใหม่เสมอ
   const visUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
   
   const respJson = payload.json as any | undefined;
@@ -79,7 +75,6 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
     let w = featDetails?.width || inputDetails?.width;
     let h = featDetails?.height || inputDetails?.height;
     
-    // Logic หา shape ให้ครอบคลุมที่สุด
     if (!w || !h) {
         const shape = featDetails?.image_shape || inputDetails?.image_shape || featDetails?.shape || inputDetails?.shape;
         if (Array.isArray(shape) && shape.length >= 2) {
@@ -95,7 +90,7 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
   const metaA = getMeta('image1');
   const metaB = getMeta('image2');
 
-  const rawSummary = (data?.description && !/(running|start)/i.test(data?.description)) 
+  const rawSummary = (isSuccess && data?.description && !/(running|start)/i.test(data?.description)) 
     ? data.description 
     : respJson?.matching_statistics?.summary;
 
@@ -103,7 +98,7 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
     ? rawSummary.replace(/\(FLANN\)/gi, '').trim() 
     : (visUrl ? 'Matches preview' : 'Connect feature nodes and run');
 
-  // Style
+  // Style (Orange)
   let borderColor = 'border-orange-500'; 
   if (selected) borderColor = 'border-orange-400 ring-2 ring-orange-500'; 
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50'; 
@@ -117,7 +112,7 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
       <Handle type="target" position={Position.Left} id="file2" className={getHandleClass(isConnected2)} style={{ top: '65%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={getHandleClass(true)} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
+      {/* Header (Orange) */}
       <div className="bg-gray-700 text-orange-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>FLANN Matcher</div>
         <div className="flex items-center gap-2">
@@ -177,7 +172,7 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
             draggable={false}
             onError={(e) => {
               console.error("Image load failed:", e.currentTarget.src);
-              e.currentTarget.style.display = 'none'; // ซ่อนถ้ารูปเสียจริง
+              e.currentTarget.style.display = 'none';
             }} 
           />
         )}
@@ -187,13 +182,15 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
+           {/* ✅ ใช้ isSuccess */}
+           <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings */}
+      {/* Modal Settings (Original Complex Logic) */}
       <Modal open={open} title="FLANN Settings" onClose={onClose}>
-        {/* ... (Settings Code เหมือนเดิม) ... */}
         <div className="grid grid-cols-2 gap-4 text-xs text-gray-300 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Lowe's Ratio</label>

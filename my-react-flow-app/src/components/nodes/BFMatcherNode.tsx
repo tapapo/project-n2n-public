@@ -1,14 +1,12 @@
-// File: my-react-flow-app/src/components/nodes/BFMatcherNode.tsx
+// File: src/components/nodes/BFMatcherNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ เพิ่ม Hook
 
 /* --- Helpers (Master Design) --- */
-const statusDot = (active: boolean, color: string) =>
-  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
-
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -32,6 +30,10 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
   const edges = useEdges();
   const [open, setOpen] = useState(false);
   
+  // ✅ เรียกใช้ Hook เพื่อให้ Copy Paste แล้วไฟเขียวติด
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
+  const isBusy = isRunning; // ใช้ Alias ให้ตรงกับโค้ดเดิม
+
   const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file1'), [edges, id]);
   const isConnected2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file2'), [edges, id]);
 
@@ -46,17 +48,12 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
     setOpen(false);
   }, [rf, id, form]);
 
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
-  const isBusy = isRunning;
-
   const onRun = useCallback(() => {
     if (isBusy) return;
     data?.onRunNode?.(id);
   }, [data, id, isBusy]);
 
   const payload = data?.payload || {};
-  // ✅ Fix: เพิ่ม result_image_url เพื่อความชัวร์ (เหมือน FLANN)
   const visUrl = (payload.vis_url || payload.result_image_url) as string | undefined;
   const respJson = payload.json as any | undefined;
 
@@ -78,7 +75,7 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
   const metaA = getMeta('image1');
   const metaB = getMeta('image2');
   
-  const rawSummary = (data?.description && !/(running|start)/i.test(data?.description)) 
+  const rawSummary = (isSuccess && data?.description && !/(running|start)/i.test(data?.description)) 
       ? data.description 
       : respJson?.matching_statistics?.summary;
 
@@ -86,7 +83,7 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
     ? rawSummary.replace(/\(BF\)/gi, '').trim() 
     : (visUrl ? 'Matches preview' : 'Connect feature nodes and run');
 
-  // Style (Orange Theme)
+  // Style (Orange Theme) - ตามต้นฉบับ
   let borderColor = 'border-orange-500';
   if (selected) borderColor = 'border-orange-400 ring-2 ring-orange-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -102,11 +99,10 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
       <Handle type="target" position={Position.Left} id="file2" className={getHandleClass(isConnected2)} style={{ top: '65%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={getHandleClass(true)} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header (Layout แบบ SwinIR: px-2 py-2) */}
+      {/* Header (Original Orange) */}
       <div className="bg-gray-700 text-orange-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>BFMatcher</div>
-        <div className="flex items-center gap-2"> {/* Gap-2 */}
-          {/* Run Button (px-2 py-1) */}
+        <div className="flex items-center gap-2">
           <button 
             onClick={onRun} 
             disabled={isBusy} 
@@ -120,12 +116,10 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
           <span className="relative inline-flex items-center group">
             <button 
               onClick={() => setOpen(true)} 
-              // Settings Button (h-5 w-5)
               className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80 transition focus:outline-none"
             >
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            {/* Tooltip */}
             <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
               Settings
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
@@ -135,7 +129,6 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ✅ Fix: แสดงข้อมูล Input A/B เฉพาะเมื่อมี respJson (รันเสร็จแล้ว) */}
         {respJson && (
           <div className="grid grid-cols-2 gap-3 text-[11px]">
             <div className={`rounded border p-2 transition-colors border-gray-600 bg-gray-800/50`}>
@@ -162,15 +155,18 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
-      {/* Status Table (Master Style) */}
+      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
+          {/* ✅ ใช้ isSuccess จาก Hook */}
+          <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings */}
+      {/* Modal Settings (Original) */}
       <Modal open={open} title="BFMatcher Settings" onClose={onClose}>
         <div className="grid grid-cols-2 gap-4 text-xs text-gray-300">
           <div>

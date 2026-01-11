@@ -1,4 +1,4 @@
-// src/FlowCanvas.tsx
+// File: src/FlowCanvas.tsx
 import React, { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import ReactFlow, {
   MiniMap,
@@ -140,14 +140,13 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
     addLog('Workflow cleared.', 'warning');
   }, [nodes, setNodes, setEdges, addLog]);
 
-  // ✅ 1. นำฟังก์ชัน setIncomingEdgesStatus กลับมา
   const setIncomingEdgesStatus = useCallback((nodeId: string, status: 'default' | 'error') => {
       setEdges((eds) =>
         eds.map((e) => {
           if (e.target === nodeId) {
             return status === 'error' 
-              ? { ...e, animated: true, style: { ...e.style, stroke: '#ef4444', strokeWidth: 3 } } // สีแดง + ขยับ
-              : { ...e, animated: false, style: { ...e.style, stroke: '#64748b', strokeWidth: 2 } }; // สีปกติ
+              ? { ...e, animated: true, style: { ...e.style, stroke: '#ef4444', strokeWidth: 3 } } 
+              : { ...e, animated: false, style: { ...e.style, stroke: '#64748b', strokeWidth: 2 } }; 
           }
           return e;
         })
@@ -160,7 +159,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
 
       const nodeName = node.data.label || node.type.toUpperCase();
       
-      // ✅ 2. Reset เส้นเป็น Default ก่อนเริ่มรัน
       setIncomingEdgesStatus(nodeId, 'default');
 
       const check = validateNodeInput(nodeId, nodesRef.current, edgesRef.current);
@@ -168,10 +166,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
         const cleanMsg = cleanErrorMessage(check.message || '');
         addLog(`[${nodeName}] ❌ Validation: ${cleanMsg}`, 'error', nodeId);
         
-        // Update Status เป็น fault
         setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n)));
         
-        // ✅ 3. ถ้า Validation ไม่ผ่าน ให้เส้นเป็นสีแดง
         setIncomingEdgesStatus(nodeId, 'error');
         return;
       }
@@ -180,7 +176,10 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       await markStartThenRunning(nodeId, node.type.toUpperCase(), setNodes);
 
       try {
-        switch (node.type) {
+        // 🔥🔥 [FIX] แปลงเป็นตัวเล็กเพื่อให้ Switch Case ทำงานถูกต้องไม่ว่าชื่อจะมาแบบไหน
+        const typeKey = node.type.toLowerCase();
+
+        switch (typeKey) {
           case 'image-input': 
              if (!node.data.payload?.url) {
                 throw new Error("No image uploaded yet.");
@@ -201,21 +200,23 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           case 'homography-align': case 'affine-align':
             await runAlignment(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           
+          // --- Classification / Segmentation (Traditional) ---
           case 'otsu':
             await runOtsu(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           
           case 'snake':
             await runSnakeRunner(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           
-          // ✅ Enhancement
+          // --- ✅ Enhancement (รวม Zero-DCE ไว้ที่นี่) ---
           case 'clahe': 
           case 'msrcr': 
           case 'zero': 
-          case 'zerodce': 
+          case 'zerodce':   // ✅ รองรับ zeroDce (ที่เป็น lowercase)
+          case 'zero-dce': 
           case 'zero_dce':
             await runEnhancement(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           
-          // ✅ Restoration
+          // --- ✅ Restoration (Deep Learning) ---
           case 'dcnn': 
           case 'dncnn': 
           case 'swinir': 
@@ -223,7 +224,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           case 'realesrgan': 
             await runRestoration(node as any, setNodes as any, nodesRef.current as any, edgesRef.current as any); break;
           
-          // ✅ Segmentation
+          // --- ✅ Segmentation (Deep Learning) ---
           case 'deep': 
           case 'deeplab': 
           case 'mask': 
@@ -245,14 +246,12 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
         const cleanMsg = cleanErrorMessage(err.message || 'Unknown Error');
         addLog(`[${nodeName}] 💥 Error: ${cleanMsg}`, 'error', nodeId);
         
-        // Update Status เป็น fault
         setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' } } : n)));
         
-        // ✅ 4. ถ้า Error จากการรัน (เช่น Backend Error) ให้เส้นเป็นสีแดง
         setIncomingEdgesStatus(nodeId, 'error');
         throw err;
       }
-    }, [setNodes, addLog, setIncomingEdgesStatus]); // เพิ่ม dependency
+    }, [setNodes, addLog, setIncomingEdgesStatus]);
 
   useFlowHotkeys({ getPastePosition: () => lastMousePosRef.current, runNodeById, undo, redo });
 
@@ -289,8 +288,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       };
       
       const sortedNodes = nodesRef.current.slice().sort((a, b) => {
-            const priorityA = executionPriority[a.type!] || 100;
-            const priorityB = executionPriority[b.type!] || 100;
+            const priorityA = executionPriority[a.type?.toLowerCase() || ''] || 100;
+            const priorityB = executionPriority[b.type?.toLowerCase() || ''] || 100;
             return priorityA - priorityB;
         });
 
@@ -298,7 +297,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
         if (isCanceledRef.current) { addLog('Pipeline stopped by user.', 'warning'); break; }
         if (!node?.id || !node?.type) continue;
 
-        // ข้าม Save Nodes
         if (node.type === 'save-image' || node.type === 'save-json') {
            continue; 
         }

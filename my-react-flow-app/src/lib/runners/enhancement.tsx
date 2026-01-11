@@ -67,6 +67,7 @@ export async function runEnhancement(
   switch (nodeType) {
     case 'clahe': prefix = 'CLAHE'; runner = runCLAHE; break;
     case 'msrcr': prefix = 'MSRCR'; runner = runMSRCR; break;
+    case 'ZeroDCENode':
     case 'zero':
     case 'zerodce': 
     case 'zero_dce': prefix = 'Zero-DCE'; runner = runZeroDCE; break;
