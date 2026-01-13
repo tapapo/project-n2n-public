@@ -1,89 +1,153 @@
-import cv2
+# server/algos/segmentation/MaskRNN.py
 import os
+import sys
 import json
-import numpy as np
+import uuid
 import torch
-from detectron2.engine import DefaultPredictor
-from detectron2.config import get_cfg
-from detectron2 import model_zoo
-from detectron2.utils.visualizer import Visualizer
+import numpy as np
+from PIL import Image
+from torchvision.transforms import ToTensor
+import torchvision
 
-# 1. ตั้งค่า Config และโหลดโมเดลเตรียมไว้ (โหลดครั้งเดียวตอน Start เซิร์ฟเวอร์)
-cfg = get_cfg()
-cfg.merge_from_file(model_zoo.get_config_file(
-    "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
-))
-cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(
-    "COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
-)
+# COCO class names
+COCO_CLASSES = [
+    "__background__", "person", "bicycle", "car", "motorcycle", "airplane", "bus",
+    "train", "truck", "boat", "traffic light", "fire hydrant", "stop sign",
+    "parking meter", "bench", "bird", "cat", "dog", "horse", "sheep", "cow",
+    "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella", "handbag",
+    "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite",
+    "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket",
+    "bottle", "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana",
+    "apple", "sandwich", "orange", "broccoli", "carrot", "hot dog", "pizza",
+    "donut", "cake", "chair", "couch", "potted plant", "bed", "dining table",
+    "toilet", "tv", "laptop", "mouse", "remote", "keyboard", "cell phone",
+    "microwave", "oven", "toaster", "sink", "refrigerator", "book", "clock",
+    "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+]
 
-# ตรวจสอบ Device (ถ้าเป็น Mac M1/M2/M3 Detectron2 อาจยังรองรับ CPU เป็นหลักหรือ MPS บางส่วน)
-cfg.MODEL.DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-# สร้าง Predictor ไว้ระดับ Global
-predictor = DefaultPredictor(cfg)
+# ============================================================
+# Load model
+# ============================================================
 
-def run(image_path, out_root, **kwargs):
-    """
-    Adapter function สำหรับ Mask R-CNN
-    """
-    output_dir = os.path.join(out_root, "segmentation", "maskrcnn_objects")
-    os.makedirs(output_dir, exist_ok=True)
+def load_model(device):
+    model = torchvision.models.detection.maskrcnn_resnet50_fpn(pretrained=True)
+    model.to(device)
+    model.eval()
+    return model
 
-    # 2. อ่านภาพ
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Cannot load image at: {image_path}")
 
-    # 3. Run Inference
-    outputs = predictor(img)
-    instances = outputs["instances"].to("cpu")
+# ============================================================
+# Adapter
+# ============================================================
 
-    boxes = instances.pred_boxes.tensor.numpy()
-    masks = instances.pred_masks.numpy()
-    scores = instances.scores.numpy()
-    classes = instances.pred_classes.numpy()
+def run(image_path: str, out_root: str = ".", model_path: str = None, score_thr=0.5, **params):
 
-    # 4. ประมวลผลและบันทึกภาพวัตถุแต่ละชิ้น
-    object_data = []
-    base_name = os.path.basename(image_path).split('.')[0]
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = load_model(device)
 
-    for i in range(len(masks)):
-        mask = masks[i].astype(np.uint8) * 255
-        masked = cv2.bitwise_and(img, img, mask=mask)
+    if model_path:
+        model.load_state_dict(torch.load(model_path, map_location=device))
 
-        obj_filename = f"{base_name}_obj_{i}.png"
-        obj_path = os.path.join(output_dir, obj_filename)
-        cv2.imwrite(obj_path, masked)
+    img = Image.open(image_path).convert("RGB")
+    img_tensor = ToTensor()(img).to(device)
 
-        object_data.append({
-            "id": i,
-            "class_id": int(classes[i]),
-            "score": float(scores[i]),
-            "bounding_box": boxes[i].tolist(),
-            "mask_path": obj_path
+    with torch.no_grad():
+        pred = model([img_tensor])[0]
+
+    masks = pred["masks"][:, 0]
+    labels = pred["labels"]
+    scores = pred["scores"]
+
+    keep = scores > score_thr
+    masks = masks[keep]
+    labels = labels[keep]
+    scores = scores[keep]
+
+    H, W = img_tensor.shape[1:]
+
+    if len(masks) == 0:
+        combined_mask = torch.zeros((H, W), device=device)
+    else:
+        combined_mask = (masks > 0.5).float().max(dim=0)[0]
+
+    # =============================
+    # Visualization
+    # =============================
+
+    img_np = img_tensor.cpu().numpy().transpose(1, 2, 0)
+    mask_np = combined_mask.cpu().numpy()
+
+    # RGB mask overlay
+    overlay = img_np.copy()
+    overlay[mask_np == 0] = 0
+
+    overlay = (overlay * 255).astype(np.uint8)
+    mask_img = (mask_np * 255).astype(np.uint8)
+
+    # =============================
+    # Build detections list
+    # =============================
+
+    detections = []
+    for i in range(len(labels)):
+        detections.append({
+            "class_id": int(labels[i]),
+            "class_name": COCO_CLASSES[int(labels[i])],
+            "confidence": float(scores[i])
         })
 
-    # 5. สร้างภาพ Visualization (ภาพรวมที่มีเส้นขอบและ Label)
-    v = Visualizer(img[:, :, ::-1], scale=1.0)
-    out_vis = v.draw_instance_predictions(instances)
-    vis_path = os.path.join(output_dir, f"{base_name}_maskrcnn_full.jpg")
-    cv2.imwrite(vis_path, out_vis.get_image()[:, :, ::-1])
+    # =============================
+    # JSON payload
+    # =============================
 
-    # 6. บันทึก JSON
-    result_data = {
-        "segmentation_tool": "Mask R-CNN",
-        "model": "COCO Mask R-CNN R50-FPN",
-        "input_image": image_path,
-        "num_objects": len(object_data),
-        "objects": object_data,
-        "full_vis_image": vis_path
+    payload = {
+        "tool": "MaskRCNN_Segmentation",
+        "tool_version": {
+            "torch": torch.__version__,
+            "python": sys.version.split()[0]
+        },
+        "detections": detections,
+        "image": {
+            "original_path": image_path,
+            "file_name": os.path.basename(image_path),
+            "original_shape": list(img.size[::-1]),
+            "mask_shape": list(mask_img.shape),
+            "segmented_shape": list(overlay.shape)
+        }
     }
-    
-    json_path = os.path.join(output_dir, f"{base_name}_maskrcnn_results.json")
-    with open(json_path, "w") as f:
-        json.dump(result_data, f, indent=4)
 
-    # คืนค่า path สำหรับ Router
-    return json_path, vis_path
+    # =============================
+    # Paths
+    # =============================
+
+    base = os.path.splitext(os.path.basename(image_path))[0]
+    uid = uuid.uuid4().hex[:8]
+    stem = f"{base}_maskrcnn_seg_{uid}"
+
+    out_root_abs = os.path.abspath(out_root or ".")
+    algo_dir = os.path.join(out_root_abs, "features", "maskrcnn_segmentation")
+    os.makedirs(algo_dir, exist_ok=True)
+
+    json_path = os.path.join(algo_dir, stem + ".json")
+    with open(json_path, "w") as f:
+        json.dump(payload, f, indent=4)
+
+    mask_path = os.path.join(algo_dir, stem + "_mask.png")
+    Image.fromarray(mask_img).save(mask_path)
+
+    vis_path = os.path.join(algo_dir, stem + "_segmented.jpg")
+    Image.fromarray(overlay).save(vis_path)
+
+    return os.path.abspath(json_path), os.path.abspath(mask_path), os.path.abspath(vis_path)
+
+
+# ============================================================
+# CLI
+# ============================================================
+
+if __name__ == "__main__":
+    j, m, v = run("your_image.jpg", "./maskrcnn_seg_output")
+    print("JSON:", j)
+    print("Mask:", m)
+    print("Segmented:", v)

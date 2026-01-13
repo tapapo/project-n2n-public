@@ -1,12 +1,18 @@
-// File: src/components/nodes/DeepLabNode.tsx
+// File: src/components/nodes/DEEP.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from "react";
-import { Handle, Position, useReactFlow, type NodeProps, useEdges } from "reactflow";
+import { Handle, Position, type NodeProps, useEdges, useReactFlow } from "reactflow";
 import Modal from "../common/Modal";
 import { abs } from "../../lib/api";
 import type { CustomNodeData } from "../../types";
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus';
 
-/* ---------------- UI helpers ---------------- */
+// --- Constants ---
+const VOC_CLASSES = [
+  "background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat",
+  "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person", "pottedplant",
+  "sheep", "sofa", "train", "tvmonitor"
+];
+
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -17,26 +23,26 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
 );
 
 const DEFAULT_PARAMS = {
-  blend: true,
-  palette: "cityscapes"
+  target_class: 15 // Default to Person
 };
 type Params = typeof DEFAULT_PARAMS;
 
-/* ---------------- Component ---------------- */
+// --- Component ---
 const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
-  const edges = useEdges(); // ✅ ใช้เช็ค Connection
+  const edges = useEdges();
   const [open, setOpen] = useState(false);
-
-  // ✅ เรียกใช้ Hook
+  
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
-
-  // Logic: Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
-  const [form, setForm] = useState<Params>(params);
+  const params = useMemo(() => ({ 
+    ...DEFAULT_PARAMS, 
+    ...(data?.payload?.params || {}) 
+  }), [data?.payload?.params]);
   
+  const [form, setForm] = useState<Params>(params);
+
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
@@ -44,24 +50,34 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
 
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
-      n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } } : n
+      n.id === id ? { 
+        ...n, 
+        data: { 
+          ...n.data, 
+          payload: { 
+            ...(n.data?.payload || {}), 
+            params: { ...form } 
+          } 
+        } 
+      } : n
     ));
     setOpen(false);
   }, [rf, id, form]);
 
+  const handleRun = useCallback(() => {
+    if (!isRunning) data?.onRunNode?.(id);
+  }, [data, id, isRunning]);
+
   const visUrl = data?.payload?.vis_url || data?.payload?.segmented_image;
-  const respJson = data?.payload?.json || data?.payload?.json_data;
-
-  const detectedClasses = respJson?.classes;
-
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
   
-  // Logic Caption (ใช้ isSuccess)
+  const currentClassId = form.target_class;
+  const currentClassName = VOC_CLASSES[currentClassId] || `ID ${currentClassId}`;
+
   const caption = (isSuccess && data?.description) 
     ? data.description 
-    : (displayUrl ? 'Segmentation output' : 'Connect Image Input and run');
+    : (displayUrl ? `Segmented: ${currentClassName}` : `Target: ${currentClassName}`);
 
-  // Style
   let borderColor = 'border-yellow-600';
   if (selected) borderColor = 'border-yellow-400 ring-2 ring-yellow-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -71,20 +87,18 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' 
       : 'bg-white border-yellow-600'
   }`;
-  const sourceHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 bg-white border-yellow-600`;
 
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
-      
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-      <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+      <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-yellow-600" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
       {/* Header */}
       <div className="bg-gray-700 text-yellow-500 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>DeepLabv3+</div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => !isRunning && data?.onRunNode?.(id)}
+            onClick={handleRun}
             disabled={isRunning}
             className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white cursor-pointer ${
                 isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-yellow-600 hover:bg-yellow-500'
@@ -111,16 +125,14 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
       {/* Body */}
       <div className="p-4 space-y-3">
         {displayUrl && (
-          <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
-        )}
-
-        {detectedClasses && detectedClasses.length > 0 && (
-          <div className="text-[10px] text-yellow-400 bg-gray-900/50 p-2 rounded border border-gray-700">
-            <span className="text-gray-500 uppercase font-bold text-[9px] block mb-1">Detected Classes:</span>
-            {detectedClasses.join(", ")}
+          <div className="relative group">
+            <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
+            <div className="absolute bottom-1 right-1 bg-black/60 text-yellow-400 text-[9px] px-1.5 py-0.5 rounded font-mono border border-yellow-500/30">
+                Target: {currentClassName}
+            </div>
           </div>
         )}
-        
+
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
@@ -128,39 +140,36 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
-           {/* ✅ ใช้ isSuccess */}
-           <div className={statusDot(isSuccess, 'bg-green-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          <div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} />
-        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(isSuccess, 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings */}
-      <Modal open={open} title="DeepLab Settings" onClose={handleClose}>
-        <div className="grid grid-cols-1 gap-4 text-xs text-gray-300">
-          <label className="flex items-center gap-3 p-2 bg-gray-900 rounded border border-gray-700 cursor-pointer hover:bg-gray-800 transition">
-            <input 
-              type="checkbox" 
-              className="nodrag w-4 h-4 accent-yellow-500 cursor-pointer"
-              checked={form.blend} 
-              onChange={e => setForm((s: Params) => ({ ...s, blend: e.target.checked }))} 
-            />
-            <span className="uppercase font-bold text-gray-400 text-[10px] tracking-wider">Blend overlay with original image</span>
-          </label>
-
-          <label className="block">
-            <span className="uppercase font-bold text-gray-400 text-[10px] tracking-wider">Color Palette</span>
-            <input 
-              type="text"
-              className="nodrag w-full bg-gray-900 border border-gray-700 rounded p-2 mt-1 outline-none focus:border-yellow-500 text-yellow-500 font-mono"
-              value={form.palette} 
-              onChange={e => setForm((s: Params) => ({ ...s, palette: e.target.value }))} 
-            />
-          </label>
+       {/* Settings Modal */}
+       <Modal open={open} title="Select Target Object" onClose={handleClose}>
+        <div className="grid grid-cols-1 gap-5 text-xs text-gray-300">
+            <div className="space-y-2">
+                <label className="uppercase font-bold text-gray-400 text-[10px] tracking-wider">
+                    Target Class (Pascal VOC)
+                </label>
+                
+                <select 
+                    className="w-full bg-gray-900 border border-gray-600 rounded px-2 py-2 text-yellow-500 outline-none focus:border-yellow-500 cursor-pointer"
+                    value={form.target_class}
+                    onChange={(e) => setForm(s => ({ ...s, target_class: Number(e.target.value) }))}
+                >
+                    {VOC_CLASSES.map((label, index) => (
+                        <option key={index} value={index}>
+                            {index}: {label.charAt(0).toUpperCase() + label.slice(1)}
+                        </option>
+                    ))}
+                </select>
+                
+                <p className="text-[10px] text-gray-500 pt-1">
+                   Selected ID: <span className="font-mono text-yellow-500">{form.target_class}</span> ({VOC_CLASSES[form.target_class]})
+                </p>
+            </div>
         </div>
+
         <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">
           <button onClick={handleClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>
           <button onClick={onSave} className="px-4 py-1.5 rounded bg-yellow-600 text-white text-xs font-bold cursor-pointer hover:bg-yellow-500 transition">Save</button>

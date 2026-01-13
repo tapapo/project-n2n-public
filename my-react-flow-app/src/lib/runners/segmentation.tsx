@@ -5,9 +5,6 @@ import type { Edge } from 'reactflow';
 import type { RFNode, SetNodes } from './utils';
 import type { CustomNodeData } from '../../types';
 
-/**
- * Runner สำหรับกลุ่ม Segmentation (DeepLabv3+, Mask R-CNN, U-Net)
- */
 export async function runSegmentation(
   node: RFNode,
   setNodes: SetNodes,
@@ -20,7 +17,6 @@ export async function runSegmentation(
   // Helper สำหรับดึง Edge ขาเข้า
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
 
-  // ✅ Standard Fail Function
   const fail = async (msg: string) => {
     await updateNodeStatus(nodeId, 'fault', setNodes);
     setNodes((nds: RFNode[]) =>
@@ -30,7 +26,7 @@ export async function runSegmentation(
           : n
       )
     );
-    throw new Error(msg); // หยุดการทำงานทันที
+    throw new Error(msg);
   };
 
   // 1. เช็คการเชื่อมต่อ
@@ -40,14 +36,9 @@ export async function runSegmentation(
   }
 
   const prevNode = nodes.find((n) => n.id === incoming[0].source);
-
-  // 2. เช็ค Bad Sources
   const BAD_SOURCES = [
-    'bfmatcher', 'flannmatcher',     
-    'psnr', 'ssim', 'brisque',       
-    'save-json',                     
-    'otsu', 'snake',
-    'sift', 'surf', 'orb'
+    'bfmatcher', 'flannmatcher', 'psnr', 'ssim', 'brisque',       
+    'save-json', 'otsu', 'snake', 'sift', 'surf', 'orb'
   ];
 
   if (prevNode && BAD_SOURCES.includes(prevNode.type || '')) {
@@ -55,23 +46,24 @@ export async function runSegmentation(
     return fail(`Invalid Input: ${nodeLabel} requires a raw Image source, not a '${tool}' result.`);
   }
 
-  // 3. ค้นหา Path รูปภาพ
+  // 2. ค้นหา Path รูปภาพ
   const imagePath = findInputImage(nodeId, nodes, edges);
-
   if (!imagePath) {
     return fail('No input image found. Please connect and run an Image source.');
   }
 
-  // 4. เลือก Runner ตามประเภทของโหนด
+  // 3. เลือก Runner
   let prefix = '';
   let runner: any;
 
   switch (node.type) {
     case 'deep':
+    case 'deeplab':
       prefix = 'DeepLabv3+';
       runner = runDeepLab;
       break;
     case 'mask':
+    case 'maskrcnn':
       prefix = 'Mask R-CNN';
       runner = runMaskRCNN;
       break;
@@ -83,22 +75,25 @@ export async function runSegmentation(
       return fail(`Unknown Segmentation node type: ${node.type}`);
   }
 
-  // 5. เริ่มสถานะการทำงาน
+  // 4. เริ่มทำงาน
   await markStartThenRunning(nodeId, `Segmenting with ${prefix}...`, setNodes);
 
   try {
-    const params = node.data.payload?.params || {};
-    
-    // 6. เรียกใช้ API
-    const resp = await runner(imagePath, params);
+    // ✅ จุดที่แก้ไข: ดึง model_path ออกมาด้วย
+    const payload = node.data.payload || {};
+    const params = payload.params || {};
+    const modelPath = payload.model_path; // ค่านี้มาจาก Input ใน UNET Node
 
-    // ✅ เพิ่มการเช็ค Error จาก Backend response
+    // 5. เรียก API (ส่ง modelPath ไปเป็นตัวที่ 3)
+    const resp = await runner(imagePath, params, modelPath);
+
     if (resp.detail || resp.status === 'error') {
       const errorMsg = typeof resp.detail === 'string' ? resp.detail : 'Processing failed';
       return fail(errorMsg); 
     }
 
-    // 7. จัดการ URL ของรูปภาพผลลัพธ์
+    // 6. จัดการ URL ผลลัพธ์
+    // รองรับทั้ง vis_url (ใหม่) และ keys เดิม
     const visUrlRaw = resp.vis_url || resp.segmented_image || resp.full_vis_image || resp.output_image;
     
     if (!visUrlRaw) {
@@ -106,8 +101,11 @@ export async function runSegmentation(
     }
 
     const finalVisUrl = abs(visUrlRaw);
+    
+    // ✅ จัดการ Mask URL (ถ้ามี)
+    const maskUrl = resp.mask_url ? abs(resp.mask_url) : undefined;
 
-    // 8. บันทึกข้อมูลกลับลงในโหนด (Success)
+    // 7. บันทึกผลลัพธ์
     setNodes((nds) =>
       nds.map((n) =>
         n.id === nodeId
@@ -119,16 +117,17 @@ export async function runSegmentation(
                 description: `${prefix} completed`,
                 payload: {
                   ...(n.data as CustomNodeData)?.payload,
-                  ...resp, 
+                  ...resp,
                   
-                  // ✅ FIX: ต้องใส่ json: resp เพื่อให้ Save JSON Node ทำงานได้
+                  // เซ็ตค่าให้ครบเพื่อความชัวร์
                   json: resp,
-
                   vis_url: finalVisUrl,
+                  mask_url: maskUrl, // เพิ่ม mask_url ให้ frontend ใช้งาน
+                  
+                  // Fallback keys
                   output_image: finalVisUrl, 
                   result_image_url: finalVisUrl,
                   
-                  // เก็บ json_data เพื่อให้โหนดถัดไปดึงขนาดภาพได้
                   json_data: resp.json_data || resp 
                 },
               } as CustomNodeData,
@@ -138,9 +137,7 @@ export async function runSegmentation(
     );
   } catch (err: any) {
     console.error(`${prefix} Segmentation Error:`, err);
-    
     const rawMsg = err?.message || 'Processing failed';
-
     if (rawMsg.includes(prefix) || rawMsg.includes('Invalid Input')) {
         await fail(rawMsg);
     } else {

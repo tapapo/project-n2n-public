@@ -458,7 +458,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             <div className="flex justify-between items-center pt-5 border-t border-gray-700 mt-4">
                 <button onClick={(e) => { stopAll(e); setForm(DEFAULT_PARAMS); setIsEditing(true); }} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Reset</button>
                 <div className="flex gap-2">
-                    <button onClick={onClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Close</button>
+                    <button onClick={onClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>
                     <button onClick={(e) => { stopAll(e); onSave(); }} className="px-4 py-1.5 rounded bg-pink-600 text-white text-xs font-bold cursor-pointer hover:bg-pink-700 transition">Save</button>
                 </div>
             </div>

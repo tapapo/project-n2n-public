@@ -1,80 +1,112 @@
-import cv2
+# server/algos/segmentation/DeepLabv3.py
+import os
+import sys
+import json
+import uuid
 import torch
 import numpy as np
-import json
-import os
-import torchvision.transforms as T
-from torchvision.models.segmentation import deeplabv3_resnet101, DeepLabV3_ResNet101_Weights
+from PIL import Image
+from torchvision.transforms import ToTensor
+import torchvision
 
-# 1. โหลด Model เตรียมไว้ระดับ Global เพื่อให้เซิร์ฟเวอร์โหลดแค่ครั้งเดียวตอน Start
-device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
+# COCO / Pascal VOC labels for DeepLab
+VOC_CLASSES = [
+    "background","aeroplane","bicycle","bird","boat","bottle","bus","car","cat",
+    "chair","cow","diningtable","dog","horse","motorbike","person","pottedplant",
+    "sheep","sofa","train","tvmonitor"
+]
 
-# ใช้ weights=DeepLabV3_ResNet101_Weights.DEFAULT แทน pretrained=True
-model = deeplabv3_resnet101(weights=DeepLabV3_ResNet101_Weights.DEFAULT)
-model = model.to(device)
-model.eval()
 
-def run(image_path, out_root, **kwargs):
-    """
-    Adapter function สำหรับ DeepLabv3+ เพื่อใช้ใน Pipeline
-    """
-    output_dir = os.path.join(out_root, "segmentation")
-    os.makedirs(output_dir, exist_ok=True)
+# ============================================================
+# Load DeepLabv3+
+# ============================================================
 
-    # 2. อ่านภาพจาก image_path ที่ส่งมาจาก Node ก่อนหน้า
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Cannot load image at: {image_path}")
-    
-    h, w = img.shape[:2]
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+def load_model(device):
+    model = torchvision.models.segmentation.deeplabv3_resnet101(pretrained=True)
+    model.to(device)
+    model.eval()
+    return model
 
-    # 3. Preprocessing
-    transform = T.Compose([
-        T.ToPILImage(),
-        T.Resize((512, 512)),
-        T.ToTensor(),
-        T.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
 
-    input_tensor = transform(img_rgb).unsqueeze(0).to(device)
+# ============================================================
+# Adapter
+# ============================================================
 
-    # 4. Run Inference
+def run(image_path: str, out_root: str=".", model_path: str=None, **params):
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = load_model(device)
+
+    if model_path:
+        model.load_state_dict(torch.load(model_path, map_location=device))
+
+    # Load image
+    img = Image.open(image_path).convert("RGB")
+    img_tensor = ToTensor()(img).unsqueeze(0).to(device)
+
+    # Predict
     with torch.no_grad():
-        output = model(input_tensor)["out"]
+        out = model(img_tensor)["out"][0]
 
-    # 5. Post-processing
-    seg = torch.argmax(output.squeeze(), dim=0).cpu().numpy()
-    seg = cv2.resize(seg, (w, h), interpolation=cv2.INTER_NEAREST)
+    pred = out.argmax(0).cpu().numpy()
 
-    # สร้าง mask (COCO class 37 = sports ball) หรือตามที่ระบุใน params
-    target_class = kwargs.get("target_class", 37) 
-    mask = (seg == target_class).astype(np.uint8) * 255
-    segmented = cv2.bitwise_and(img, img, mask=mask)
+    # Build binary foreground mask (everything except background)
+    mask = (pred != 0).astype(np.uint8)
 
-    # 6. บันทึกไฟล์ผลลัพธ์
-    base_name = os.path.basename(image_path).split('.')[0]
-    mask_path = os.path.join(output_dir, f"{base_name}_mask.png")
-    seg_path = os.path.join(output_dir, f"{base_name}_segmented.png")
+    img_np = img_tensor[0].cpu().numpy().transpose(1,2,0)
+    segmented = img_np * mask[..., None]
 
-    cv2.imwrite(mask_path, mask)
-    cv2.imwrite(seg_path, segmented)
+    segmented = (segmented * 255).astype(np.uint8)
+    mask_img = (mask * 255).astype(np.uint8)
 
-    # 7. บันทึก JSON Metadata
-    result_data = {
-        "segmentation_tool": "DeepLabv3+",
-        "model": "ResNet101 COCO",
-        "target_class_id": target_class,
-        "input_image": image_path,
-        "mask_path": mask_path,
-        "segmented_image": seg_path,
-        "image_size": [w, h],
-        "device": str(device)
+    # Detect which classes appear
+    class_ids = np.unique(pred)
+    classes = [VOC_CLASSES[c] for c in class_ids if c < len(VOC_CLASSES)]
+
+    payload = {
+        "tool": "DeepLabv3+",
+        "tool_version": {
+            "torch": torch.__version__,
+            "python": sys.version.split()[0]
+        },
+        "detected_classes": classes,
+        "image": {
+            "original_path": image_path,
+            "file_name": os.path.basename(image_path),
+            "original_shape": list(img.size[::-1]),
+            "mask_shape": list(mask_img.shape),
+            "segmented_shape": list(segmented.shape)
+        }
     }
-    
-    json_path = os.path.join(output_dir, f"{base_name}_deeplab_results.json")
-    with open(json_path, "w") as f:
-        json.dump(result_data, f, indent=4)
 
-    # คืนค่า path ของไฟล์ที่สร้างขึ้นเพื่อให้ Router ส่งกลับไปที่ Frontend
-    return json_path, seg_path
+    # Paths
+    base = os.path.splitext(os.path.basename(image_path))[0]
+    uid = uuid.uuid4().hex[:8]
+    stem = f"{base}_deeplab_{uid}"
+
+    out_root_abs = os.path.abspath(out_root)
+    algo_dir = os.path.join(out_root_abs, "features", "deeplabv3plus_outputs")
+    os.makedirs(algo_dir, exist_ok=True)
+
+    json_path = os.path.join(algo_dir, stem + ".json")
+    with open(json_path, "w") as f:
+        json.dump(payload, f, indent=4)
+
+    mask_path = os.path.join(algo_dir, stem + "_mask.png")
+    Image.fromarray(mask_img).save(mask_path)
+
+    vis_path = os.path.join(algo_dir, stem + "_segmented.jpg")
+    Image.fromarray(segmented).save(vis_path)
+
+    return os.path.abspath(json_path), os.path.abspath(mask_path), os.path.abspath(vis_path)
+
+
+# ============================================================
+# CLI
+# ============================================================
+
+if __name__ == "__main__":
+    j, m, v = run("your_image.jpg", "./deeplab_output")
+    print("JSON:", j)
+    print("Mask:", m)
+    print("Segmented:", v)

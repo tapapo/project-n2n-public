@@ -191,7 +191,7 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
           </div>
           <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-2">
-            <button onClick={() => setOpen(false)} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Close</button>
+            <button onClick={() => setOpen(false)} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>
             <button onClick={onSave} className="px-4 py-1.5 rounded bg-indigo-600 text-white text-xs font-bold cursor-pointer hover:bg-indigo-500 transition">Save</button>
           </div>
         </div>

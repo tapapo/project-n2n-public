@@ -1,79 +1,161 @@
-import cv2
-import torch
-import numpy as np
-import json
+# server/algos/segmentation/UNEt.py
 import os
 import sys
+import json
+import uuid
+import torch
+import torch.nn as nn
+import numpy as np
+from PIL import Image
+from torchvision.transforms import ToTensor
 
-# 1. โหลดโมเดลเตรียมไว้ระดับ Global
-device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
 
-# โหลดโมเดลจาก torch hub (จะดาวน์โหลดอัตโนมัติในการรันครั้งแรก)
-model = torch.hub.load(
-    "mateuszbuda/brain-segmentation-pytorch",
-    "unet",
-    in_channels=3,
-    out_channels=1,
-    init_features=32,
-    pretrained=True
-)
-model = model.to(device)
-model.eval()
+# ============================================================
+# U-NET (Segmentation)
+# ============================================================
 
-def run(image_path, out_root, **kwargs):
-    """
-    Adapter function สำหรับ U-Net
-    """
-    output_dir = os.path.join(out_root, "segmentation")
-    os.makedirs(output_dir, exist_ok=True)
+class DoubleConv(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, 3, padding=1),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(out_ch, out_ch, 3, padding=1),
+            nn.ReLU(inplace=True)
+        )
 
-    # 2. อ่านภาพ
-    img = cv2.imread(image_path)
-    if img is None:
-        raise ValueError(f"Cannot load image at: {image_path}")
+    def forward(self, x):
+        return self.net(x)
 
-    h, w, _ = img.shape
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    img_norm = img_rgb / 255.0
 
-    # 3. Preprocessing (Resize เป็น 256x256 ตามสเปคโมเดล)
-    img_resized = cv2.resize(img_norm, (256, 256))
-    tensor = torch.from_numpy(img_resized).float().permute(2, 0, 1).unsqueeze(0).to(device)
+class UNet(nn.Module):
+    def __init__(self, in_ch=3, out_ch=1, features=[64, 128, 256, 512]):
+        super().__init__()
 
-    # 4. Run Inference
+        self.downs = nn.ModuleList()
+        self.ups = nn.ModuleList()
+        self.pool = nn.MaxPool2d(2, 2)
+
+        # Encoder
+        ch = in_ch
+        for f in features:
+            self.downs.append(DoubleConv(ch, f))
+            ch = f
+
+        # Bottleneck
+        self.bottleneck = DoubleConv(features[-1], features[-1] * 2)
+
+        # Decoder
+        rev = features[::-1]
+        ch = features[-1] * 2
+        for f in rev:
+            self.ups.append(nn.ConvTranspose2d(ch, f, 2, 2))
+            self.ups.append(DoubleConv(ch, f))
+            ch = f
+
+        self.final = nn.Conv2d(features[0], out_ch, 1)
+
+    def forward(self, x):
+        skips = []
+
+        for down in self.downs:
+            x = down(x)
+            skips.append(x)
+            x = self.pool(x)
+
+        x = self.bottleneck(x)
+        skips = skips[::-1]
+
+        for i in range(0, len(self.ups), 2):
+            x = self.ups[i](x)
+            skip = skips[i // 2]
+
+            if x.shape != skip.shape:
+                x = torch.nn.functional.interpolate(x, size=skip.shape[2:])
+
+            x = torch.cat([skip, x], dim=1)
+            x = self.ups[i + 1](x)
+
+        return self.final(x)
+
+
+# ============================================================
+# Adapter
+# ============================================================
+
+def run(image_path: str, out_root: str = ".", model_path: str = None, threshold=0.5, **params):
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    model = UNet().to(device)
+    if model_path:
+        model.load_state_dict(torch.load(model_path, map_location=device))
+
+    model.eval()
+
+    # Load image
+    img = Image.open(image_path).convert("RGB")
+    img_tensor = ToTensor()(img).unsqueeze(0).to(device)
+
+    # Predict mask
     with torch.no_grad():
-        pred = model(tensor)
+        logits = model(img_tensor)
+        mask = torch.sigmoid(logits)[0, 0]
 
-    mask = torch.sigmoid(pred)[0,0].cpu().numpy()
-    mask = cv2.resize(mask, (w, h))
+    mask_bin = (mask > threshold).float()
 
-    # กำหนดค่า Threshold จากพารามิเตอร์ (ถ้าไม่มีใช้ 0.5)
-    threshold = kwargs.get("threshold", 0.5)
-    binary_mask = (mask > threshold).astype(np.uint8) * 255
+    # Apply mask
+    img_np = img_tensor[0].cpu().numpy().transpose(1, 2, 0)
+    mask_np = mask_bin.cpu().numpy()
+    segmented = img_np * mask_np[..., None]
 
-    # 5. Apply Mask
-    segmented = cv2.bitwise_and(img, img, mask=binary_mask)
+    segmented = (segmented * 255).astype(np.uint8)
+    mask_img = (mask_np * 255).astype(np.uint8)
 
-    # 6. บันทึกผลลัพธ์
-    base_name = os.path.basename(image_path).split('.')[0]
-    mask_path = os.path.join(output_dir, f"{base_name}_unet_mask.png")
-    seg_path = os.path.join(output_dir, f"{base_name}_unet_segmented.png")
-
-    cv2.imwrite(mask_path, binary_mask)
-    cv2.imwrite(seg_path, segmented)
-
-    # 7. บันทึก JSON Metadata
-    result_data = {
-        "segmentation_tool": "U-Net",
-        "model": "mateuszbuda brain-segmentation",
-        "input_image": image_path,
-        "image_size": [w, h],
-        "threshold": threshold,
-        "device": str(device)
+    # JSON payload
+    payload = {
+        "tool": "UNet_Segmentation",
+        "tool_version": {
+            "torch": torch.__version__,
+            "python": sys.version.split()[0]
+        },
+        "image": {
+            "original_path": image_path,
+            "file_name": os.path.basename(image_path),
+            "original_shape": list(img.size[::-1]),
+            "mask_shape": list(mask_img.shape),
+            "segmented_shape": list(segmented.shape)
+        }
     }
-    
-    json_path = os.path.join(output_dir, f"{base_name}_unet_results.json")
-    with open(json_path, "w") as f:
-        json.dump(result_data, f, indent=4)
 
-    return json_path, seg_path
+    # Paths
+    base = os.path.splitext(os.path.basename(image_path))[0]
+    uid = uuid.uuid4().hex[:8]
+    stem = f"{base}_unet_seg_{uid}"
+
+    out_root_abs = os.path.abspath(out_root or ".")
+    algo_dir = os.path.join(out_root_abs, "features", "unet_segmentation")
+    os.makedirs(algo_dir, exist_ok=True)
+
+    json_path = os.path.join(algo_dir, stem + ".json")
+    with open(json_path, "w") as f:
+        json.dump(payload, f, indent=4)
+
+    mask_path = os.path.join(algo_dir, stem + "_mask.png")
+    Image.fromarray(mask_img).save(mask_path)
+
+    vis_path = os.path.join(algo_dir, stem + "_segmented.jpg")
+    Image.fromarray(segmented).save(vis_path)
+
+    return os.path.abspath(json_path), os.path.abspath(mask_path), os.path.abspath(vis_path)
+
+
+# ============================================================
+# CLI
+# ============================================================
+
+if __name__ == "__main__":
+    j, m, v = run("your_image.jpg", "./unet_seg_output", model_path="unet_seg.pth")
+    print("JSON:", j)
+    print("Mask:", m)
+    print("Segmented:", v)

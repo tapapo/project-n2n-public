@@ -1,10 +1,10 @@
 // File: src/components/nodes/UNET.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from "react";
-import { Handle, Position, useReactFlow, type NodeProps, useEdges } from "reactflow";
+import { Handle, Position, type NodeProps, useEdges, useReactFlow } from "reactflow";
 import Modal from "../common/Modal";
-import { abs } from "../../lib/api";
+import { abs, uploadImages } from "../../lib/api"; 
 import type { CustomNodeData } from "../../types";
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus';
 
 /* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
@@ -18,24 +18,25 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
 
 const DEFAULT_PARAMS = {
   threshold: 0.5,
-  blend: true,
-  palette: "default"
+  model_path: "" 
 };
 type Params = typeof DEFAULT_PARAMS;
 
 /* ---------------- Component ---------------- */
 const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
-  const edges = useEdges(); // ✅ ใช้เช็ค Connection
+  const edges = useEdges();
   const [open, setOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
-
-  // Logic: Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
+  const params = useMemo(() => ({ 
+    threshold: data?.payload?.params?.threshold ?? DEFAULT_PARAMS.threshold,
+    model_path: data?.payload?.model_path ?? DEFAULT_PARAMS.model_path 
+  }), [data?.payload]);
+
   const [form, setForm] = useState<Params>(params);
   
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
@@ -45,24 +46,53 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
-      n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } } : n
+      n.id === id ? { 
+        ...n, 
+        data: { 
+          ...n.data, 
+          payload: { 
+            ...(n.data?.payload || {}), 
+            model_path: form.model_path, 
+            params: { 
+                threshold: form.threshold 
+            } 
+          } 
+        } 
+      } : n
     ));
     setOpen(false);
   }, [rf, id, form]);
 
-  const visUrl = data?.payload?.vis_url || data?.payload?.segmented_image;
-  const respJson = data?.payload?.json || data?.payload?.json_data;
+  const handleRun = useCallback(() => {
+    if (!isRunning) data?.onRunNode?.(id);
+  }, [data, id, isRunning]);
 
-  const maskPixels = respJson?.mask_info?.pixels;
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    
+    setUploading(true);
+    try {
+        const res = await uploadImages([file]); 
+        if (res.files && res.files.length > 0) {
+            const uploadedUrl = res.files[0].url;
+            setForm(s => ({ ...s, model_path: uploadedUrl }));
+        }
+    } catch (err) {
+        alert("Upload failed: " + err);
+    } finally {
+        setUploading(false);
+    }
+  };
 
+  const visUrl = data?.payload?.vis_url;
+  const maskUrl = data?.payload?.mask_url;
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
   
-  // Logic Caption (ใช้ isSuccess)
   const caption = (isSuccess && data?.description) 
     ? data.description 
-    : (displayUrl ? 'U-Net segmentation output' : 'Connect Image and run');
+    : (displayUrl ? 'Segmentation complete' : 'Connect Image & Set Model');
 
-  // Style
   let borderColor = 'border-yellow-600';
   if (selected) borderColor = 'border-yellow-400 ring-2 ring-yellow-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -72,26 +102,24 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' 
       : 'bg-white border-yellow-600'
   }`;
-  const sourceHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 bg-white border-yellow-600`;
 
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
       
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-      <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
+      <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-yellow-600" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-yellow-500 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
-        <div>U-Net</div>
+        <div>U-Net (Custom)</div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => !isRunning && data?.onRunNode?.(id)}
+            onClick={handleRun}
             disabled={isRunning}
             className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white cursor-pointer ${
                 isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-yellow-600 hover:bg-yellow-500'
             }`}
           >
-            {isRunning ? 'Running' : '▶ Run'}
+            {isRunning ? 'Running...' : '▶ Run'}
           </button>
           
           <span className="relative inline-flex items-center group">
@@ -109,39 +137,57 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
         {displayUrl && (
           <div className="relative group">
             <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
-            {maskPixels && (
-                <div className="absolute top-2 right-2 bg-black/60 px-2 py-0.5 rounded text-[9px] font-mono text-yellow-400 border border-yellow-600/50">
-                    Pixels: {maskPixels}
+            {maskUrl && (
+                <div className="absolute top-2 right-2 w-8 h-8 border border-yellow-500/50 rounded overflow-hidden bg-black/50 hover:w-24 hover:h-24 hover:scale-110 transition-all duration-200 z-10 cursor-help shadow-lg">
+                    <img src={abs(maskUrl)} className="w-full h-full object-cover opacity-90" title="Mask Output" />
                 </div>
             )}
           </div>
         )}
         
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
+        
+        {params.model_path && (
+            <div className="text-[9px] text-gray-500 font-mono truncate px-1 border-t border-gray-700 pt-1 mt-1">
+                Model: <span className="text-yellow-600">{params.model_path.split(/[/\\]/).pop()}</span>
+            </div>
+        )}
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
-           {/* ✅ ใช้ isSuccess */}
-           <div className={statusDot(isSuccess, 'bg-green-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          <div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} />
-        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(isSuccess, 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings */}
       <Modal open={open} title="U-Net Settings" onClose={handleClose}>
         <div className="grid grid-cols-1 gap-5 text-xs text-gray-300">
+          
+          <div className="space-y-2">
+             <label className="uppercase font-bold text-gray-400 text-[10px] tracking-wider">Model Path (.pth)</label>
+             
+             <label className={`flex items-center justify-center px-4 py-2 border border-gray-600 border-dashed rounded cursor-pointer hover:bg-gray-800 transition ${uploading ? 'opacity-50' : ''}`}>
+                <span className="text-yellow-500 font-bold">
+                    {uploading ? 'Uploading...' : '📂 Upload .pth File'}
+                </span>
+                <input type="file" accept=".pth,.pt" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+             </label>
+
+             <input 
+               type="text" 
+               placeholder="e.g., weights/unet_car.pth"
+               className="nodrag w-full bg-gray-900 border border-gray-700 rounded px-2 py-2 text-yellow-500 font-mono text-[10px] outline-none"
+               value={form.model_path}
+               onChange={(e) => setForm(s => ({ ...s, model_path: e.target.value }))}
+             />
+             <p className="text-[9px] text-gray-500">* Uploaded files are handled automatically.</p>
+          </div>
+
           <div className="space-y-4">
             <div className="flex justify-between items-center">
               <label className="uppercase font-bold text-gray-400 text-[10px] tracking-wider">Binary Threshold</label>
@@ -149,36 +195,16 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                 type="number" step="0.01" min="0" max="1.0"
                 className="nodrag w-16 bg-gray-900 border border-gray-700 rounded px-2 py-1 text-yellow-500 font-mono text-right outline-none focus:border-yellow-500"
                 value={form.threshold}
-                onChange={(e) => setForm((s: Params) => ({ ...s, threshold: Number(e.target.value) }))}
+                onChange={(e) => setForm(s => ({ ...s, threshold: Number(e.target.value) }))}
               />
             </div>
             <input 
               type="range" step="0.01" min="0" max="1.0" 
               className="nodrag nopan w-full h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-500" 
               value={form.threshold} 
-              onChange={(e) => setForm((s: Params) => ({ ...s, threshold: Number(e.target.value) }))} 
+              onChange={(e) => setForm(s => ({ ...s, threshold: Number(e.target.value) }))} 
             />
           </div>
-
-          <label className="block">
-            <span className="uppercase font-bold text-gray-400 text-[10px] tracking-wider">Color Palette</span>
-            <input 
-              type="text"
-              className="nodrag w-full bg-gray-900 border border-gray-700 rounded p-2 mt-1 outline-none focus:border-yellow-500 text-yellow-500 font-mono"
-              value={form.palette} 
-              onChange={e => setForm((s: Params) => ({ ...s, palette: e.target.value }))} 
-            />
-          </label>
-
-          <label className="flex items-center justify-between p-3 bg-gray-900 rounded border border-gray-700 cursor-pointer hover:bg-gray-800 transition">
-            <span className="uppercase font-bold text-gray-400 text-[10px] tracking-wider">Blend overlay output</span>
-            <input 
-              type="checkbox" 
-              className="nodrag w-4 h-4 accent-yellow-500 cursor-pointer"
-              checked={form.blend} 
-              onChange={e => setForm((s: Params) => ({ ...s, blend: e.target.checked }))} 
-            />
-          </label>
         </div>
 
         <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">

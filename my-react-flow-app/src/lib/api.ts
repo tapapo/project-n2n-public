@@ -172,7 +172,7 @@ export async function runSsim(originalPath: string, processedPath: string, param
   return handleResponse(resp);
 }
 
-// ---------- 6. Segmentation & Classification ----------
+// ---------- 6.Classification ----------
 export async function runSnake(req: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/classify/snake`, {
     method: "POST",
@@ -193,37 +193,41 @@ export async function runOtsuClassification(image_path: string, params?: any, si
     return handleResponse(resp);
 }
 
-export async function runDeepLab(image_path: string, params?: any, signal?: AbortSignal) {
+// ---------- 7. Segmentation ----------
+
+export async function runDeepLab(image_path: string, params?: any, model_path?: string, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/segmentation/deeplab`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image_path, params }),
+    body: JSON.stringify({ image_path, params, model_path }), 
     signal,
   });
   return handleResponse(resp);
 }
 
-export async function runUNET(image_path: string, params?: any, signal?: AbortSignal) {
+
+export async function runUNET(image_path: string, params?: any, model_path?: string, signal?: AbortSignal) {
     const resp = await fetch(`${API_BASE}/api/segmentation/unet`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image_path, params }),
+      body: JSON.stringify({ image_path, params, model_path }), 
       signal,
     });
     return handleResponse(resp);
 }
 
-export async function runMaskRCNN(image_path: string, params?: any, signal?: AbortSignal) {
-  const resp = await fetch(`${API_BASE}/api/segmentation/mask_rcnn`, {
+
+export async function runMaskRCNN(image_path: string, params?: any, model_path?: string, signal?: AbortSignal) {
+  const resp = await fetch(`${API_BASE}/api/segmentation/maskrcnn`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image_path, params }),
+    body: JSON.stringify({ image_path, params, model_path }),
     signal,
   });
   return handleResponse(resp);
 }
 
-// ---------- 7. Restoration ----------
+// ---------- 8. Restoration ----------
 export async function runDncnn(image_path: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/restoration/dncnn`, {
     method: "POST",
