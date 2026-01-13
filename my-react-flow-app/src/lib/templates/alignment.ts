@@ -1,6 +1,8 @@
-// File: my-react-flow-app/src/lib/templates/alignment.ts
+// src/lib/templates/alignment.ts
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
+
+
 
 // Input Images
 const IMG_1_URL = '/static/samples/1.png';
@@ -20,6 +22,8 @@ const FLANN_VIS  = '/static/samples/json/matching/flann_sift_vis.jpg';
 // Alignment Result (Homography)
 const HOMO_JSON = '/static/samples/json/alignment/homo_sift.json';
 const HOMO_IMG  = '/static/samples/json/alignment/homo_sift.jpg';
+
+
 
 export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
   name: 'Homography Estimation',
@@ -44,7 +48,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n1-ref",
       type: "image-input",
-      position: { x: 50, y: 10.8 },
+      position: { x: 50, y: 87.5 },
       data: {
         label: "Image Input (Reference)",
         status: "success",
@@ -76,7 +80,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n2-target",
       type: "image-input",
-      position: { x: 50, y: 560 },
+      position: { x: 50, y: 589.3 },
       data: {
         label: "Image Input (Target)",
         status: "success",
@@ -88,7 +92,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n4-sift-target",
       type: "sift",
-      position: { x: 450, y: 596.8 },
+      position: { x: 450, y: 550 },
       data: {
         label: "SIFT Feature (Target)",
         status: "success",
@@ -115,7 +119,6 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
         description: "28 inliers / 30 good matches",
         payload: {
           params: { lowe_ratio: 0.4, ransac_thresh: 5, draw_mode: "good", index_params: "AUTO", search_params: "AUTO" },
-          result_image_url: FLANN_VIS,
           vis_url: FLANN_VIS,
           json_path: FLANN_JSON,
           json_url: FLANN_JSON,
@@ -133,7 +136,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n6-homo",
       type: "homography-align",
-      position: { x: 1250, y: 338.65 },
+      position: { x: 1250, y: 343.9 },
       data: {
         label: "Homography Warp",
         status: "success",
@@ -152,7 +155,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n7-save-img",
       type: "save-image",
-      position: { x: 1650, y: 390 },
+      position: { x: 1650, y: 400 },
       data: { label: "Save Result", status: "idle" }
     },
     {

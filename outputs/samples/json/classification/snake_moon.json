@@ -5,7 +5,7 @@
     "opencv": "4.8.0"
   },
   "input_image": {
-    "path": "noise.jpg",
+    "path": "/Users/pop/Desktop/project_n2n/outputs/uploads/0b1aec1f554f4863b6f4e2bd47c78261.jpg",
     "shape": [
       570,
       600
@@ -1638,12 +1638,12 @@
         281.4904479980469
       ]
     ],
-    "mask_path": "snake_mask.png",
-    "overlay_path": "snake_overlay.png",
+    "mask_path": "/Users/pop/Desktop/project_n2n/outputs/features/snake_outputs/snake_0b1aec1f554f4863b6f4e2bd47c78261_db354f35_mask.png",
+    "overlay_path": "/Users/pop/Desktop/project_n2n/outputs/features/snake_outputs/snake_0b1aec1f554f4863b6f4e2bd47c78261_db354f35_overlay.png",
     "iterations": 250,
-    "overlay_url": "snake_overlay.png",
-    "mask_url": "snake_mask.png",
-    "result_image_url": "snake_overlay.png"
+    "overlay_url": "/static/features/snake_outputs/snake_0b1aec1f554f4863b6f4e2bd47c78261_db354f35_overlay.png",
+    "mask_url": "/static/features/snake_outputs/snake_0b1aec1f554f4863b6f4e2bd47c78261_db354f35_mask.png",
+    "result_image_url": "/static/features/snake_outputs/snake_0b1aec1f554f4863b6f4e2bd47c78261_db354f35_overlay.png"
   },
   "warning": null
 }

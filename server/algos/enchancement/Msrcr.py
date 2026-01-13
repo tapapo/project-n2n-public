@@ -1,3 +1,4 @@
+# server/algos/feature/msrcr_adapter.py
 import os
 import sys
 import json
@@ -31,16 +32,10 @@ def msrcr(img, sigma_list=(15, 80, 250), G=5, b=25, alpha=125, beta=46):
 
 def run(image_path: str, out_root: str = ".", **params):
     img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-    
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
-
-    
-    if img.ndim == 3 and img.shape[2] == 4:
-        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-
     if img.ndim != 3 or img.shape[2] != 3:
-        raise ValueError(f"MSRCR requires a BGR color image")
+        raise ValueError("MSRCR requires a BGR color image")
 
     # Parameters
     sigma_list = params.get("sigma_list", (15, 80, 250))
@@ -58,7 +53,7 @@ def run(image_path: str, out_root: str = ".", **params):
         "image": {
             "original_path": image_path,
             "file_name": os.path.basename(image_path),
-            "original_shape": list(img.shape), # บันทึก Shape ที่ใช้คำนวณจริง (3 channels)
+            "original_shape": list(img.shape),
             "enhanced_shape": list(enhanced.shape),
             "dtype": str(enhanced.dtype)
         },

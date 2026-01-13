@@ -21,6 +21,7 @@ export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   
   //  TAB MANAGEMENT STATE
+  
   const [tabs, setTabs] = useState<WorkflowTab[]>(() => {
     try {
       const savedTabs = localStorage.getItem(STORAGE_KEY_APP_TABS);
@@ -46,6 +47,7 @@ export default function App() {
   const canvasRef = useRef<FlowCanvasHandle>(null);
 
   //  AUTO-SAVE EFFECTS
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY_APP_TABS, JSON.stringify(tabs));
@@ -70,6 +72,7 @@ export default function App() {
   }, []); 
 
   //  TAB LOGIC HANDLERS
+
   const syncCanvasToCurrentTab = useCallback(() => {
     if (!canvasRef.current) return;
     const snapshot = canvasRef.current.getSnapshot();
@@ -180,23 +183,17 @@ export default function App() {
     );
   };
 
-  const handleStart = useCallback(() => setIsRunning(true), []);
-  
-  // 🔥🔥🔥 [แก้ตรงนี้] ใช้ useCallback หุ้ม เพื่อไม่ให้ฟังก์ชันเปลี่ยน Address ทุกครั้งที่ render 🔥🔥🔥
-  const handleStop = useCallback(() => {
-    setIsRunning(false);
-  }, []);
+  const handleStart = () => setIsRunning(true);
+  const handleStop = () => setIsRunning(false);
 
+  // หาชื่อ Tab ปัจจุบันเพื่อส่งลงไป
   const activeTabName = tabs.find(t => t.id === activeTabId)?.name || 'Untitled';
 
   return (
-    <div className="w-screen h-[100dvh] flex flex-col bg-gray-900 text-white overflow-hidden">
-      
-      <div className="relative z-30 bg-gray-900 shadow-lg border-b-2 border-teal-500 flex items-center justify-center p-3">
-        <h1 className="text-2xl md:text-4xl font-extrabold text-teal-400 tracking-wide drop-shadow-md">
-          N2N Image Processing
-        </h1>
-      </div>
+    <div className="w-screen h-screen flex flex-col bg-gray-900 text-white overflow-hidden">
+      <h1 className="text-4xl font-extrabold p-3 text-center text-teal-400 border-b-2 border-teal-500 shadow-lg bg-gray-900 z-20">
+        N2N Image Processing
+      </h1>
 
       <WorkflowControls isRunning={isRunning} onStart={handleStart} onStop={handleStop} />
 
@@ -217,7 +214,7 @@ export default function App() {
             <FlowCanvas
               ref={canvasRef}
               isRunning={isRunning}
-              onPipelineDone={handleStop} // ตอนนี้ handleStop ถูก memoize แล้ว จะไม่กระตุ้น useEffect ใน FlowCanvas ซ้ำๆ
+              onPipelineDone={handleStop}
               onFlowChange={handleFlowChange}
               currentTabName={activeTabName} 
             />

@@ -1,20 +1,12 @@
-// File: src/components/nodes/SnakeNode.tsx
+// project_n2n/my-react-flow-app/src/components/nodes/SnakeNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
 import { getNodeImageUrl } from '../../lib/runners/utils';
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
-const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
-  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
-    <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
-      <path d="M3 7h18" /><circle cx="9" cy="7" r="3.4" fill="white" />
-      <path d="M3 17h18" /><circle cx="15" cy="17" r="3.4" fill="white" />
-    </g>
-  </svg>
-);
+const dot = (active: boolean, cls: string) => `h-4 w-4 rounded-full ${active ? cls : 'bg-gray-600'} flex-shrink-0`;
 
 const stopAll = (e: React.SyntheticEvent) => e.stopPropagation();
 const stopKeys: React.KeyboardEventHandler<HTMLInputElement | HTMLSelectElement> = (e) => {
@@ -60,13 +52,13 @@ const toFloat = (v: any, fallback: number) => {
 interface NumProps { label: string; value: Numish; onChange: (v: Numish) => void; step?: number; min?: number; max?: number; }
 const Num = ({ label, value, onChange, step = 1, min, max }: NumProps) => (
   <label className="block">
-    <span className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">{label}</span>
+    {label}
     <input
       type="number"
       step={step}
       {...(min !== undefined ? { min } : {})}
       {...(max !== undefined ? { max } : {})}
-      className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-pink-400 font-mono outline-none focus:border-pink-500"
+      className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
       value={value ?? ''}
       onChange={(e) => { const raw = e.target.value; if (raw === '') onChange(''); else onChange(raw); }}
       onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll} onKeyDown={stopKeys}
@@ -77,9 +69,9 @@ const Num = ({ label, value, onChange, step = 1, min, max }: NumProps) => (
 interface SelectProps { label: string; value: string; onChange: (v: string) => void; options: { label: string; value: string }[]; }
 const Select = ({ label, value, onChange, options }: SelectProps) => (
   <label className="block">
-    <span className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">{label}</span>
+    {label}
     <select
-      className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-pink-400 font-mono outline-none focus:border-pink-500"
+      className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100"
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll} onKeyDown={stopKeys}
@@ -106,9 +98,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const [open, setOpen] = useState(false);
   const [showAdv, setShowAdv] = useState(false);
   
-  // ✅ เรียกใช้ Hook
-  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
-
   // Interactive State
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgSize, setImgSize] = useState<{w: number, h: number} | null>(null);
@@ -118,14 +107,13 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   
   const [isEditing, setIsEditing] = useState(true);
 
-  // ปรับ Logic isEditing: ถ้า Success แล้ว (จากการรันหรือ Copy) ให้หยุด Edit
   useEffect(() => {
-    if (isSuccess) {
+    if (data?.status === 'success') {
       setIsEditing(false);
-    } else if (isFault || data?.status === 'idle') {
+    } else if (data?.status === 'fault' || data?.status === 'idle') {
       setIsEditing(true);
     }
-  }, [isSuccess, isFault, data?.status]);
+  }, [data?.status]);
 
   const upstreamImage = useMemo(() => {
     const incoming = edges.find(e => e.target === id);
@@ -163,6 +151,9 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       }
   }, [savedParams]);
 
+  const isRunning = data?.status === 'start' || data?.status === 'running';
+  const isFault = data?.status === 'fault';
+
   const onRun = useCallback(() => { if (!isRunning) data?.onRunNode?.(id); }, [data, id, isRunning]);
   const onClose = () => { setForm(savedParams); setOpen(false); };
 
@@ -193,7 +184,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   
   const rawUrl = (!isEditing && resultImage) ? resultImage : upstreamImage;
 
-  const displayImage = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
+  const displayImage = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined; // ✅ Cache Busting URL
 
   const iterText = resp?.iterations ?? data?.payload?.iterations;
 
@@ -202,12 +193,11 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       statusText = 'Connect Image Input and run';
   } else {
       statusText = `Mode: ${form.init_mode}`;
-      if (iterText && isSuccess) {
+      if (iterText) {
           statusText += ` • Done (${iterText} iters)`;
       }
   }
 
-  // Style
   let borderColor = 'border-pink-500';
   if (selected) borderColor = 'border-pink-400 ring-2 ring-pink-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -319,32 +309,13 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
-      <div className="bg-gray-700 text-pink-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
-        <div>Snake</div>
-        <div className="flex items-center gap-2">
-            <button 
-              onClick={onRun} 
-              disabled={isRunning} 
-              className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white ${
-                isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-pink-600 hover:bg-pink-700'
-              }`}
-            >
-              {isRunning ? 'Running...' : '▶ Run'}
-            </button>
-            
+      <div className="bg-gray-700 text-pink-400 rounded-t-xl px-3 py-2 flex items-center justify-between">
+        <div className="font-bold mr-2">Snake</div>
+        <div className="flex items-center gap-3">
+            <button onClick={onRun} disabled={isRunning} className={['ml-1 px-3 py-1 rounded text-xs font-semibold transition-colors', isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-pink-600 hover:bg-pink-700 text-white'].join(' ')}>▶ Run</button>
             <span className="relative inline-flex items-center group">
-            <button 
-              aria-label="Open Snake settings" 
-              onClick={() => setOpen(true)} 
-              className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80 transition focus:outline-none"
-            >
-              <SettingsSlidersIcon className="h-3.5 w-3.5" />
-            </button>
-            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
-              Settings
-              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-            </span>
+            <button aria-label="Open Snake settings" onClick={() => setOpen(true)} className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80" title="Settings"><svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="black"><g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}><path d="M3 7h18" /><circle cx="9" cy="7" r="3.4" fill="white" /><path d="M3 17h18" /><circle cx="15" cy="17" r="3.4" fill="white" /></g></svg></button>
+            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 shadow-lg transition-opacity duration-200">Settings<span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" /></span>
             </span>
         </div>
       </div>
@@ -406,22 +377,17 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         {displayImage && isEditing && form.init_mode === 'bbox' && <div className="text-[10px] text-gray-400 text-center mt-1">Drag to draw bounding box</div>}
       </div>
 
-      {/* Status Table */}
-      <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
-           {/* ✅ ใช้ isSuccess */}
-           <div className={statusDot(isSuccess, 'bg-green-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+      <div className="border-t-2 border-gray-700 p-2 text-sm">
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={dot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={dot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={dot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={dot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
       <Modal open={open} title="Snake Settings" onClose={onClose}>
-         {/* ... Settings Code (เหมือนเดิม) ... */}
-         <div className="space-y-5 text-xs text-gray-300 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar" onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll}>
+         <div className="space-y-5 text-xs text-gray-300" onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll}>
             <div className="space-y-2">
-                <div className="font-semibold text-pink-300 uppercase text-[10px] tracking-wider mb-2">Core Parameters</div>
+                <div className="font-semibold text-pink-300">Core</div>
                 <div className="grid grid-cols-2 gap-2">
                     <Num label="alpha" value={form.alpha} step={0.01} onChange={(v) => setForm((s) => ({ ...s, alpha: v }))} />
                     <Num label="beta" value={form.beta} step={0.1} onChange={(v) => setForm((s) => ({ ...s, beta: v }))} />
@@ -433,13 +399,13 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                 </div>
             </div>
             
-            <div className="space-y-2 border-t border-gray-700 pt-2">
-                <button className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-[10px] uppercase font-bold tracking-wider" onClick={(e) => { stopAll(e); setShowAdv((s) => !s); }}>{showAdv ? '▾ Advanced (hide)' : '▸ Advanced (show)'}</button>
+            <div className="space-y-2">
+                <button className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600" onClick={(e) => { stopAll(e); setShowAdv((s) => !s); }}>{showAdv ? '▾ Advanced (hide)' : '▸ Advanced (show)'}</button>
                 {showAdv && (
-                    <div className="space-y-4 pt-2">
+                    <div className="space-y-4">
                         <div className="grid grid-cols-3 gap-2"><Num label="convergence" value={form.convergence} min={0} step={0.0001} onChange={(v) => setForm((s) => ({ ...s, convergence: v }))} /></div>
                         <div className="space-y-2">
-                            <div className="font-semibold text-pink-300 uppercase text-[10px] tracking-wider mb-2">Init</div>
+                            <div className="font-semibold text-pink-300">Init</div>
                             <Select label="Init mode" value={form.init_mode} onChange={(v) => { 
                                 const newMode = v as InitMode;
                                 setForm(s => ({ ...s, init_mode: newMode }));
@@ -454,13 +420,9 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                     </div>
                 )}
             </div>
-
-            <div className="flex justify-between items-center pt-5 border-t border-gray-700 mt-4">
-                <button onClick={(e) => { stopAll(e); setForm(DEFAULT_PARAMS); setIsEditing(true); }} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Reset</button>
-                <div className="flex gap-2">
-                    <button onClick={onClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Close</button>
-                    <button onClick={(e) => { stopAll(e); onSave(); }} className="px-4 py-1.5 rounded bg-pink-600 text-white text-xs font-bold cursor-pointer hover:bg-pink-700 transition">Save</button>
-                </div>
+            <div className="flex justify-between items-center pt-1">
+                <button onClick={(e) => { stopAll(e); setForm(DEFAULT_PARAMS); setIsEditing(true); }} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">Reset</button>
+                <div className="flex gap-2"><button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">Close</button><button onClick={(e) => { stopAll(e); onSave(); }} className="px-3 py-1 rounded bg-pink-600 text-white hover:bg-pink-700">Save</button></div>
             </div>
          </div>
       </Modal>

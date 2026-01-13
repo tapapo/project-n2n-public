@@ -26,7 +26,7 @@ Similar algorithms in this category include SURF (faster version) and ORB (effic
     {
       id: 'n1-img1',
       type: 'image-input',
-      position: { x: 50, y: 10.8 },
+      position: { x: 50, y: 87.5 },
       data: {
         label: 'Input Image 1',
         status: 'success',
@@ -65,7 +65,7 @@ Similar algorithms in this category include SURF (faster version) and ORB (effic
     {
       id: 'n3-save',
       type: 'save-json',
-      position: { x: 850, y: 199.3 },
+      position: { x: 850, y: 210.8 },
       data: {
         label: 'Save Keypoints',
         status: 'idle'

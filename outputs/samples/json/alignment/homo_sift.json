@@ -21,12 +21,12 @@
     ]
   ],
   "output": {
-    "aligned_image": "homo_sift.jpg",
-    "aligned_url": "homo_sift.jpg",
-    "result_image_url": "homo_sift.jpg"
+    "aligned_image": "/Users/pop/Desktop/project_n2n/outputs/features/homography_outputs/homo_flann_54036ade_371d97d5.jpg",
+    "aligned_url": "/static/features/homography_outputs/homo_flann_54036ade_371d97d5.jpg",
+    "result_image_url": "/static/features/homography_outputs/homo_flann_54036ade_371d97d5.jpg"
   },
   "parameters_hash": {
-    "match_json": "flann_sift.json",
+    "match_json": "flann_54036ade.json",
     "warp": "image2_to_image1",
     "blend": true
   }

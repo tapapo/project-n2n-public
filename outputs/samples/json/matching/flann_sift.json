@@ -23,14 +23,14 @@
   },
   "input_features_details": {
     "image1": {
-      "original_path": "1.png",  
-      "file_name": "1.png",
+      "original_path": "/Users/pop/Desktop/project_n2n/outputs/uploads/fe537a2f74344c74ba9355183c315987.png",
+      "file_name": "fe537a2f74344c74ba9355183c315987.png",
       "feature_tool": "SIFT",
       "num_keypoints": 500
     },
     "image2": {
-      "original_path": "2.png",
-      "file_name": "2.png",
+      "original_path": "/Users/pop/Desktop/project_n2n/outputs/uploads/f4964d93212e497b98106975a5b4ac5d.png",
+      "file_name": "f4964d93212e497b98106975a5b4ac5d.png",
       "feature_tool": "SIFT",
       "num_keypoints": 89
     }
@@ -44,11 +44,11 @@
     "image2": {
       "width": 310,
       "height": 240,
-      "channels": 3
+      "channels": 4
     }
   },
   "matching_statistics": {
-    "num_raw_matches": 89,
+    "num_raw_matches": 500,
     "num_good_matches": 30,
     "num_inliers": 28,
     "summary": "28 inliers / 30 good matches (FLANN)",
@@ -633,10 +633,10 @@
       "inlier": true
     }
   ],
-  "vis_url": "flann_sift_vis.jpg",
+  "vis_url": "/static/features/flannmatcher_outputs/flann_54036ade_vis.jpg",
   "parameters_hash": {
-    "json1": "sift_1.json",
-    "json2": "sift_2.json",
+    "json1": "sift_fe537a2f74344c74ba9355183c315987_f72fdb78.json",
+    "json2": "sift_f4964d93212e497b98106975a5b4ac5d_5d07fa0d.json",
     "index": {
       "algorithm": 1,
       "trees": 5

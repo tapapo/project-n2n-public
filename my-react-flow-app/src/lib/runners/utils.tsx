@@ -1,4 +1,4 @@
-// File: my-react-flow-app/src/lib/runners/utils.tsx
+//src/lib/runners/utils.tsx
 import { abs } from '../api';
 import type { Dispatch, SetStateAction, MutableRefObject } from 'react';
 import type { Node, Edge } from 'reactflow';
@@ -6,6 +6,7 @@ import type { CustomNodeData, NodeStatus } from '../../types';
 
 export type RFNode = Node<CustomNodeData>;
 export type SetNodes = Dispatch<SetStateAction<RFNode[]>>;
+
 
 export async function markStartThenRunning(
   nodeId: string,
@@ -31,6 +32,7 @@ export async function markStartThenRunning(
   );
 }
 
+
 export async function updateNodeStatus(
   nodeId: string,
   status: NodeStatus,
@@ -47,57 +49,41 @@ export async function updateNodeStatus(
   await new Promise((r) => setTimeout(r, 50));
 }
 
-// ✅ [CORE FIX] ฟังก์ชันค้นหา Path รูปภาพจาก Node ก่อนหน้า
+
 export function findInputImage(
   nodeId: string, 
   nodes: RFNode[], 
   edges: Edge[]
 ): string | undefined {
-  const incoming = edges.find(e => e.target === nodeId && e.source !== nodeId);
+  const incoming = edges.find(e => e.target === nodeId);
   if (!incoming) return undefined;
 
   const parent = nodes.find(n => n.id === incoming.source);
   if (!parent || !parent.data) return undefined;
 
-  const p = (parent.data.payload || parent.data.output) as any;
-  if (!p) return undefined;
+  const data = parent.data.payload || parent.data.output;
+  if (!data) return undefined;
   
-  // 1. System Path (Uploads / Generated Files) - สำคัญที่สุด
-  if (typeof p.path === 'string') return p.path; 
-  if (typeof p.aligned_path === 'string') return p.aligned_path;
-  if (typeof p.image_path === 'string') return p.image_path;
-  if (typeof p.output_path === 'string') return p.output_path;
+  if (typeof data === 'string') return data;
 
-  // 2. ✅ FIX PRIORITY: เช็ค URL ที่เป็น Static หรือ HTTP ก่อน Name!
-  // เพื่อรองรับ Template Images ที่เป็น /static/samples/...
-  if (typeof p.url === 'string' && (p.url.startsWith('/static') || p.url.startsWith('http'))) {
-      return p.url;
+  if (typeof data === 'object') {
+     if (['homography-align', 'affine-align'].includes(parent.type || '')) {
+        return (data as any).aligned_url || (data as any).url;
+     }
+     
+     return (data as any).url || 
+            (data as any).aligned_url || 
+            (data as any).path || 
+            (data as any).image_path ||
+            (data as any).saved_path || 
+            (data as any).vis_url || 
+            (data as any).binary_url || 
+            (data as any).result_image_url || 
+            undefined;
   }
-  if (typeof p.vis_url === 'string' && (p.vis_url.startsWith('/static') || p.vis_url.startsWith('http'))) {
-      return p.vis_url;
-  }
-  if (typeof p.result_image_url === 'string' && (p.result_image_url.startsWith('/static') || p.result_image_url.startsWith('http'))) {
-      return p.result_image_url;
-  }
-
-  // 3. Name (Fallback) - ใช้เฉพาะถ้าไม่มี Path และ URL ปกติ
-  if (typeof p.name === 'string' && !p.url?.startsWith('blob:')) {
-      return p.name; 
-  }
-
-  // 4. Fallback อื่นๆ
-  if (typeof p.output_image === 'string') return p.output_image;
-  if (typeof p.vis_url === 'string') return p.vis_url;
-  if (typeof p.url === 'string') return p.url; 
-  if (typeof p.aligned_url === 'string') return p.aligned_url;
-
-  if (p.output) {
-     if (typeof p.output.aligned_image === 'string') return p.output.aligned_image;
-     if (typeof p.output.aligned_path === 'string') return p.output.aligned_path;
-  }
-
   return undefined;
 }
+
 
 export async function fetchFileFromUrl(url: string, filename: string): Promise<File> {
   if (!url) throw new Error('Missing URL');
@@ -107,6 +93,7 @@ export async function fetchFileFromUrl(url: string, filename: string): Promise<F
   return new File([blob], filename, { type: blob.type || 'image/jpeg' });
 }
 
+
 export function getNodeImageUrl(n?: RFNode): string | undefined {
   if (!n) return undefined;
   const normalize = (u?: string) => u ? (/^(https?:|blob:|data:)/i.test(u) ? u : abs(u)) : undefined;
@@ -114,20 +101,21 @@ export function getNodeImageUrl(n?: RFNode): string | undefined {
   const p = n.data?.payload as any;
 
   if (n.type === 'image-input') {
-    return normalize(p?.result_image_url) ?? normalize(p?.url) ?? normalize(p?.preview_url);
+    return normalize(p?.url) ?? normalize(p?.preview_url);
   }
-  
-  if (['sift', 'surf', 'orb', 'bfmatcher', 'flannmatcher'].includes(n.type || '')) {
+  if (['sift', 'surf', 'orb'].includes(n.type || '')) {
     return normalize(p?.result_image_url) ?? normalize(p?.vis_url);
   }
-  
-  return normalize(p?.output_image) 
-      ?? normalize(p?.vis_url) 
-      ?? normalize(p?.result_image_url)
-      ?? normalize(p?.aligned_url)
-      ?? normalize(p?.url)
-      ?? normalize(p?.output?.aligned_url);
+  if (['bfmatcher', 'flannmatcher'].includes(n.type || '')) {
+    return normalize(p?.vis_url);
+  }
+  if (['homography-align', 'affine-align'].includes(n.type || '')) {
+    return normalize(p?.output?.aligned_url) ?? normalize(p?.aligned_url);
+  }
+
+  return normalize(p?.result_image_url) ?? normalize(p?.url);
 }
+
 
 export function guard(canceledRef: MutableRefObject<boolean>) {
   if (canceledRef.current) throw new Error('Pipeline canceled');

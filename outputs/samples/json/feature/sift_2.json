@@ -5,8 +5,8 @@
     "python": "3.11.0"
   },
   "image": {
-    "original_path": "2.png",
-    "file_name": "2.png",
+    "original_path": "/Users/pop/Desktop/project_n2n/outputs/uploads/f4964d93212e497b98106975a5b4ac5d.png",
+    "file_name": "f4964d93212e497b98106975a5b4ac5d.png",
     "processed_sift_shape": [
       240,
       310
@@ -23968,7 +23968,7 @@
     ]
   ],
   "parameters_hash": {
-    "img": "2.png",
+    "img": "f4964d93212e497b98106975a5b4ac5d.png",
     "nfeatures": 0,
     "nOctaveLayers": 3,
     "contrastThreshold": 0.04,

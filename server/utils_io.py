@@ -53,5 +53,3 @@ def static_url(abs_path: str, static_root: str) -> Optional[str]:
         return f"/static/{rel}"
     except ValueError:
         return None
-    
-    

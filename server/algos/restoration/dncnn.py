@@ -1,4 +1,4 @@
-# server/algos/restoration/dncnn.py
+# server/algos/restoration/dncnn_adapter.py
 import os
 import sys
 import json

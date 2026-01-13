@@ -1,21 +1,24 @@
-// File: my-react-flow-app/src/components/nodes/SiftNode.tsx
-import { memo, useEffect, useMemo, useState, useCallback } from 'react';
+// project_n2n/my-react-flow-app/src/components/nodes/SiftNode.tsx
+import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api'; 
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+
+const statusDot = (active: boolean, color: string) => 
+  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner`;
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
-      <path d="M3 7h18" /><circle cx="9" cy="7" r="3.4" fill="white" />
-      <path d="M3 17h18" /><circle cx="15" cy="17" r="3.4" fill="white" />
+      <path d="M3 7h18" />
+      <circle cx="9" cy="7" r="3.4" fill="white" />
+      <path d="M3 17h18" />
+      <circle cx="15" cy="17" r="3.4" fill="white" />
     </g>
   </svg>
 );
 
-// Parameters เดิมของ SIFT
 const DEFAULT_SIFT = {
   nfeatures: 500,
   nOctaveLayers: 3,
@@ -23,128 +26,136 @@ const DEFAULT_SIFT = {
   edgeThreshold: 10,
   sigma: 1.6,
 };
-type Params = typeof DEFAULT_SIFT;
 
-/* ---------------- Component ---------------- */
+const fmtSize = (w?: number | null, h?: number | null) => (w && h) ? `${w}×${h}px` : undefined;
+function shapeToWH(shape?: any): { w?: number, h?: number } {
+  if (!Array.isArray(shape) || shape.length < 2) return {};
+  const h = Number(shape[0]);
+  const w = Number(shape[1]);
+  if (Number.isFinite(w) && Number.isFinite(h)) return { w, h };
+  return {};
+}
+
 const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges(); 
   const [open, setOpen] = useState(false);
 
-  // ✅ เรียกใช้ Hook: ดึงสถานะที่คำนวณมาอย่างถูกต้อง (รองรับ Copy Paste)
-  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
+  const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // 1. Parameter Logic
-  const params = useMemo(
-    () => ({ ...DEFAULT_SIFT, ...(data?.payload?.params || {}) }),
-    [data?.payload?.params]
-  );
-  const [form, setForm] = useState<Params>(params);
-  
+  const params = useMemo(() => ({ ...DEFAULT_SIFT, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
+  const [form, setForm] = useState(params);
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
+
+  const upstream = useMemo(() => {
+    const incoming = rf.getEdges().filter((e) => e.target === id);
+    for (const e of incoming) {
+      const node = rf.getNodes().find((n) => n.id === e.source);
+      if (node?.type === 'image-input') {
+        const w = Number(node.data?.payload?.width);
+        const h = Number(node.data?.payload?.height);
+        if (Number.isFinite(w) && Number.isFinite(h)) return { w, h };
+      }
+    }
+    return { w: undefined, h: undefined };
+  }, [id, rf]);
+
+  const processed = useMemo(() => {
+    const { w, h } = shapeToWH(data?.payload?.image_shape);
+    return { w, h };
+  }, [data?.payload?.image_shape]);
+
+  const showProcessed = processed.w && processed.h && (processed.w !== upstream.w || processed.h !== upstream.h);
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
-  const onSave = useCallback(() => {
-    rf.setNodes((nds) => nds.map((n) =>
-      n.id === id
-        ? { 
-            ...n, 
-            data: { 
-              ...n.data, 
-              payload: { 
-                ...(n.data?.payload || {}), 
-                params: {
-                  nfeatures: Number(form.nfeatures),
-                  nOctaveLayers: Number(form.nOctaveLayers),
-                  contrastThreshold: Number(form.contrastThreshold),
-                  edgeThreshold: Number(form.edgeThreshold),
-                  sigma: Number(form.sigma)
-                } 
-              } 
-            } 
-          }
-        : n
-    ));
+  const saveParams = useCallback(() => {
+    const clean = {
+      ...form,
+      nOctaveLayers: Math.max(1, parseInt(String(form.nOctaveLayers || 3), 10)),
+      nfeatures: Math.max(0, parseInt(String(form.nfeatures || 0), 10)),
+      contrastThreshold: Math.max(0, Number(form.contrastThreshold ?? 0.04)),
+      edgeThreshold: Math.max(0, parseInt(String(form.edgeThreshold ?? 10), 10)),
+      sigma: Math.max(0, Number(form.sigma ?? 1.6)),
+    };
+
+    rf.setNodes((nds) =>
+      nds.map((n) =>
+        n.id === id
+          ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...clean } } } }
+          : n
+      )
+    );
     setOpen(false);
   }, [rf, id, form]);
-  
-  // Logic: Check connection
-  const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // Logic: Display Size
-  const displaySize = useMemo(() => {
-    const processedShape = data?.payload?.json_data?.image?.processed_sift_shape || data?.payload?.image_shape;
-    if (Array.isArray(processedShape) && processedShape.length >= 2) {
-      return `${processedShape[1]}×${processedShape[0]}px`;
-    }
-    const incomingEdge = rf.getEdges().find((e) => e.target === id);
-    if (incomingEdge) {
-      const sourceNode = rf.getNodes().find((n) => n.id === incomingEdge.source);
-      const payload = sourceNode?.data?.payload as any;
-      if (payload) {
-        const w = payload.width || payload.image_shape?.[1];
-        const h = payload.height || payload.image_shape?.[0];
-        if (w && h) return `${w}×${h}px`;
-      }
-    }
-    return null;
-  }, [id, rf, data?.payload]);
-
-  const rawUrl = data?.payload?.vis_url || data?.payload?.result_image_url;
-  const displayUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
-  
-  // Caption: ถ้า Success (หรือมีรูปจาก Copy) ให้โชว์คำอธิบาย
-  const caption = (isSuccess && data?.description) 
-    ? data.description 
-    : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
+  const isRunning = data?.status === 'start' || data?.status === 'running';
+  const isFault = data?.status === 'fault';
 
   const handleRun = useCallback(() => {
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
-  // Border logic
+  const rawUrl = data?.payload?.result_image_url || data?.payload?.vis_url || data?.payload?.sift_vis_url;
+  
+  const displayUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
+  
+  const caption =
+  (data?.description &&
+    !/(running|start)/i.test(data?.description)) 
+    ? data.description
+    : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
+
   let borderColor = 'border-green-500';
   if (selected) borderColor = 'border-green-400 ring-2 ring-green-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // Handle Class Logic
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
-    isFault && !isConnected 
-      ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' 
+    isFault && !isConnected
+      ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30'
       : 'bg-white border-gray-500'
   }`;
+  const sourceHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 bg-white border-gray-500`;
 
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
-      
-      {/* Handles */}
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
-      <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
+      <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
-      <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
-        <div>SIFT</div>
+      <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between">
+        <div className="font-bold">SIFT</div>
         <div className="flex items-center gap-2">
           <button
+            title="Run this node"
             onClick={handleRun}
             disabled={isRunning}
-            className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white cursor-pointer ${
-              isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700'
-            }`}
+            className={[
+              'px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white',
+              isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700',
+            ].join(' ')}
           >
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
-          
+
           <span className="relative inline-flex items-center group">
             <button
+              aria-label="Open SIFT settings"
               onClick={handleOpen}
-              className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition focus-visible:outline-none cursor-pointer hover:bg-gray-100 active:scale-95"
+              className="h-5 w-5 rounded-full bg-white flex items-center justify-center
+                         shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80
+                         transition focus-visible:outline-none focus-visible:ring-2
+                         focus-visible:ring-green-500/70"
             >
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
+            <span
+              role="tooltip"
+              className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                         whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white
+                         opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150
+                         group-hover:opacity-100"
+            >
               Settings
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
             </span>
@@ -152,99 +163,48 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
-        {displaySize && (
-          <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
-            Input: {displaySize}
-          </div>
+        {fmtSize(upstream.w, upstream.h) && (
+          <div className="text-[11px] text-gray-400">Input: {fmtSize(upstream.w, upstream.h)}</div>
+        )}
+        {typeof data?.payload?.num_keypoints === 'number' && (
+          <div className="text-[11px] text-gray-400">Keypoints: {data.payload.num_keypoints}</div>
+        )}
+        {showProcessed && (
+          <div className="text-[11px] text-gray-400">Processed: {fmtSize(processed.w!, processed.h!)}</div>
         )}
 
         {displayUrl && (
-          <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
+          <img
+            src={displayUrl}
+            alt="sift-result"
+            className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56"
+            draggable={false}
+          />
         )}
-        
-        <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
+        {caption && <p className="text-xs text-white-400 break-words">{caption}</p>}
       </div>
 
-      {/* Status Table */}
-      <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1">
-          <span className="text-red-400">start</span>
-          {/* ใช้ data.status เดิมสำหรับ start/running เพื่อคง Animation */}
-          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-cyan-400">running</span>
-          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-green-400">success</span>
-          {/* ✅ ใช้ isSuccess จาก Hook เพื่อให้ไฟเขียวติดถ้ามีข้อมูล */}
-          <div className={statusDot(isSuccess, 'bg-green-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          <div className={statusDot(isFault, 'bg-yellow-500')} />
-        </div>
+      <div className="border-t-2 border-gray-700 p-2 text-sm">
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(data?.status === 'success', 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings */}
       <Modal open={open} title="SIFT Settings" onClose={handleClose}>
-        <div className="grid grid-cols-2 gap-4 text-xs text-gray-300">
-          <div className="col-span-2">
-            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">nFeatures</label>
-            <input 
-              type="number" 
-              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
-              value={form.nfeatures} 
-              onChange={(e) => setForm((s: Params) => ({ ...s, nfeatures: Number(e.target.value) }))} 
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Octave Layers</label>
-            <input 
-              type="number" 
-              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
-              value={form.nOctaveLayers} 
-              onChange={(e) => setForm((s: Params) => ({ ...s, nOctaveLayers: Number(e.target.value) }))} 
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Sigma</label>
-            <input 
-              type="number" step="0.1"
-              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
-              value={form.sigma} 
-              onChange={(e) => setForm((s: Params) => ({ ...s, sigma: Number(e.target.value) }))} 
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Contrast Th.</label>
-            <input 
-              type="number" step="0.01"
-              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
-              value={form.contrastThreshold} 
-              onChange={(e) => setForm((s: Params) => ({ ...s, contrastThreshold: Number(e.target.value) }))} 
-            />
-          </div>
-          <div>
-            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Edge Th.</label>
-            <input 
-              type="number" 
-              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
-              value={form.edgeThreshold} 
-              onChange={(e) => setForm((s: Params) => ({ ...s, edgeThreshold: Number(e.target.value) }))} 
-            />
-          </div>
+         <div className="grid grid-cols-2 gap-3 text-xs text-gray-300">
+          <label>nFeatures <input type="number" min={0} className="w-full bg-gray-900 rounded border border-gray-700" value={form.nfeatures} onChange={(e) => setForm((s: any) => ({ ...s, nfeatures: Number(e.target.value) }))} /></label>
+          <label>Octaves <input type="number" step={1} min={1} max={8} className="w-full bg-gray-900 rounded border border-gray-700" value={form.nOctaveLayers} onChange={(e) => { const v = Math.max(1, parseInt(e.target.value || '1', 10)); setForm((s: any) => ({ ...s, nOctaveLayers: v })); }} /></label>
+          <label>Contrast <input type="number" step="0.001" min={0} className="w-full bg-gray-900 rounded border border-gray-700" value={form.contrastThreshold} onChange={(e) => setForm((s: any) => ({ ...s, contrastThreshold: Number(e.target.value) }))} /></label>
+          <label>Edge <input type="number" min={0} className="w-full bg-gray-900 rounded border border-gray-700" value={form.edgeThreshold} onChange={(e) => setForm((s: any) => ({ ...s, edgeThreshold: Number(e.target.value) }))} /></label>
+          <label>Sigma <input type="number" step="0.1" min={0} className="w-full bg-gray-900 rounded border border-gray-700" value={form.sigma} onChange={(e) => setForm((s: any) => ({ ...s, sigma: Number(e.target.value) }))} /></label>
         </div>
-
-        <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">
-          <button onClick={handleClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition">Cancel</button>
-          <button onClick={onSave} className="px-4 py-1.5 rounded bg-green-600 text-white text-xs font-bold cursor-pointer hover:bg-green-500 transition">Save</button>
+        <div className="flex justify-end gap-2 pt-3">
+          <button onClick={handleClose} className="px-3 py-1 rounded bg-gray-700">Cancel</button>
+          <button onClick={saveParams} className="px-3 py-1 rounded bg-green-600 text-white">Save</button>
         </div>
       </Modal>
-
     </div>
   );
 });

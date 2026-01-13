@@ -1,4 +1,4 @@
-# server/algos/restoration/SwinIR.py
+# server/algos/restoration/swinir_adapter.py
 import os
 import sys
 import json

@@ -1,4 +1,5 @@
 // src/lib/api.ts
+
 export const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 /**
@@ -13,17 +14,6 @@ export const abs = (url?: string) => {
 export const absStrict = (url: string) =>
   /^(https?:|blob:|data:)/i.test(url) ? url : `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
 
-// ✅ Helper ใหม่: เช็ค Error จาก Backend อัตโนมัติ
-async function handleResponse(resp: Response) {
-  if (!resp.ok) {
-    // พยายามอ่านข้อความ Error จาก Backend (เช่น "Configuration Error...")
-    const errBody = await resp.json().catch(() => ({}));
-    const msg = errBody.detail || `Request failed with status ${resp.status}`;
-    throw new Error(msg);
-  }
-  return resp.json();
-}
-
 // ---------- 1. Core / Upload ----------
 export async function uploadImages(files: File[], signal?: AbortSignal) {
   const formData = new FormData();
@@ -33,7 +23,6 @@ export async function uploadImages(files: File[], signal?: AbortSignal) {
     body: formData,
     signal,
   });
-  // Upload มักเช็คแยก แต่ใช้ helper ก็ได้ (อันนี้คงเดิมไว้ตามสไตล์คุณ)
   if (!resp.ok) throw new Error("Upload failed");
   return await resp.json();
 }
@@ -46,7 +35,7 @@ export async function runSift(image_path: string, params?: Record<string, any>, 
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp); // ✅ ใช้ handleResponse
+  return await resp.json();
 }
 
 export async function runSurf(image_path: string, params?: Record<string, any>, signal?: AbortSignal) {
@@ -56,7 +45,7 @@ export async function runSurf(image_path: string, params?: Record<string, any>, 
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp); // ✅ ใช้ handleResponse
+  return await resp.json();
 }
 
 export async function runOrb(image_path: string, params?: Record<string, any>, signal?: AbortSignal) {
@@ -66,10 +55,10 @@ export async function runOrb(image_path: string, params?: Record<string, any>, s
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp); // ✅ ใช้ handleResponse
+  return await resp.json();
 }
 
-// ---------- 3. Enhancement ----------
+// ---------- 3. Enhancement (ของเพื่อน) ----------
 export async function runCLAHE(image_path: string, params?: Record<string, any>, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/enhancement/clahe`, {
     method: "POST",
@@ -77,7 +66,7 @@ export async function runCLAHE(image_path: string, params?: Record<string, any>,
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
 export async function runMSRCR(image_path: string, params?: Record<string, any>, signal?: AbortSignal) {
@@ -87,7 +76,7 @@ export async function runMSRCR(image_path: string, params?: Record<string, any>,
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
 export async function runZeroDCE(image_path: string, params?: Record<string, any>, signal?: AbortSignal) {
@@ -97,7 +86,7 @@ export async function runZeroDCE(image_path: string, params?: Record<string, any
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
 // ---------- 4. Matching & Alignment ----------
@@ -105,20 +94,20 @@ export async function runBfmatcher(jsonA: string, jsonB: string, params?: any, s
   const resp = await fetch(`${API_BASE}/api/match/bf`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ json_a: jsonA, json_b: jsonB, ...params }), // ...params ถูกต้องแล้ว
+    body: JSON.stringify({ json_a: jsonA, json_b: jsonB, ...params }),
     signal,
   });
-  return handleResponse(resp); // ✅ สำคัญ: ต้องดัก Error ตรงนี้ ไม่งั้น Node ไม่แดง
+  return await resp.json();
 }
 
 export async function runFlannmatcher(jsonA: string, jsonB: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/match/flann`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ json_a: jsonA, json_b: jsonB, ...params }), // ...params ถูกต้องแล้ว
+    body: JSON.stringify({ json_a: jsonA, json_b: jsonB, ...params }),
     signal,
   });
-  return handleResponse(resp); // ✅ สำคัญ: ต้องดัก Error ตรงนี้ ไม่งั้น Node ไม่แดง
+  return await resp.json();
 }
 
 export async function runHomographyAlignment(match_json: string, params?: any, signal?: AbortSignal) {
@@ -128,7 +117,7 @@ export async function runHomographyAlignment(match_json: string, params?: any, s
     body: JSON.stringify({ match_json, ...params }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
 export async function runAffineAlignment(match_json: string, params?: any, signal?: AbortSignal) {
@@ -138,10 +127,10 @@ export async function runAffineAlignment(match_json: string, params?: any, signa
     body: JSON.stringify({ match_json, ...params }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
-// ---------- 5. Quality Metrics ----------
+// ---------- 5. Quality Metrics (จุดที่เกิด Error) ----------
 export async function runBrisque(image_path: string, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/quality/brisque`, {
     method: "POST",
@@ -149,7 +138,7 @@ export async function runBrisque(image_path: string, signal?: AbortSignal) {
     body: JSON.stringify({ image_path }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
 export async function runPsnr(originalPath: string, processedPath: string, params?: any, signal?: AbortSignal) {
@@ -159,9 +148,10 @@ export async function runPsnr(originalPath: string, processedPath: string, param
     body: JSON.stringify({ original_path: originalPath, processed_path: processedPath, params }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
+// แก้ไข Error: เพิ่ม runSsim ตามที่ UI เรียกหา
 export async function runSsim(originalPath: string, processedPath: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/quality/ssim`, {
     method: "POST",
@@ -169,18 +159,18 @@ export async function runSsim(originalPath: string, processedPath: string, param
     body: JSON.stringify({ original_path: originalPath, processed_path: processedPath, params }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
 // ---------- 6. Segmentation & Classification ----------
 export async function runSnake(req: any, signal?: AbortSignal) {
-  const resp = await fetch(`${API_BASE}/api/classify/snake`, {
+  const resp = await fetch(`${API_BASE}/api/segmentation/snake`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(req),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
 export async function runOtsuClassification(image_path: string, params?: any, signal?: AbortSignal) {
@@ -190,9 +180,10 @@ export async function runOtsuClassification(image_path: string, params?: any, si
       body: JSON.stringify({ image_path, ...params }),
       signal,
     });
-    return handleResponse(resp);
+    return await resp.json();
 }
 
+// โมเดลเพื่อน
 export async function runDeepLab(image_path: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/segmentation/deeplab`, {
     method: "POST",
@@ -200,7 +191,7 @@ export async function runDeepLab(image_path: string, params?: any, signal?: Abor
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
 export async function runUNET(image_path: string, params?: any, signal?: AbortSignal) {
@@ -210,20 +201,10 @@ export async function runUNET(image_path: string, params?: any, signal?: AbortSi
       body: JSON.stringify({ image_path, params }),
       signal,
     });
-    return handleResponse(resp);
+    return await resp.json();
 }
 
-export async function runMaskRCNN(image_path: string, params?: any, signal?: AbortSignal) {
-  const resp = await fetch(`${API_BASE}/api/segmentation/mask_rcnn`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image_path, params }),
-    signal,
-  });
-  return handleResponse(resp);
-}
-
-// ---------- 7. Restoration ----------
+// ---------- 7. Restoration (ของเพื่อน) ----------
 export async function runDncnn(image_path: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/restoration/dncnn`, {
     method: "POST",
@@ -231,7 +212,7 @@ export async function runDncnn(image_path: string, params?: any, signal?: AbortS
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp);
+  return await resp.json();
 }
 
 export async function runSwinIR(image_path: string, params?: any, signal?: AbortSignal) {
@@ -241,15 +222,5 @@ export async function runSwinIR(image_path: string, params?: any, signal?: Abort
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp);
-}
-
-export async function runRealESRGAN(image_path: string, params?: any, signal?: AbortSignal) {
-  const resp = await fetch(`${API_BASE}/api/restoration/realesrgan`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ image_path, params }),
-    signal,
-  });
-  return handleResponse(resp);
+  return await resp.json();
 }
