@@ -1,8 +1,5 @@
-# server/algos/matching/bfmatcher_adapter.py
-
 import os, json, cv2, sys, uuid
-import hashlib # ✅ Use hashlib
-from datetime import datetime # ✅ Use datetime
+import hashlib 
 import numpy as np
 from typing import Tuple, Optional, Any, Dict, List
 
@@ -44,12 +41,23 @@ def _read_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
         
-# ✅ Helper to resolve image paths
+# ✅ Helper to resolve image paths (Smart Version)
 def _resolve_image_path(path: str) -> str:
     if not path: return path
     if os.path.exists(path): return path
     
-    # Try relative to project root
+    filename = os.path.basename(path)
+    search_dirs = [
+        os.path.join(PROJECT_ROOT, "outputs", "samples"),
+        os.path.join(PROJECT_ROOT, "outputs", "uploads"),
+        os.path.join(PROJECT_ROOT, "outputs"),
+    ]
+
+    for d in search_dirs:
+        candidate = os.path.join(d, filename)
+        if os.path.exists(candidate):
+            return candidate
+            
     rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
     if os.path.exists(rel_path): return rel_path
     
@@ -58,15 +66,11 @@ def _resolve_image_path(path: str) -> str:
 def load_descriptor_data(json_path: str):
     data = _read_json(json_path)
 
-    # ✅ Validation
     if "matching_tool" in data:
         raise ValueError(f"Invalid input: Input is a '{data['matching_tool']}' result. BFMatcher requires Feature files (SIFT/SURF/ORB).")
     
-    if "tool" not in data:
-        # Allow if it looks like a feature file but missing 'tool' (legacy check), else raise
-        if "keypoints" not in data:
-             raise ValueError("Invalid input: JSON missing 'tool' and 'keypoints'. Please check upstream connections.")
-        # If missing tool but has keypoints, proceed with caution or default to UNKNOWN
+    if "tool" not in data and "keypoints" not in data:
+         raise ValueError("Invalid input: JSON missing 'tool' and 'keypoints'.")
 
     tool_name = str(data.get("tool", "UNKNOWN")).upper()
     keypoints_data = data.get("keypoints", [])
@@ -117,36 +121,52 @@ def load_descriptor_data(json_path: str):
         extra["WTA_K"] = wta_k
 
     else:
-        # If tool is unknown but we have data, default to L2
         if descriptors_list:
              descriptors = np.array(descriptors_list)
              default_norm = cv2.NORM_L2
         else:
              raise ValueError(f"Unsupported descriptor tool: {tool_name}")
 
-    # Extract path
     img_path = image_dict.get("original_path")
     if not img_path and image_dict.get("file_name"):
         img_path = image_dict.get("file_name")
     
-    # Resolve path
     if img_path:
         img_path = _resolve_image_path(img_path)
         
     return keypoints, descriptors, tool_name, img_path, default_norm, extra
 
 
-def _validate_norm(tool: str, norm_code: int):
-    if tool in ("SIFT", "SURF") and norm_code not in (cv2.NORM_L1, cv2.NORM_L2):
-        raise ValueError(f"Invalid norm '{_norm_to_str(norm_code)}' for {tool}. Use L2 or L1.")
-    if tool == "ORB" and norm_code not in (cv2.NORM_HAMMING, cv2.NORM_HAMMING2):
-        raise ValueError(f"Invalid norm '{_norm_to_str(norm_code)}' for ORB. Use HAMMING/HAMMING2.")
+def _validate_norm(tool: str, norm_override: Optional[str], resolved_norm: int):
+    """
+    ตรวจสอบความเข้ากันได้ของ Tool และ Norm (Strict Mode)
+    """
+    tool = tool.upper()
+    norm_str = str(norm_override).upper() if norm_override else "AUTO"
+
+    # กฎของ SIFT/SURF (Float features)
+    if tool in ("SIFT", "SURF"):
+        if "HAMMING" in norm_str or resolved_norm in (cv2.NORM_HAMMING, cv2.NORM_HAMMING2):
+             raise ValueError(
+                 f"Configuration Error: You selected '{norm_str}' (Binary Distance) for '{tool}' (Float Features). "
+                 f"Please select 'L2' or 'L1'."
+             )
+
+    # กฎของ ORB (Binary features)
+    if tool == "ORB":
+        if "L" in norm_str or resolved_norm in (cv2.NORM_L1, cv2.NORM_L2):
+             raise ValueError(
+                 f"Configuration Error: You selected '{norm_str}' (Euclidean Distance) for '{tool}' (Binary Features). "
+                 f"ORB works best with 'HAMMING' or 'HAMMING2'."
+             )
 
 
 def _image_size(img_path: Optional[str]) -> Tuple[Optional[int], Optional[int], Optional[int]]:
-    if not img_path or not os.path.exists(img_path):
+    if not img_path: return None, None, None
+    real_path = _resolve_image_path(img_path)
+    if not os.path.exists(real_path):
         return None, None, None
-    img = cv2.imread(img_path, cv2.IMREAD_UNCHANGED)
+    img = cv2.imread(real_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         return None, None, None
     h, w = img.shape[:2]
@@ -169,7 +189,7 @@ def run(
     kp2, des2, tool2, img_path2, default_norm2, extra2 = load_descriptor_data(json_b)
 
     if tool1 != tool2:
-        raise ValueError(f"Descriptor type mismatch: {tool1} vs {tool2}. Matcher requires same feature type.")
+        raise ValueError(f"Mismatch: Input 1 is '{tool1}' but Input 2 is '{tool2}'. They must be the same.")
 
     # ORB handling
     if tool1 == "ORB":
@@ -183,15 +203,15 @@ def run(
             default_norm1 = default_norm2 = cv2.NORM_HAMMING
 
     # Determine norm
-    if norm_override is not None:
-        parsed = _norm_from_str(norm_override)
-        if parsed is None and str(norm_override).strip().upper() not in ("AUTO", "DEFAULT"):
-            raise ValueError(f"Unknown norm_override '{norm_override}'")
-        desired_norm = parsed if parsed is not None else default_norm1
-    else:
-        desired_norm = default_norm1
+    parsed_norm = _norm_from_str(norm_override)
+    if parsed_norm is None and norm_override and str(norm_override).strip().upper() not in ("AUTO", "DEFAULT"):
+         # ถ้า parse ไม่ได้และไม่ใช่ AUTO ถือว่าผิด
+         raise ValueError(f"Unknown norm_override '{norm_override}'")
 
-    _validate_norm(tool1, desired_norm)
+    desired_norm = parsed_norm if parsed_norm is not None else default_norm1
+
+    # 🔥 VALIDATE STRICTLY: เรียกยามเฝ้าประตู
+    _validate_norm(tool1, norm_override, desired_norm)
 
     if ransac_thresh <= 0:
         raise ValueError("ransac_thresh must be > 0")
@@ -245,7 +265,6 @@ def run(
             inliers = int(mask.sum())
             inlier_mask = mask.ravel().tolist()
             for (m, flag) in zip(good_matches, inlier_mask):
-                # Only keep points that are inliers for Alignment usage
                 if flag: 
                     matched_points.append({
                         "pt1": [float(kp1[m.queryIdx].pt[0]), float(kp1[m.queryIdx].pt[1])],
@@ -261,13 +280,12 @@ def run(
         out_root = os.path.join(PROJECT_ROOT, "outputs")
         
     out_dir = os.path.join(out_root, "features", "bfmatcher_outputs")
-    # Ensure output directory exists
     def _ensure_dir(path: str):
         if not os.path.exists(path):
             os.makedirs(path, exist_ok=True)
     _ensure_dir(out_dir)
     
-    # ✅ Generate Hash for deduplication
+    # Generate Hash
     config_map = {
         "json1": os.path.basename(json_a),
         "json2": os.path.basename(json_b),
@@ -279,13 +297,11 @@ def run(
     }
     config_str = json.dumps(config_map, sort_keys=True, default=str)
     param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
-    
     stem = f"bf_{param_hash}"
     
     out_json_path = os.path.join(out_dir, f"{stem}.json")
     out_vis_path = os.path.join(out_dir, f"{stem}_vis.jpg")
 
-    # Check Cache
     if os.path.exists(out_json_path) and os.path.exists(out_vis_path):
          try:
             with open(out_json_path, "r", encoding="utf-8") as f:
@@ -295,24 +311,21 @@ def run(
          except:
             pass
 
-    # 5. Visualization (Save if not cached)
+    # 5. Visualization
     w1, h1, c1 = _image_size(img_path1)
     w2, h2, c2 = _image_size(img_path2)
     
     vis_path_rel = None
-    if img_path1 and img_path2 and os.path.exists(img_path1) and os.path.exists(img_path2):
-        img1 = cv2.imread(img_path1)
-        img2 = cv2.imread(img_path2)
+    if img_path1 and img_path2:
+        img1 = cv2.imread(_resolve_image_path(img_path1))
+        img2 = cv2.imread(_resolve_image_path(img_path2))
+        
         if img1 is not None and img2 is not None and len(good_matches) > 0:
             draw_list = good_matches
-            # Draw only inliers if mode is 'inliers' and we have a mask
             matches_mask = inlier_mask if (mode_in == "inliers" and inlier_mask) else None
             
-            # If mode is inliers but no mask (failed homography), draw nothing or fallback to good? 
-            # Usually good matches are drawn.
-            
             vis = cv2.drawMatches(
-                img1, kp1, img2, kp2, draw_list[:200], None, # Limit to 200 for performance
+                img1, kp1, img2, kp2, draw_list[:200], None, 
                 matchesMask=matches_mask[:200] if matches_mask else None,
                 flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
             )
@@ -357,7 +370,6 @@ def run(
             "homography_reason": homography_reason,
         },
         "inliers": inliers,
-        # Don't save raw 'inlier_mask' list to keep JSON small, use matched_points instead
         "matched_points": matched_points, 
         "vis_url": vis_path_rel,
         "parameters_hash": config_map

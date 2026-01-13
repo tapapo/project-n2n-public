@@ -1,20 +1,22 @@
-// src/lib/templates/matching.ts
+// File: my-react-flow-app/src/lib/templates/matching.ts
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-
+// --- Path Configuration ---
+// ไฟล์เหล่านี้ต้องมีอยู่จริงใน Backend (ผ่านระบบ populate_samples)
+// Path: outputs/samples/...
 
 // Input Images
 const IMG_1_URL = '/static/samples/1.png';
 const IMG_2_URL = '/static/samples/2.png';
 
-// Feature Results (SIFT)
+// Feature Results (SIFT) - เป็น Input ให้ FLANN
 const SIFT_1_JSON = '/static/samples/json/feature/sift_1.json';
 const SIFT_1_VIS  = '/static/samples/json/feature/sift_1_vis.jpg';
 const SIFT_2_JSON = '/static/samples/json/feature/sift_2.json';
 const SIFT_2_VIS  = '/static/samples/json/feature/sift_2_vis.jpg';
 
-// Matching Results (FLANN)
+// Matching Results (FLANN) - ผลลัพธ์ตัวอย่าง
 const FLANN_JSON = '/static/samples/json/matching/flann_sift.json';
 const FLANN_VIS  = '/static/samples/json/matching/flann_sift_vis.jpg';
 
@@ -35,19 +37,26 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
   },
   color: 'orange',
   nodes: [
-    // Image 1
+    // --- Image 1 ---
     { 
       id: 'n1-img1', 
       type: 'image-input', 
-      position: { x: 50, y: 87.5 }, 
+      position: { x: 50, y: 10.8 }, 
       data: { 
         label: 'Input Image 1', 
         status: 'success', 
         description: "Image uploaded (512×288)",
-        payload: { name: '1.png', url: IMG_1_URL, result_image_url: IMG_1_URL, width: 512, height: 288 }
+        payload: { 
+          name: '1.png', 
+          url: IMG_1_URL, 
+          result_image_url: IMG_1_URL, 
+          width: 512, 
+          height: 288 
+        }
       } 
     } as Node,
 
+    // --- SIFT 1 ---
     { 
       id: 'n3-sift-1', 
       type: 'sift', 
@@ -59,32 +68,45 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
         payload: {
           params: { nfeatures: 500, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 12, sigma: 1.6 },
           num_keypoints: 500,
+          
+          // Visualization
           vis_url: SIFT_1_VIS,
           result_image_url: SIFT_1_VIS,
+          
+          // Data for Next Node (FLANN)
+          // ✅ สำคัญ: ระบุ path นี้เพื่อให้ FLANN ดึงไปรันใหม่ได้
           json_url: SIFT_1_JSON,
           json_path: SIFT_1_JSON,
+          
           json: { num_keypoints: 500, vis_url: SIFT_1_VIS, json_url: SIFT_1_JSON, image: { processed_shape: [288, 512] } }
         }
       } 
     } as Node,
 
-    // Image 2
+    // --- Image 2 ---
     { 
       id: 'n2-img2', 
       type: 'image-input', 
-      position: { x: 50, y: 589.3 }, 
+      position: { x: 50, y: 560 }, 
       data: { 
         label: 'Input Image 2', 
         status: 'success', 
         description: "Image uploaded (310×240)",
-        payload: { name: '2.png', url: IMG_2_URL, result_image_url: IMG_2_URL, width: 310, height: 240 }
+        payload: { 
+          name: '2.png', 
+          url: IMG_2_URL, 
+          result_image_url: IMG_2_URL, 
+          width: 310, 
+          height: 240 
+        }
       } 
     } as Node,
 
+    // --- SIFT 2 ---
     { 
       id: 'n4-sift-2', 
       type: 'sift', 
-      position: { x: 450, y: 550 }, 
+      position: { x: 450, y: 596.8 }, 
       data: { 
         label: 'SIFT (Img 2)', 
         status: 'success', 
@@ -92,29 +114,42 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
         payload: {
           params: { nfeatures: 0, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 10, sigma: 1.6 },
           num_keypoints: 89,
+          
+          // Visualization
           vis_url: SIFT_2_VIS,
           result_image_url: SIFT_2_VIS,
+          
+          // Data for Next Node (FLANN)
+          // ✅ สำคัญ: ระบุ path นี้เพื่อให้ FLANN ดึงไปรันใหม่ได้
           json_url: SIFT_2_JSON,
           json_path: SIFT_2_JSON,
+          
           json: { num_keypoints: 89, vis_url: SIFT_2_VIS, json_url: SIFT_2_JSON, image: { processed_shape: [240, 310] } }
         }
       } 
     } as Node,
 
-    // FLANN Matcher
+    // --- FLANN Matcher ---
     { 
       id: 'n5-flann', 
       type: 'flannmatcher', 
-      position: { x: 850, y: 320 }, 
+      position: { x: 850, y: 319.3 }, 
       data: { 
         label: 'FLANN Matcher', 
-        status: 'success', 
+        status: 'success', // ✅ Success เพื่อให้โชว์รูป Preview ทันที
         description: "28 inliers / 30 good matches",
         payload: {
           params: { lowe_ratio: 0.4, ransac_thresh: 5.0, draw_mode: "good", index_params: "AUTO", search_params: "AUTO" },
+          
+          // ✅ ใส่รูป Preview (User เห็นอันนี้ก่อน)
+          result_image_url: FLANN_VIS,
           vis_url: FLANN_VIS,
+          
+          // ✅ ใส่ JSON Path (เผื่อต่อ Node Save ก็จะทำงานได้เลย)
           json_url: FLANN_JSON,
           json_path: FLANN_JSON,
+          
+          // Mock Data สำหรับโชว์บน Card
           json: {
             matching_statistics: { num_inliers: 28, num_good_matches: 30, summary: "28 inliers / 30 good matches" },
             vis_url: FLANN_VIS,
@@ -132,7 +167,7 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       } 
     } as Node,
 
-    // Save Node
+    // --- Save Node ---
     { 
       id: 'n6-save', 
       type: 'save-json', 

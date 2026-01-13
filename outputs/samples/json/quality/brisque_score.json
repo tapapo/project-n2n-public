@@ -5,8 +5,8 @@
     "python": "3.11.0"
   },
   "image": {
-    "original_path": "/Users/pop/Desktop/project_n2n/outputs/uploads/8422aa2ab6a8440fa70af65d787f4932.jpg",
-    "file_name": "8422aa2ab6a8440fa70af65d787f4932.jpg",
+    "original_path": "noise.jpg",
+    "file_name": "noise.jpg",
     "processed_shape": [
       570,
       600
@@ -22,7 +22,7 @@
   "quality_score": 33.5977,
   "quality_bucket": "fair",
   "parameters_hash": {
-    "img": "8422aa2ab6a8440fa70af65d787f4932.jpg",
+    "img": "noise.jpg",
     "model": "default_live",
     "ver": "1.0"
   }

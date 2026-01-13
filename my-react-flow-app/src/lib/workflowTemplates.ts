@@ -2,7 +2,6 @@
 import type { Edge, Node } from 'reactflow';
 import type { CustomNodeData } from '../types';
 
-
 export type WorkflowTemplate = {
   desc?: any;
   name: string;
@@ -16,28 +15,35 @@ export type WorkflowTemplate = {
   edges: Edge[];
 };
 
-// Import Template Groups
+// --- Import Templates ---
 
-// Feature & Matching
+// 1. Feature & Matching
 import { FEATURE_EXTRACTION_SINGLE } from './templates/feature';
 import { FEATURE_MATCHING_PIPELINE } from './templates/matching';
 
-// Classification (Separated)
+// 2. Classification
 import {
   OTSU_CLASSIFICATION_TEMPLATE,
   SNAKE_CLASSIFICATION_TEMPLATE,
 } from './templates/classification';
 
-// Alignment
+// 3. Alignment
 import { OBJECT_ALIGNMENT_HOMOGRAPHY } from './templates/alignment';
 
-// Quality (Separated)
+// 4. Quality
 import {
   PSNR_ASSESSMENT_TEMPLATE,
   BRISQUE_ASSESSMENT_TEMPLATE,
 } from './templates/quality';
+
+// ✅ 5. NEW TEMPLATES
+import { ENHANCEMENT_CLAHE_TEMPLATE } from './templates/enhancement';
+import { RESTORATION_REALESRGAN_TEMPLATE } from './templates/restoration';
+import { SEGMENTATION_DEEPLAB_TEMPLATE } from './templates/segmentation';
+
+
 export const TEMPLATES: WorkflowTemplate[] = [
-  
+  // Existing
   FEATURE_EXTRACTION_SINGLE,
   FEATURE_MATCHING_PIPELINE,
   PSNR_ASSESSMENT_TEMPLATE,
@@ -45,4 +51,7 @@ export const TEMPLATES: WorkflowTemplate[] = [
   OTSU_CLASSIFICATION_TEMPLATE,
   SNAKE_CLASSIFICATION_TEMPLATE,
   OBJECT_ALIGNMENT_HOMOGRAPHY,
+  ENHANCEMENT_CLAHE_TEMPLATE,
+  RESTORATION_REALESRGAN_TEMPLATE,
+  SEGMENTATION_DEEPLAB_TEMPLATE,
 ];

@@ -1,13 +1,19 @@
-//src/components/nodes/OtsuNode.tsx
+// File: src/components/nodes/OtsuNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; 
+import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
-import { getNodeImageUrl } from '../../lib/runners/utils';
+import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
 
-const dot = (active: boolean, cls: string) => 
-  `h-4 w-4 rounded-full ${active ? cls : 'bg-gray-600'} flex-shrink-0`;
+const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
+    <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
+      <path d="M3 7h18" /><circle cx="9" cy="7" r="3.4" fill="white" />
+      <path d="M3 17h18" /><circle cx="15" cy="17" r="3.4" fill="white" />
+    </g>
+  </svg>
+);
 
 const stopPropagation = (e: React.SyntheticEvent) => e.stopPropagation();
 
@@ -26,28 +32,20 @@ const DEFAULT_PARAMS: Params = {
 const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
-  const nodes = useNodes<CustomNodeData>(); 
 
   const [open, setOpen] = useState(false);
   
+  // ✅ เรียกใช้ Hook
+  const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
+
   const imgRef = useRef<HTMLImageElement>(null); 
   const [imgSize, setImgSize] = useState<{w: number, h: number} | null>(null);
-
-  const upstreamImage = useMemo(() => {
-    const incoming = edges.find(e => e.target === id);
-    if (!incoming) return null;
-    const parent = nodes.find(n => n.id === incoming.source);
-    return getNodeImageUrl(parent);
-  }, [edges, nodes, id]);
 
   const isConnected = useMemo(() => edges.some((e) => e.target === id), [edges, id]);
 
   const savedParams = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
   const [form, setForm] = useState<Params>(savedParams);
   useEffect(() => setForm(savedParams), [savedParams]);
-
-  const isRunning = data?.status === 'start' || data?.status === 'running';
-  const isFault = data?.status === 'fault';
 
   const onRun = useCallback(() => {
     if (!isRunning) data?.onRunNode?.(id);
@@ -73,12 +71,11 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   
   const thr = resp?.threshold_value || resp?.threshold || resp?.output?.threshold_value || resp?.output?.threshold || data?.payload?.threshold_value;
 
-  const rawUrl = resultImage || upstreamImage;
-  
+  const rawUrl = resultImage;
   const displayImage = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
 
-  const caption =
-    resultImage 
+  // ปรับ Caption: ถ้า Success หรือมีรูป ให้โชว์ค่า Threshold
+  const caption = (isSuccess || resultImage) 
     ? `Threshold = ${thr ?? '?'}` 
     : 'Connect Image Input and run';
 
@@ -92,6 +89,7 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     }
   }, [imgSize]); 
 
+  // Style
   let borderColor = 'border-pink-500';
   if (selected) {
     borderColor = 'border-pink-400 ring-2 ring-pink-500';
@@ -111,17 +109,32 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      <div className="bg-gray-700 text-pink-400 rounded-t-xl px-3 py-2 flex items-center justify-between">
-        <div className="font-bold mr-2">Otsu Threshold</div>
-        <div className="flex items-center gap-3">
-          <button onClick={onRun} disabled={isRunning} className={['ml-1 px-3 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white', isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-pink-600 hover:bg-pink-700'].join(' ')}>
+      {/* Header */}
+      <div className="bg-gray-700 text-pink-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
+        <div>Otsu Threshold</div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={onRun} 
+            disabled={isRunning} 
+            className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white ${
+              isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-pink-600 hover:bg-pink-700'
+            }`}
+          >
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
+          
           <span className="relative inline-flex items-center group">
-            <button aria-label="Open Otsu settings" onClick={() => setOpen(true)} className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80 transition-all">
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="black"><g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}><path d="M3 7h18" /><circle cx="9" cy="7" r="3.4" fill="white" /><path d="M3 17h18" /><circle cx="15" cy="17" r="3.4" fill="white" /></g></svg>
+            <button 
+              aria-label="Open Otsu settings" 
+              onClick={() => setOpen(true)} 
+              className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 hover:ring-gray-500/80 transition focus:outline-none"
+            >
+              <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 group-hover:opacity-100 shadow-lg transition-opacity duration-200">Settings<span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" /></span>
+            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
+              Settings
+              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
+            </span>
           </span>
         </div>
       </div>
@@ -150,33 +163,43 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         )}
       </div>
 
-      <div className="border-t-2 border-gray-700 p-2 text-sm">
-        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={dot(data?.status === 'start', 'bg-red-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={dot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={dot(data?.status === 'success', 'bg-green-500')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={dot(data?.status === 'fault', 'bg-yellow-500')} /></div>
+      {/* Status Table */}
+      <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
+           {/* ✅ ใช้ isSuccess */}
+           <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
       <Modal open={open} title="Otsu Settings" onClose={onClose}>
-        <div className="space-y-3 text-xs text-gray-300">
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={form.gaussian_blur} onKeyDown={stopPropagation} onChange={(e) => setForm((s: Params) => ({ ...s, gaussian_blur: e.target.checked }))} />
+        <div className="space-y-4 text-xs text-gray-300">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={form.gaussian_blur} onKeyDown={stopPropagation} onChange={(e) => setForm((s: Params) => ({ ...s, gaussian_blur: e.target.checked }))} className="accent-pink-500" />
             Gaussian blur before threshold
           </label>
 
           <label className="block">
-            Blur kernel size (odd)
-            <input type="number" min={3} step={2} className="w-full mt-1 px-2 py-1 rounded bg-gray-900 border border-gray-700 text-gray-100" value={form.blur_ksize} onKeyDown={stopPropagation} onChange={(e) => setForm((s: Params) => ({ ...s, blur_ksize: Number(e.target.value) }))} />
+            <span className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Blur Kernel Size (odd)</span>
+            <input 
+              type="number" min={3} step={2} 
+              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-pink-400 font-mono outline-none focus:border-pink-500" 
+              value={form.blur_ksize} 
+              onKeyDown={stopPropagation} 
+              onChange={(e) => setForm((s: Params) => ({ ...s, blur_ksize: Number(e.target.value) }))} 
+            />
           </label>
 
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={form.invert} onKeyDown={stopPropagation} onChange={(e) => setForm((s: Params) => ({ ...s, invert: e.target.checked }))} />
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={form.invert} onKeyDown={stopPropagation} onChange={(e) => setForm((s: Params) => ({ ...s, invert: e.target.checked }))} className="accent-pink-500" />
             Invert output
           </label>
 
-          <div className="flex justify-end gap-2 pt-3">
-            <button onClick={onClose} className="px-3 py-1 rounded bg-gray-700 text-gray-200 hover:bg-gray-600">Close</button>
-            <button onClick={onSave} className="px-3 py-1 rounded bg-pink-600 text-white hover:bg-pink-700">Save</button>
+          <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">
+            <button onClick={onClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Close</button>
+            <button onClick={onSave} className="px-4 py-1.5 rounded bg-pink-600 text-white text-xs font-bold cursor-pointer hover:bg-pink-700 transition">Save</button>
           </div>
         </div>
       </Modal>

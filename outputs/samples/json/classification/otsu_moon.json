@@ -3,15 +3,12 @@
   "output_type": "classification",
   "tool_version": "4.8.0",
   "input_image": {
-    "path": "/Users/pop/Desktop/project_n2n/outputs/uploads/0b1aec1f554f4863b6f4e2bd47c78261.jpg",
-    "shape": [
-      570,
-      600
-    ],
+    "path": "noise.jpg",
+    "shape": [ 570, 600 ],
     "dtype": "uint8"
   },
   "parameters": {
-    "img": "0b1aec1f554f4863b6f4e2bd47c78261.jpg",
+    "img": "noise.jpg",
     "blur": true,
     "k": 5,
     "inv": false,
@@ -22,16 +19,14 @@
   },
   "threshold_value": 49,
   "output": {
-    "binary_mask_path": "/Users/pop/Desktop/project_n2n/outputs/features/otsu_outputs/otsu_0b1aec1f554f4863b6f4e2bd47c78261_771a1c58_binary.png",
-    "binary_mask_shape": [
-      570,
-      600
-    ],
+    "binary_mask_path": "otsu_binary.png",
+    "binary_mask_shape": [ 570, 600 ],
     "histogram_path": null,
-    "binary_url": "/static/features/otsu_outputs/otsu_0b1aec1f554f4863b6f4e2bd47c78261_771a1c58_binary.png",
+    
+    "binary_url": "otsu_binary.png",
     "histogram_url": null,
-    "result_image_url": "/static/features/otsu_outputs/otsu_0b1aec1f554f4863b6f4e2bd47c78261_771a1c58_binary.png"
+    "result_image_url": "otsu_binary.png"
   },
-  "binary_url": "/static/features/otsu_outputs/otsu_0b1aec1f554f4863b6f4e2bd47c78261_771a1c58_binary.png",
+  "binary_url": "otsu_binary.png",
   "notes": "Binary image is 0/255 (uint8)."
 }

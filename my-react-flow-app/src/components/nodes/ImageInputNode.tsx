@@ -1,8 +1,12 @@
-//src/components/nodes/ImageInputNode.tsx
+// File: src/components/nodes/ImageInputNode.tsx
 import { memo, useRef, useState } from 'react';
 import { Handle, Position, useReactFlow, type NodeProps } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import { uploadImages, abs } from '../../lib/api';
+
+/* ---------------- UI helpers ---------------- */
+const statusDot = (active: boolean, color: string) => 
+  `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
 
 type Props = NodeProps<CustomNodeData>;
 
@@ -26,7 +30,12 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
   const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files ? Array.from(e.target.files) : [];
     if (!files.length) return;
-    setError(''); setUploading(true);
+    
+    setError(''); 
+    setUploading(true);
+    
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, status: 'running' } } : n));
+
     try {
       const resp = await uploadImages(files);
       const f = resp.files[0];
@@ -55,7 +64,9 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
         } 
       } : n));
     } catch (err: any) { 
-      setError(err?.message || 'Upload failed'); 
+      const msg = err?.message || 'Upload failed';
+      setError(msg);
+      setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, status: 'fault', description: msg } } : n));
     } finally { 
       setUploading(false); 
       if (fileRef.current) fileRef.current.value = ''; 
@@ -63,28 +74,29 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
   };
 
   const rawUrl = data?.payload?.result_image_url || data?.payload?.url;
-  
- 
-  const displayUrl = rawUrl 
-    ? `${abs(rawUrl)}?t=${Date.now()}` 
-    : undefined;
+  const displayUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
 
-  const isFault = error !== '';
+  const isRunning = uploading || data?.status === 'running';
+  
+  // ✅ แก้ไข: เช็คว่าถ้ามี status success หรือ มีรูปภาพอยู่แล้ว (และไม่ error/running) ให้ถือว่า Success
+  const isSuccess = data?.status === 'success' || (!!rawUrl && !isRunning && data?.status !== 'fault');
 
   let borderColor = 'border-teal-500';
   if (selected) borderColor = 'border-teal-400 ring-2 ring-teal-500';
-  else if (uploading) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
+  else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  const handleClasses = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${isFault ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' : 'bg-white border-gray-500'}`;
+  const handleClasses = `w-2 h-2 rounded-full border-2 transition-all duration-300 bg-white border-gray-500`;
 
   return (
-    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 transition-all duration-200 ${borderColor}`}>
+    <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 transition-all duration-200 overflow-visible ${borderColor}`}>
       <Handle type="source" position={Position.Right} id="img" className={handleClasses} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       
+      {/* Header */}
       <div className="bg-gray-700 text-center font-bold p-2 text-teal-400 rounded-t-xl">
         {data?.label || 'Image Input'}
       </div>
       
+      {/* Body */}
       <div className="p-4 space-y-3">
         <div className="text-sm text-gray-300">Select an image to upload:</div>
         
@@ -122,7 +134,27 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
           />
         )}
         
-        {error && <div className="text-xs text-red-400">{error}</div>}
+        {error && <div className="text-xs text-red-400 font-bold">{error}</div>}
+      </div>
+
+      {/* Status Table */}
+      <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
+        <div className="flex justify-between items-center py-1">
+            <span className="text-red-400">start</span>
+            <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+            <span className="text-cyan-400">running</span>
+            <div className={statusDot(isRunning, 'bg-cyan-400 animate-pulse')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+            <span className="text-green-400">success</span>
+            <div className={statusDot(isSuccess, 'bg-green-500')} />
+        </div>
+        <div className="flex justify-between items-center py-1">
+            <span className="text-yellow-400">fault</span>
+            <div className={statusDot(false, 'bg-red-500')} />
+        </div>
       </div>
     </div>
   );

@@ -1,19 +1,14 @@
-# server/routers/alignment.py
 import os
+import cv2
 from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-# ✅ แก้ไข: นำเข้าเครื่องมือจาก utils_io แทนเพื่อป้องกัน Circular Import
-from ..utils_io import resolve_image_path, OUT, _read_json, static_url
-
-# นำเข้า Adapters (ตรวจสอบว่า Path ของไฟล์ adapter ถูกต้องตามโฟลเดอร์จริง)
+from ..utils_io import resolve_image_path, OUT, static_url
 from server.algos.ObjectAlignment.homography_alignment_adapter import run as homography_run
 from server.algos.ObjectAlignment.AffineTransformEstimation import run as affine_run
 
 router = APIRouter()
-
-# --- Schemas ---
 
 class HomographyReq(BaseModel):
     match_json: str
@@ -29,21 +24,45 @@ class AffineReq(BaseModel):
     confidence: Optional[float] = 0.99
     refine_iters: Optional[int] = 10
 
-# --- Endpoints ---
+# ✅ ฟังก์ชันช่วยอ่านขนาดรูป (ปรับปรุงใหม่)
+def inject_shape_info(result_dict, out_root):
+    try:
+        # ลองหา path ของรูปผลลัพธ์
+        output_data = result_dict.get("output", {})
+        rel_path = output_data.get("aligned_image")
+        
+        if rel_path:
+            full_path = os.path.join(out_root, rel_path)
+            if os.path.exists(full_path):
+                # อ่านรูปเพื่อเอาขนาดจริง
+                img = cv2.imread(full_path)
+                if img is not None:
+                    # ✅ แก้ไข 1: เอา shape เต็มๆ (รวม channel) [H, W, C]
+                    # เพื่อให้ Node ถัดไปรู้ว่าเป็นภาพสี (ถ้ามี 3 channels)
+                    shape = list(img.shape) 
+                    
+                    if "output" not in result_dict:
+                        result_dict["output"] = {}
+                    
+                    # ✅ แก้ไข 2: ใส่ aligned_shape และ image_shape (มาตรฐานที่ Enhancement ใช้)
+                    result_dict["output"]["aligned_shape"] = shape
+                    result_dict["output"]["shape"] = shape
+                    
+                    # ใส่ที่ Root level ด้วย เพื่อความชัวร์ในการดึงข้อมูล
+                    result_dict["image_shape"] = shape
+                    result_dict["channels"] = shape[2] if len(shape) > 2 else 1
+                    
+    except Exception as e:
+        print(f"Error reading shape: {e}")
+    return result_dict
 
 @router.post("/homography")
 def alignment_homography(req: HomographyReq):
-    """
-    คำนวณ Homography Matrix และทำการ Warp ภาพเพื่อให้ภาพสองใบซ้อนทับกัน
-    """
-    # ดึง Local Path จริงจาก URL ที่ส่งมาจาก Frontend
     match_json_path = resolve_image_path(req.match_json)
-    
     if not os.path.exists(match_json_path):
         raise HTTPException(status_code=404, detail=f"Match JSON not found: {req.match_json}")
 
     try:
-        # รันอัลกอริทึม
         result = homography_run(
             match_json_path,
             out_root=OUT,
@@ -51,30 +70,33 @@ def alignment_homography(req: HomographyReq):
             blend=req.blend,
         )
 
-        # แปลงผลลัพธ์ที่เป็น Local Path ให้เป็น URL สำหรับให้ Frontend แสดงผล
+        # 1. ยัดข้อมูล Shape
+        result = inject_shape_info(result, OUT)
+
+        # 2. สร้าง URL
+        aligned_url = ""
         if result.get("output", {}).get("aligned_image"):
-            result["output"]["aligned_url"] = static_url(result["output"]["aligned_image"], OUT)
+            aligned_url = static_url(result["output"]["aligned_image"], OUT)
+            result["output"]["aligned_url"] = aligned_url
         
         if result.get("json_path"):
             result["json_url"] = static_url(result["json_path"], OUT)
-            
+
         return {
             "status": "success",
             "tool": "HomographyAlignment",
+            # ✅ แก้ไข 3: ส่ง output_image กลับไปด้วย (Node Enhancement มองหา key นี้)
+            "output_image": aligned_url,
+            "vis_url": aligned_url, # เผื่อบางโหนดใช้ vis_url
             **result
         }
-        
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Homography failed: {str(e)}")
 
 
 @router.post("/affine")
 def alignment_affine(req: AffineReq):
-    """
-    คำนวณ Affine Transformation (Translation, Rotation, Scale, Shear)
-    """
     match_json_path = resolve_image_path(req.match_json)
-    
     if not os.path.exists(match_json_path):
         raise HTTPException(status_code=404, detail=f"Match JSON not found: {req.match_json}")
 
@@ -90,9 +112,14 @@ def alignment_affine(req: AffineReq):
             refine_iters=req.refine_iters,
         )
 
-        # แปลงผลลัพธ์เป็น URL
+        # 1. ยัดข้อมูล Shape
+        result = inject_shape_info(result, OUT)
+
+        # 2. สร้าง URL
+        aligned_url = ""
         if result.get("output", {}).get("aligned_image"):
-            result["output"]["aligned_url"] = static_url(result["output"]["aligned_image"], OUT)
+            aligned_url = static_url(result["output"]["aligned_image"], OUT)
+            result["output"]["aligned_url"] = aligned_url
         
         if result.get("json_path"):
             result["json_url"] = static_url(result["json_path"], OUT)
@@ -100,8 +127,10 @@ def alignment_affine(req: AffineReq):
         return {
             "status": "success",
             "tool": "AffineAlignment",
+            # ✅ แก้ไข 3: ส่ง output_image/vis_url กลับไปด้วย
+            "output_image": aligned_url,
+            "vis_url": aligned_url,
             **result
         }
-        
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Affine failed: {str(e)}")

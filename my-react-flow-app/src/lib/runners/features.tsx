@@ -1,10 +1,9 @@
-//src/lib/runners/features.tsx
+// File: my-react-flow-app/src/lib/runners/features.tsx
 import { runSift, runSurf, runOrb, abs } from '../api';
 import { markStartThenRunning, updateNodeStatus, findInputImage } from './utils';
 import type { Edge } from 'reactflow';
 import type { RFNode, SetNodes } from './utils';
 import type { CustomNodeData } from '../../types';
-
 
 export async function runFeature(
   node: RFNode,
@@ -13,7 +12,6 @@ export async function runFeature(
   edges: Edge[]
 ) {
   const nodeId = node.id;
-  
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
 
   const fail = async (msg: string) => {
@@ -21,35 +19,25 @@ export async function runFeature(
     throw new Error(msg); 
   };
 
-  
   const incoming = getIncoming(nodeId);
   if (incoming.length === 0) {
     return fail('No input connection (Please connect an Image source).');
   }
 
   const prevNode = nodes.find((n) => n.id === incoming[0].source);
-  
-  const BAD_SOURCES = [
-    'sift', 'surf', 'orb',           
-    'bfmatcher', 'flannmatcher',     
-    'otsu', 'snake',               
-    'psnr', 'ssim', 'brisque',       
-    'save-json', 'save-image'        
-  ];
+  const BAD_SOURCES = ['sift', 'surf', 'orb', 'bfmatcher', 'flannmatcher', 'otsu', 'snake', 'psnr', 'ssim', 'brisque', 'save-json', 'save-image'];
 
   if (prevNode && BAD_SOURCES.includes(prevNode.type || '')) {
     const tool = prevNode.data.label || prevNode.type;
     return fail(`Invalid Input: Feature Extraction requires an Image source, not a '${tool}' result.`);
   }
 
-  
   const imagePath = findInputImage(nodeId, nodes, edges);
 
   if (!imagePath) {
     return fail('No input image found (Please check connection or run parent node).');
   }
 
- 
   let prefix = '';
   let runner: any;
 
@@ -64,12 +52,15 @@ export async function runFeature(
 
   try {
     const params = node.data.payload?.params;
-    
     const resp = await runner(imagePath, params);
 
     const num_keypoints = resp.num_keypoints ?? resp.kps_count ?? 0;
-    
     const visUrl = resp.vis_url ? abs(resp.vis_url) : undefined;
+
+    // ✅ FIX: หา Image Shape ให้เจอไม่ว่าจะซ่อนอยู่ที่ไหน
+    const foundShape = resp?.json_data?.image?.original_shape 
+                    || resp?.image_shape 
+                    || resp?.shape;
 
     setNodes((nds) =>
       nds.map((n) =>
@@ -82,18 +73,17 @@ export async function runFeature(
                 description: `Found ${num_keypoints} keypoints`,
                 payload: {
                   ...(n.data as CustomNodeData)?.payload,
+                  ...resp, 
                   params,
                   json: resp,
                   json_url: resp.json_url,
-                  json_path: resp.json_path,
-                  
                   result_image_url: visUrl,
                   vis_url: visUrl,
-                  
+                  output_image: visUrl,
                   num_keypoints: num_keypoints,
-                  image_shape: resp?.image?.processed_shape || resp?.image_shape,
-                  image_dtype: resp?.image?.processed_dtype || resp?.image_dtype,
-                  file_name: resp?.image?.file_name || resp?.file_name,
+                  
+                  // ✅ FIX: ส่ง image_shape ต่อไปให้ FLANN
+                  image_shape: foundShape,
                   
                   output: {
                     vis_url: visUrl,

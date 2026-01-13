@@ -1,4 +1,4 @@
-# server/algos/feature/clahe_adapter.py
+# server/algos/feature/Clahe.py
 import os
 import sys
 import json

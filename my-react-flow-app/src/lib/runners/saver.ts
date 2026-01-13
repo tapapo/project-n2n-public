@@ -1,4 +1,4 @@
-//src/lib/runners/saver.ts
+// File: my-react-flow-app/src/lib/runners/saver.ts
 import type { Node, Edge } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import { abs } from '../api'; 
@@ -38,7 +38,8 @@ function generateFilename(node: Node<CustomNodeData>, extension: string): string
   return `${cleanLabel}_${timestamp}.${extension}`;
 }
 
-function findInputJson(
+// ✅ Helper: ดึง Payload ออกมาตรงๆ
+function findInputPayload(
   nodeId: string,
   nodes: Node<CustomNodeData>[],
   edges: Edge[]
@@ -49,16 +50,8 @@ function findInputJson(
   const parentNode = nodes.find((n) => n.id === incomingEdge.source);
   if (!parentNode || !parentNode.data) return null;
 
-  const payload = parentNode.data.payload;
-  if (!payload) return null;
-
-  if ((payload as any).json) {
-    return (payload as any).json;
-  }
-
-  return null;
+  return parentNode.data.payload;
 }
-
 
 // 1. RUN SAVE IMAGE
 export async function runSaveImage(
@@ -126,7 +119,7 @@ export async function runSaveImage(
   }
 }
 
-// 2. RUN SAVE JSON
+// 2. RUN SAVE JSON (ฉลาดขึ้น รองรับ Template)
 export async function runSaveJson(
   node: Node<CustomNodeData>,
   setNodes: React.Dispatch<React.SetStateAction<Node<CustomNodeData>[]>>,
@@ -137,28 +130,47 @@ export async function runSaveJson(
   await updateNodeStatus(nodeId, 'running', setNodes);
 
   try {
-    const rawData = findInputJson(nodeId, nodes, edges);
+    // 1. ดึง Payload มาก่อน
+    const payload = findInputPayload(nodeId, nodes, edges);
 
-    if (!rawData) {
-      throw new Error("Input node does not have JSON result data (Image cannot be saved as JSON).");
+    if (!payload) {
+      throw new Error("Input node does not have any data (Please run the parent node first).");
     }
 
-    let finalData = rawData;
+    let finalData = payload.json || payload; // Default fallback
 
-    if (rawData.json_url) {
-      try {
-        const fetchUrl = abs(rawData.json_url);
-        if (fetchUrl) {
-          const res = await fetch(fetchUrl);
-          if (res.ok) {
-            finalData = await res.json();
+    // 2. Strategy: หา URL ของไฟล์ JSON จริงๆ
+    let targetUrl = 
+        payload.json_url ||                 
+        payload.output?.json_url ||         
+        payload.json_path ||                
+        payload.output?.match_json ||       
+        null;
+
+    if (targetUrl && (typeof targetUrl === 'string')) {
+      if (targetUrl.startsWith('/static') || targetUrl.startsWith('http')) {
+        try {
+          const fetchUrl = abs(targetUrl);
+          
+          // ✅ FIX ERROR: เพิ่มการเช็คว่า fetchUrl มีค่าจริงหรือไม่ ก่อนส่งเข้า fetch
+          if (fetchUrl) {
+            console.log(`[SaveJSON] Attempting to fetch full JSON from: ${fetchUrl}`);
+            const res = await fetch(fetchUrl);
+            
+            if (res.ok) {
+              finalData = await res.json();
+              console.log("✅ [SaveJSON] Fetched full JSON successfully.");
+            } else {
+              console.warn(`⚠️ [SaveJSON] Failed to fetch JSON from ${fetchUrl} (${res.status}), using payload fallback.`);
+            }
           }
+        } catch (err) {
+          console.warn("[SaveJSON] Fetch error, using payload fallback:", err);
         }
-      } catch (err) {
-        console.warn("[SaveJSON] Failed to fetch full JSON, saving payload instead:", err);
       }
     }
 
+    // 3. สร้างไฟล์ดาวน์โหลด
     const jsonString = JSON.stringify(finalData, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     
@@ -176,7 +188,7 @@ export async function runSaveJson(
               data: {
                 ...n.data,
                 status: 'success',
-                output: { saved_path: "Downloaded Full JSON" },
+                output: { saved_path: "Downloaded JSON" },
               },
             }
           : n

@@ -30,7 +30,7 @@ This works similarly to SSIM (Structural Similarity), but PSNR focuses purely on
     {
       id: 'psnr-n1-ori',
       type: 'image-input',
-      position: { x: 50, y: -50 },
+      position: { x: 50, y: -200 },
       data: {
         label: 'Original (Ref)',
         status: 'success',
@@ -63,7 +63,7 @@ This works similarly to SSIM (Structural Similarity), but PSNR focuses purely on
     {
       id: 'psnr-n4-save-json',
       type: 'save-json',
-      position: { x: 820, y: 299.2 },
+      position: { x: 820, y: 297.95 },
       data: {
         label: 'Save PSNR JSON',
         status: 'idle',
@@ -100,7 +100,7 @@ It can detect distortions like blur or noise by checking if the image statistics
     {
       id: 'brisque-n1-img',
       type: 'image-input',
-      position: { x: 50, y: 200 },
+      position: { x: 50, y: 134.5 },
       data: {
         label: 'Input Image (Moon)',
         status: 'success',
@@ -122,7 +122,7 @@ It can detect distortions like blur or noise by checking if the image statistics
     {
       id: 'brisque-n3-save-json',
       type: 'save-json',
-      position: { x: 820, y: 348 },
+      position: { x: 820, y: 346.95 },
       data: {
         label: 'Save BRISQUE JSON',
         status: 'idle',
