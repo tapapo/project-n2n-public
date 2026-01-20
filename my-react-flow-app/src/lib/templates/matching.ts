@@ -1,22 +1,16 @@
-// File: my-react-flow-app/src/lib/templates/matching.ts
+// File: src/lib/templates/matching.ts
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
 // --- Path Configuration ---
-// ไฟล์เหล่านี้ต้องมีอยู่จริงใน Backend (ผ่านระบบ populate_samples)
-// Path: outputs/samples/...
-
-// Input Images
 const IMG_1_URL = '/static/samples/1.png';
 const IMG_2_URL = '/static/samples/2.png';
 
-// Feature Results (SIFT) - เป็น Input ให้ FLANN
 const SIFT_1_JSON = '/static/samples/json/feature/sift_1.json';
 const SIFT_1_VIS  = '/static/samples/json/feature/sift_1_vis.jpg';
 const SIFT_2_JSON = '/static/samples/json/feature/sift_2.json';
 const SIFT_2_VIS  = '/static/samples/json/feature/sift_2_vis.jpg';
 
-// Matching Results (FLANN) - ผลลัพธ์ตัวอย่าง
 const FLANN_JSON = '/static/samples/json/matching/flann_sift.json';
 const FLANN_VIS  = '/static/samples/json/matching/flann_sift_vis.jpg';
 
@@ -26,7 +20,10 @@ export const FEATURE_MATCHING_PIPELINE: WorkflowTemplate = {
     en: 'A high-speed matcher optimized for large datasets using approximate nearest neighbor search.',
     th: 'ตัวจับคู่จุดเด่นที่เน้นความเร็วสูง โดยใช้การค้นหาแบบประมาณค่า (Approximate)'
   },
+  
+  // ✅ 1. เพิ่ม description ที่ขาดไป (แก้ Error TS)
   description: 'IMAGE + SIFT + FLANN',
+  
   longDescription: {
     en: `Once features are extracted, FLANN helps match them between images efficiently. Unlike Brute-Force matchers that check every possibility, FLANN uses optimized data structures (like KD-Trees) to find the "nearest" matches much faster.
     
@@ -69,12 +66,12 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
           params: { nfeatures: 500, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 12, sigma: 1.6 },
           num_keypoints: 500,
           
-          // Visualization
+          // ✅ 2. เพิ่มขนาดรูปให้ SIFT (เพื่อให้ UI แสดง Dimensions)
+          image_shape: [288, 512],
+
           vis_url: SIFT_1_VIS,
           result_image_url: SIFT_1_VIS,
           
-          // Data for Next Node (FLANN)
-          // ✅ สำคัญ: ระบุ path นี้เพื่อให้ FLANN ดึงไปรันใหม่ได้
           json_url: SIFT_1_JSON,
           json_path: SIFT_1_JSON,
           
@@ -115,12 +112,12 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
           params: { nfeatures: 0, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 10, sigma: 1.6 },
           num_keypoints: 89,
           
-          // Visualization
+          // ✅ 2. เพิ่มขนาดรูปให้ SIFT
+          image_shape: [240, 310],
+
           vis_url: SIFT_2_VIS,
           result_image_url: SIFT_2_VIS,
           
-          // Data for Next Node (FLANN)
-          // ✅ สำคัญ: ระบุ path นี้เพื่อให้ FLANN ดึงไปรันใหม่ได้
           json_url: SIFT_2_JSON,
           json_path: SIFT_2_JSON,
           
@@ -136,20 +133,18 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       position: { x: 850, y: 319.3 }, 
       data: { 
         label: 'FLANN Matcher', 
-        status: 'success', // ✅ Success เพื่อให้โชว์รูป Preview ทันที
+        status: 'success', 
         description: "28 inliers / 30 good matches",
         payload: {
           params: { lowe_ratio: 0.4, ransac_thresh: 5.0, draw_mode: "good", index_params: "AUTO", search_params: "AUTO" },
           
-          // ✅ ใส่รูป Preview (User เห็นอันนี้ก่อน)
           result_image_url: FLANN_VIS,
           vis_url: FLANN_VIS,
           
-          // ✅ ใส่ JSON Path (เผื่อต่อ Node Save ก็จะทำงานได้เลย)
           json_url: FLANN_JSON,
           json_path: FLANN_JSON,
           
-          // Mock Data สำหรับโชว์บน Card
+          // คงไว้ตามเดิมที่คุณบอกว่าถูกต้องแล้ว
           json: {
             matching_statistics: { num_inliers: 28, num_good_matches: 30, summary: "28 inliers / 30 good matches" },
             vis_url: FLANN_VIS,

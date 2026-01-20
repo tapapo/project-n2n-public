@@ -52,6 +52,10 @@ Similar algorithms in this category include SURF (faster version) and ORB (effic
         payload: {
           params: { nfeatures: 500, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 12, sigma: 1.6 },
           num_keypoints: 500,
+          
+          // ✅ เพิ่มบรรทัดนี้: ใส่ [Height, Width] เพื่อให้ UI แสดง Dimensions
+          image_shape: [288, 512],
+
           vis_url: SIFT_VIS,
           result_image_url: SIFT_VIS,
           preview_url: SIFT_VIS,

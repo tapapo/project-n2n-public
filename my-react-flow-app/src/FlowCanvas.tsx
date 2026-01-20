@@ -8,7 +8,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 import { nodeTypes, defaultEdgeOptions } from './lib/flowConfig';
-import type { CustomNodeData, LogEntry, NodeStatus } from './types'; // ✅ เพิ่ม NodeStatus
+import type { CustomNodeData, LogEntry, NodeStatus } from './types'; 
 
 // ---------- Runners ----------
 import { runFeature } from './lib/runners/features';
@@ -56,7 +56,6 @@ function cleanErrorMessage(rawMsg: string): string {
 const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
   ({ isRunning, onPipelineDone, onFlowChange, currentTabName }, ref) => {
   
-  // ✅ 1. ใช้ getNodes/getEdges เพื่อดึงข้อมูลสด
   const { screenToFlowPosition, fitView, getViewport, setViewport, getNode, getNodes, getEdges } = useReactFlow(); 
 
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
@@ -132,14 +131,12 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
 
   // --- NODE RUNNER ---
   const runNodeById = useCallback(async (nodeId: string) => {
-      // ✅ 2. ใช้ getNodes() เพื่อความชัวร์
       const currentNodes = getNodes(); 
       const currentEdges = getEdges(); 
 
       const node = currentNodes.find((n) => n.id === nodeId);
       
       if (!node) {
-          // ถ้าหาไม่เจอจริงๆ ให้แจ้ง Error
           throw new Error(`Node ${nodeId} missing from store`);
       }
       if (!node.type) return;
@@ -209,7 +206,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
   }, [nodes, runNodeById, setNodes]);
 
 
-  // 🔥🔥🔥 EXECUTION CONTROLLER (เวอร์ชันบังคับรัน) 🔥🔥🔥
+  // 🔥🔥🔥 EXECUTION CONTROLLER 🔥🔥🔥
   useEffect(() => {
     if (!isRunning) { 
         isCanceledRef.current = true; 
@@ -227,7 +224,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       try {
           addLog('🚀 Pipeline Started', 'info');
           
-          // 1. ดึง getNodes() สดๆ
           const allNodes = getNodes();
           
           if (!allNodes || allNodes.length === 0) {
@@ -236,9 +232,14 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           }
 
           const executionPriority: Record<string, number> = {
-              'image-input': 1, 'clahe': 5, 'msrcr': 5, 'zero': 5, 'dcnn': 10, 'dncnn': 10, 'swinir': 10, 'real': 10, 
-              'sift': 20, 'surf': 20, 'orb': 20, 'deep': 25, 'deeplab': 25, 'unet': 25, 'otsu': 30, 'snake': 30, 
-              'bfmatcher': 40, 'flannmatcher': 40, 'homography-align': 50, 'brisque': 60, 'psnr': 60, 'save-image': 99
+              'image-input': 1, 
+              'clahe': 5, 'msrcr': 5, 'zero': 5, 'zerodce': 5, 'zero_dce': 5,
+              'dcnn': 10, 'dncnn': 10, 'swinir': 10, 'real': 10, 'realesrgan': 10, 
+              'sift': 20, 'surf': 20, 'orb': 20, 
+              'deep': 25, 'deeplab': 25, 'unet': 25, 'mask': 25, 'maskrcnn': 25,
+              'otsu': 30, 'snake': 30, 
+              'bfmatcher': 40, 'flannmatcher': 40, 'homography-align': 50, 'brisque': 60, 'psnr': 60, 
+              'save-image': 99
           };
           
           const sortedNodes = allNodes.sort((a, b) => {
@@ -254,15 +255,21 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
             if (node.type.startsWith('save-')) continue;
 
             try { 
-                // ✅ KEY FIX: บังคับเปลี่ยนสถานะเป็น Running ก่อนเรียกฟังก์ชัน
-                // เพื่อให้ UI เปลี่ยนสี และ Runner รู้ว่านี่คือการรันใหม่
+                // บังคับเปลี่ยนสถานะเป็น Running (สีเหลือง)
                 setNodes((nds) => nds.map(n => n.id === node.id ? { ...n, data: { ...n.data, status: 'running' as NodeStatus } } : n));
                 
-                // รอ 50ms ให้ React อัปเดตสถานะเสร็จก่อน (สำคัญมาก!) 
+                // รอ 50ms ให้ React อัปเดตสถานะเสร็จก่อน
                 await new Promise(r => setTimeout(r, 50));
 
                 // สั่งรัน -> ซึ่งจะไปเรียก getNodes() ใหม่อีกทีข้างใน
                 await runNodeById(node.id); 
+
+                // ✅✅✅ FIX: บังคับพักหลังรันเสร็จ (Delay) เพื่อให้ React วาดรูปและ Browser โหลดรูป
+                // ถ้าเป็น Segmentation (Heavy) พักนานหน่อย (500ms), ตัวอื่นพักนิดเดียว (100ms)
+                const isHeavyNode = ['deep', 'deeplab', 'mask', 'maskrcnn', 'unet'].includes(node.type?.toLowerCase() || '');
+                const delayTime = isHeavyNode ? 500 : 100;
+
+                await new Promise(r => setTimeout(r, delayTime));
             
             } catch (e) { 
                 console.warn(`Node ${node.id} failed.`); 

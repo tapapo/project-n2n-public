@@ -1,4 +1,4 @@
-// File: my-react-flow-app/src/lib/templates/alignment.ts
+// File: src/lib/templates/alignment.ts
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
@@ -64,6 +64,10 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
         payload: {
           params: { nfeatures: 500, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 12, sigma: 1.6 },
           num_keypoints: 500,
+          
+          // ✅ เพิ่มขนาดรูป
+          image_shape: [288, 512],
+
           vis_url: SIFT_1_VIS,
           result_image_url: SIFT_1_VIS,
           json_path: SIFT_1_JSON,
@@ -96,6 +100,10 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
         payload: {
           params: { nfeatures: 0, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 10, sigma: 1.6 },
           num_keypoints: 89,
+          
+          // ✅ เพิ่มขนาดรูป
+          image_shape: [240, 310],
+
           vis_url: SIFT_2_VIS,
           result_image_url: SIFT_2_VIS,
           json_path: SIFT_2_JSON,
@@ -133,18 +141,22 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n6-homo",
       type: "homography-align",
-      position: { x: 1250, y: 338.65 },
+      position: { x: 1250, y: 327 },
       data: {
         label: "Homography Warp",
         status: "success",
         description: "Homography aligned (28 inliers)",
         payload: {
           params: { warp_mode: "image2_to_image1", blend: true },
+          
+          // ✅✅✅ ใส่ aligned_shape เพื่อให้ Homography Node แสดง Output Size
+          aligned_shape: [288, 512], // เท่ากับ Ref
+
           aligned_url: HOMO_IMG,
           result_image_url: HOMO_IMG,
           json_path: HOMO_JSON,
           json_url: HOMO_JSON,
-          json: { num_inliers: 28, output: { aligned_url: HOMO_IMG, aligned_image: HOMO_IMG } }
+          json: { num_inliers: 28, output: { aligned_url: HOMO_IMG, aligned_image: HOMO_IMG, aligned_shape: [288, 512] } }
         }
       }
     },
@@ -171,5 +183,5 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     { id: "e5", source: "n5-flann", target: "n6-homo", type: "smoothstep", style: { strokeWidth: 2, stroke: "#64748b" } },
     { id: "e6", source: "n6-homo", target: "n7-save-img", type: "smoothstep", style: { strokeWidth: 2, stroke: "#64748b" } },
     { id: "e7", source: "n6-homo", target: "n8-save-json", type: "smoothstep", style: { strokeWidth: 2, stroke: "#64748b" } }
-  ]
+  ],
 };
