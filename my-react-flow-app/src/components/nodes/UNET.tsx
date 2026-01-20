@@ -32,10 +32,14 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  const params = useMemo(() => ({ 
-    threshold: data?.payload?.params?.threshold ?? DEFAULT_PARAMS.threshold,
-    model_path: data?.payload?.model_path ?? DEFAULT_PARAMS.model_path 
-  }), [data?.payload]);
+  const params = useMemo(() => {
+    const p = data?.params || data?.payload?.params || {};
+    const mPath = data?.model_path || data?.payload?.model_path || "";
+    return { 
+        threshold: p.threshold ?? DEFAULT_PARAMS.threshold,
+        model_path: mPath 
+    };
+  }, [data?.params, data?.payload, data?.model_path]);
 
   const [form, setForm] = useState<Params>(params);
   
@@ -45,17 +49,20 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
   const onSave = useCallback(() => {
+    const finalParams = { threshold: form.threshold };
+    const finalModelPath = form.model_path;
+
     rf.setNodes(nds => nds.map(n => 
       n.id === id ? { 
         ...n, 
         data: { 
           ...n.data, 
+          params: finalParams, 
+          model_path: finalModelPath, 
           payload: { 
             ...(n.data?.payload || {}), 
-            model_path: form.model_path, 
-            params: { 
-                threshold: form.threshold 
-            } 
+            model_path: finalModelPath, 
+            params: finalParams 
           } 
         } 
       } : n
@@ -87,11 +94,26 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const visUrl = data?.payload?.vis_url;
   const maskUrl = data?.payload?.mask_url;
+  const json_data = data?.payload?.json_data || data?.payload?.json || data?.payload;
+
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
   
   const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'Segmentation complete' : 'Connect Image & Set Model');
+
+  // ✅ 1. เพิ่ม Logic คำนวณขนาดรูปภาพ
+  const displaySize = useMemo(() => {
+    const imgMeta = json_data?.image || {};
+    const shape = imgMeta.segmented_shape || imgMeta.mask_shape || imgMeta.original_shape || data?.payload?.output_shape;
+
+    if (Array.isArray(shape) && shape.length >= 2) {
+      const h = shape[0];
+      const w = shape[1];
+      return `${w} x ${h}`; // แสดง Width x Height
+    }
+    return null;
+  }, [json_data, data?.payload]);
 
   let borderColor = 'border-yellow-600';
   if (selected) borderColor = 'border-yellow-400 ring-2 ring-yellow-500';
@@ -138,6 +160,13 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
+        {/* ✅ 2. แสดง Dimensions แบบเรียบง่าย (สีเทา) */}
+        {displaySize && (
+          <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
+            Dimensions: {displaySize}
+          </div>
+        )}
+
         {displayUrl && (
           <div className="relative group">
             <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />

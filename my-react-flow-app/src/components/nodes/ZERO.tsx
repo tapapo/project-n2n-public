@@ -4,7 +4,7 @@ import { Handle, Position, useReactFlow, useEdges, type NodeProps } from 'reactf
 import type { CustomNodeData } from '../../types'
 import Modal from '../common/Modal'
 import { abs } from '../../lib/api'
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -28,14 +28,13 @@ const ZeroDCENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
   const edges = useEdges(); 
   const [open, setOpen] = useState(false)
 
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // 1. Parameter Management
-  const params = useMemo(() => ({
-    ...DEFAULT_PARAMS,
-    ...(data?.payload?.params || {})
-  }), [data?.payload?.params]);
+  // 1. อ่านค่า
+  const params = useMemo(() => {
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
+    return { ...DEFAULT_PARAMS, ...p };
+  }, [data?.params, data?.payload?.params]);
 
   const [form, setForm] = useState<Params>(params);
 
@@ -43,11 +42,18 @@ const ZeroDCENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
     if (!open) setForm(params);
   }, [params, open]);
 
-  // 2. Action Handlers
+  // 2. บันทึกค่า
   const onSave = useCallback(() => {
     rf.setNodes((nds) => nds.map((n) => 
       n.id === id 
-        ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } } 
+        ? { 
+            ...n, 
+            data: { 
+              ...n.data, 
+              params: { ...form }, 
+              payload: { ...(n.data?.payload || {}), params: { ...form } } 
+            } 
+          } 
         : n
     ));
     setOpen(false);
@@ -56,15 +62,23 @@ const ZeroDCENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
   // 3. Display Logic
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
+  const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
+  // Fallback data sources
+  const json_data = data?.payload?.json_data || data?.payload?.json;
+
+  // ✅ Logic ดึงขนาดรูป
   const displaySize = useMemo(() => {
-    const internalShape = data?.payload?.json_data?.image?.original_shape || data?.payload?.image_shape;
-    if (Array.isArray(internalShape) && internalShape.length >= 2) {
-      return `${internalShape[1]}×${internalShape[0]}px`;
+    const imgMeta = json_data?.image || {};
+    const shape = imgMeta.enhanced_shape || imgMeta.original_shape || data?.payload?.image_shape;
+    
+    if (Array.isArray(shape) && shape.length >= 2) {
+      const h = shape[0];
+      const w = shape[1];
+      return `${w} x ${h}`;
     }
     return null;
-  }, [data?.payload]);
+  }, [json_data, data?.payload]);
 
-  const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
 
   const caption = (isSuccess && data?.description)
@@ -118,9 +132,10 @@ const ZeroDCENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
 
       {/* Body */}
       <div className="p-4 space-y-3">
+        {/* ✅ แสดง Dimensions */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
-            Input: {displaySize}
+            Dimensions: {displaySize}
           </div>
         )}
 
@@ -145,7 +160,6 @@ const ZeroDCENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
         </div>
         <div className="flex justify-between items-center py-1">
           <span className="text-green-400">success</span>
-          {/* ✅ ใช้ isSuccess */}
           <div className={statusDot(isSuccess, 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1">

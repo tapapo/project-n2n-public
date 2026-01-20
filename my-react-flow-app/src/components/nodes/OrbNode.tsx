@@ -1,10 +1,10 @@
-// File: my-react-flow-app/src/components/nodes/OrbNode.tsx
+// File: src/components/nodes/OrbNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api'; 
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus';
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -34,45 +34,48 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const edges = useEdges(); 
   const [open, setOpen] = useState(false);
 
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  const params = useMemo(
-    () => ({ ...DEFAULT_ORB, ...(data?.payload?.params || {}) }),
-    [data?.payload?.params]
-  );
+  // 1. อ่านค่า
+  const params = useMemo(() => {
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
+    return { ...DEFAULT_ORB, ...p };
+  }, [data?.params, data?.payload?.params]);
   
   const [form, setForm] = useState<Params>(params);
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
 
-  // Logic Display Size
+  // ✅ Logic ดึงขนาดรูป
   const displaySize = useMemo(() => {
     const imgData = data?.payload?.json_data?.image;
-    const shape = imgData?.processed_orb_shape || imgData?.processed_shape || imgData?.original_shape || data?.payload?.image_shape;
+    const shape = imgData?.processed_orb_shape || 
+                  imgData?.processed_shape || 
+                  imgData?.original_shape || 
+                  data?.payload?.image_shape;
     
     if (Array.isArray(shape) && shape.length >= 2) {
-      return `${shape[1]}×${shape[0]}px`;
-    }
-
-    const incomingEdge = rf.getEdges().find((e) => e.target === id);
-    if (incomingEdge) {
-      const sourceNode = rf.getNodes().find((n) => n.id === incomingEdge.source);
-      const p = sourceNode?.data?.payload;
-      if (p) {
-        const w = p.width || p.image_shape?.[1] || p.json_data?.image?.processed_shape?.[1] || p.json_data?.image?.original_shape?.[1];
-        const h = p.height || p.image_shape?.[0] || p.json_data?.image?.processed_shape?.[0] || p.json_data?.image?.original_shape?.[0];
-        if (w && h) return `${w}×${h}px`;
-      }
+      return `${shape[1]} x ${shape[0]}`;
     }
     return null;
-  }, [id, rf, data?.payload]);
+  }, [data?.payload]);
 
+  // 2. บันทึกค่า
   const saveParams = useCallback(() => {
     rf.setNodes((nds) =>
       nds.map((n) =>
-        n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: form } } } : n
+        n.id === id ? { 
+          ...n, 
+          data: { 
+            ...n.data, 
+            params: form, 
+            payload: { 
+              ...(n.data?.payload || {}), 
+              params: form 
+            } 
+          } 
+        } : n
       )
     );
     setOpen(false);
@@ -85,7 +88,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ? data.description
     : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
 
-  // สไตล์ขอบโหนด
   let borderStyle = 'border-green-500';
   if (selected) borderStyle = 'border-green-400 ring-2 ring-green-500';
   else if (isRunning) borderStyle = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -101,7 +103,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>ORB</div>
         <div className="flex items-center gap-2">
@@ -131,20 +132,20 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
+        {/* ✅ แสดง Dimensions แบบเรียบ (สีเทา) */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
-            Input: {displaySize}
+            Dimensions: {displaySize}
           </div>
         )}
+        
         {displayUrl && (
           <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
         )}
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>
@@ -156,7 +157,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
         <div className="flex justify-between items-center py-1">
           <span className="text-green-400">success</span>
-          {/* ✅ ใช้ isSuccess */}
           <div className={statusDot(isSuccess, 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1">
@@ -165,7 +165,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Modal Settings */}
       <Modal open={open} title="ORB Settings" onClose={() => setOpen(false)}>
         <div className="grid grid-cols-2 gap-4 text-xs text-gray-300 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
           <div className="col-span-2 border-b border-gray-700 pb-2 mb-2">

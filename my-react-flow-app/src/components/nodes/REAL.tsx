@@ -4,7 +4,7 @@ import { Handle, Position, type NodeProps, useReactFlow, useEdges } from "reactf
 import Modal from "../common/Modal"
 import { abs } from "../../lib/api"
 import type { CustomNodeData } from "../../types"
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus';
 
 /* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
@@ -16,7 +16,6 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
   </svg>
 );
 
-// ✅ Fix Model เป็นตัวเดียวตาม Backend
 const FIXED_MODEL = "RealESRGAN_x4plus.pth";
 
 const DEFAULT_PARAMS = {
@@ -31,13 +30,15 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
   const edges = useEdges();
   const [open, setOpen] = useState(false);
 
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // Logic Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
+  const params = useMemo(() => {
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
+    return { ...DEFAULT_PARAMS, ...p };
+  }, [data?.params, data?.payload?.params]);
+
   const [form, setForm] = useState<Params>(params);
   
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
@@ -46,27 +47,74 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
   const onSave = useCallback(() => {
+    const finalParams = { ...form, model: FIXED_MODEL };
+    
     rf.setNodes(nds => nds.map(n => 
-      n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form, model: FIXED_MODEL } } } } : n
+      n.id === id 
+        ? { 
+            ...n, 
+            data: { 
+              ...n.data, 
+              params: finalParams, 
+              payload: { ...(n.data?.payload || {}), params: finalParams } 
+            } 
+          } 
+        : n
     ));
     setOpen(false);
   }, [rf, id, form]);
 
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
-  const respJson = data?.payload?.json || data?.payload?.json_data;
+  // Fallback: ดึงข้อมูลจาก json_data หรือ json (เผื่อ backend ส่งมาต่างกัน)
+  const sourceData = data?.payload?.json_data || data?.payload?.json || {};
 
-  const originalShape = respJson?.image?.original_shape || respJson?.input_resolution;
-  const enhancedShape = respJson?.image?.enhanced_shape || respJson?.output_resolution;
-  const psnr = respJson?.psnr;
+  // ✅ Logic แสดงขนาดพร้อม Label: Input -> Output
+  const getSizeText = useMemo(() => {
+    let w_in, h_in, w_out, h_out;
 
+    // 1. ดึงข้อมูล
+    if (sourceData.input_resolution) [w_in, h_in] = sourceData.input_resolution;
+    if (sourceData.output_resolution) [w_out, h_out] = sourceData.output_resolution;
+    
+    // Fallback
+    if (!w_in && sourceData.image?.original_shape) [h_in, w_in] = sourceData.image.original_shape;
+    if (!w_out && sourceData.image?.enhanced_shape) [h_out, w_out] = sourceData.image.enhanced_shape;
+
+    // กรณีมีทั้ง Input และ Output (แสดงการเปรียบเทียบ)
+    if (w_in && h_in && w_out && h_out) {
+        return (
+            <div className="flex items-center justify-between w-full text-[10px] bg-slate-900/40 p-1.5 rounded border border-gray-700/50">
+                <div className="flex flex-col">
+                    <span className="text-[9px] text-gray-500 uppercase font-bold">Input</span>
+                    <span className="text-gray-300 font-mono">{w_in}x{h_in}</span>
+                </div>
+                
+                <span className="text-gray-500 mx-1">➜</span>
+                
+                <div className="flex flex-col text-right">
+                    <span className="text-[9px] text-red-400 uppercase font-bold">Output</span>
+                    <span className="text-red-300 font-mono font-bold">{w_out}x{h_out}</span>
+                </div>
+            </div>
+        );
+    }
+    
+    // กรณีมีแค่ Output
+    if (w_out && h_out) {
+        return <span className="text-[10px] text-gray-400">Output: {w_out} x {h_out}</span>;
+    }
+
+    return null;
+  }, [sourceData]);
+
+  const psnr = sourceData?.psnr;
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
   
-  // Caption (ใช้ isSuccess ช่วย)
   const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
 
-  // Style (Red Theme)
+  // Style
   let borderColor = 'border-red-500';
   if (selected) borderColor = 'border-red-400 ring-2 ring-red-500'; 
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -113,18 +161,8 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
       </div>
 
       <div className="p-4 space-y-3">
-        {(originalShape || enhancedShape) && (
-          <div className="grid grid-cols-2 gap-3 text-[11px]">
-            <div className="rounded border border-gray-700 p-2">
-              <div className="text-gray-500 mb-1 uppercase text-[9px]">Input</div>
-              {originalShape ? <div>{originalShape[0]}×{originalShape[1]}px</div> : <div className="text-gray-600 italic">---</div>}
-            </div>
-            <div className="rounded border border-gray-700 p-2">
-              <div className="text-gray-400 mb-1 uppercase text-[9px]">Enhanced</div>
-              {enhancedShape ? <div>{enhancedShape[0]}×{enhancedShape[1]}px</div> : <div className="text-gray-600 italic">---</div>}
-            </div>
-          </div>
-        )}
+        {/* ✅ แสดง Input -> Output แบบมี Label ชัดเจน */}
+        {getSizeText}
         
         {displayUrl && (
           <div className="space-y-2">
@@ -141,7 +179,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
-           {/* ✅ ใช้ isSuccess */}
            <div className={statusDot(isSuccess, 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>

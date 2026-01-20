@@ -5,7 +5,7 @@ import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
 import { getNodeImageUrl } from '../../lib/runners/utils';
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -106,7 +106,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const [open, setOpen] = useState(false);
   const [showAdv, setShowAdv] = useState(false);
   
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   // Interactive State
@@ -118,7 +117,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   
   const [isEditing, setIsEditing] = useState(true);
 
-  // ปรับ Logic isEditing: ถ้า Success แล้ว (จากการรันหรือ Copy) ให้หยุด Edit
   useEffect(() => {
     if (isSuccess) {
       setIsEditing(false);
@@ -154,7 +152,12 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  const savedParams = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}), init_mode: normalize((data?.payload?.params as any)?.init_mode) }), [data?.payload?.params]);
+  // 1. อ่านค่า
+  const savedParams = useMemo(() => {
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
+    return { ...DEFAULT_PARAMS, ...p, init_mode: normalize(p.init_mode as any) };
+  }, [data?.params, data?.payload?.params]);
+
   const [form, setForm] = useState<Params>(savedParams);
   
   useEffect(() => {
@@ -166,9 +169,17 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const onRun = useCallback(() => { if (!isRunning) data?.onRunNode?.(id); }, [data, id, isRunning]);
   const onClose = () => { setForm(savedParams); setOpen(false); };
 
+  // 2. บันทึกค่า
   const updateNodeData = useCallback((newParams: Params) => { 
     rf.setNodes((nds) => nds.map((n) => 
-      n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: newParams } } } : n
+      n.id === id ? { 
+        ...n, 
+        data: { 
+          ...n.data, 
+          params: newParams, 
+          payload: { ...(n.data?.payload || {}), params: newParams } 
+        } 
+      } : n
     ));
   }, [rf, id]);
 
@@ -233,13 +244,10 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     }
   }, [imgSize]); 
 
+  // ... (Event Handlers เหมือนเดิม) ...
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation(); 
-
-    if (form.init_mode === 'bbox' || form.init_mode === 'point') {
-        e.preventDefault(); 
-    }
-
+    if (form.init_mode === 'bbox' || form.init_mode === 'point') { e.preventDefault(); }
     if (form.init_mode === 'bbox') {
         setIsEditing(true); 
         const coords = getImgCoords(e);
@@ -256,11 +264,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging || !dragStart || form.init_mode !== 'bbox') return;
     e.preventDefault(); e.stopPropagation();
-    
-    if (frameRef.current) {
-        cancelAnimationFrame(frameRef.current);
-    }
-    
+    if (frameRef.current) { cancelAnimationFrame(frameRef.current); }
     frameRef.current = requestAnimationFrame(() => {
         const coords = getImgCoords(e);
         if (coords) {
@@ -283,16 +287,11 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         setDragStart(null);
         updateNodeData(form);
     }
-    if (frameRef.current) {
-        cancelAnimationFrame(frameRef.current);
-        frameRef.current = 0;
-    }
+    if (frameRef.current) { cancelAnimationFrame(frameRef.current); frameRef.current = 0; }
   }, [isDragging, form, updateNodeData]);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation(); 
-    e.preventDefault(); 
-
+    e.stopPropagation(); e.preventDefault(); 
     if (form.init_mode === 'point') {
       setIsEditing(true);
       const coords = getImgCoords(e);
@@ -356,9 +355,10 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         onMouseUp={handleMouseUp}
         onClick={handleClick}
       >
+        {/* ✅ แสดง Dimensions */}
         {imgSize && (
-            <div className="text-[10px] text-gray-400">
-                Input: {imgSize.w}x{imgSize.h}px
+            <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
+                Dimensions: {imgSize.w} x {imgSize.h}
             </div>
         )}
 
@@ -411,14 +411,14 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
-           {/* ✅ ใช้ isSuccess */}
            <div className={statusDot(isSuccess, 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
       <Modal open={open} title="Snake Settings" onClose={onClose}>
-         {/* ... Settings Code (เหมือนเดิม) ... */}
+         {/* ... Settings ... */}
+         {/* ... (ส่วนนี้ยาวมาก เลยย่อไว้ใน Code ข้างบน) ... */}
          <div className="space-y-5 text-xs text-gray-300 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar" onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll}>
             <div className="space-y-2">
                 <div className="font-semibold text-pink-300 uppercase text-[10px] tracking-wider mb-2">Core Parameters</div>

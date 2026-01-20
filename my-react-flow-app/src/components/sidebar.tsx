@@ -266,8 +266,8 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
         {!collapsed ? (
           <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
             <div className="px-1 pb-2 flex gap-2 mb-1 mt-1">
-              <button onClick={expandAll} className="flex-1 text-[9px] font-bold px-2 py-1 rounded bg-gray-800 text-gray-500 hover:text-white hover:bg-gray-700 border border-gray-700 transition-colors">EXPAND ALL</button>
-              <button onClick={collapseAll} className="flex-1 text-[9px] font-bold px-2 py-1 rounded bg-gray-800 text-gray-500 hover:text-white hover:bg-gray-700 border border-gray-700 transition-colors">COLLAPSE</button>
+              <button onClick={expandAll} className="flex-1 text-[9px] font-bold px-2 py-1 rounded bg-gray-800 text-gray-500 hover:text-white hover:bg-gray-700 border border-gray-700 transition-colors">OPEN ALL</button>
+              <button onClick={collapseAll} className="flex-1 text-[9px] font-bold px-2 py-1 rounded bg-gray-800 text-gray-500 hover:text-white hover:bg-gray-700 border border-gray-700 transition-colors">CLOSE ALL</button>
             </div>
 
             {activeTab === 'nodes' && jobs.map(job => {

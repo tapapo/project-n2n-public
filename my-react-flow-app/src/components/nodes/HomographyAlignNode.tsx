@@ -25,27 +25,40 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
 
-  // ✅ เรียกใช้ Hook (statusDot มาจากที่นี่แล้ว)
+  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   const isConnected = useStore(
     useCallback((s: any) => s.edges.some((e: any) => e.target === id), [id])
   );
 
+  // ✅ แก้จุดที่ 1: อ่านค่าจาก data.params ก่อน (Watcher friendly)
   const savedParams: Params = useMemo(() => {
-    const p = (data?.payload?.params || {}) as Partial<Params>;
+    // อ่านจาก root params ก่อน -> ถ้าไม่มีค่อยไป payload -> ถ้าไม่มีใช้ Default
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_PARAMS, ...p };
-  }, [data?.payload?.params]);
+  }, [data?.params, data?.payload?.params]);
 
   const [form, setForm] = useState<Params>(savedParams);
   useEffect(() => setForm(savedParams), [savedParams]);
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
+
+  // ✅ แก้จุดที่ 2: บันทึกค่าลง data.params โดยตรง (เพื่อให้ Watcher เห็นและรีเซ็ตสีให้)
   const onSave = () => {
     rf.setNodes(nds =>
       nds.map(n =>
         n.id === id
-          ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } }
+          ? { 
+              ...n, 
+              data: { 
+                ...n.data, 
+                // บันทึกที่ root level สำหรับ Watcher
+                params: { ...form },
+                // บันทึกใน payload สำหรับ Runner เดิม
+                payload: { ...(n.data?.payload || {}), params: { ...form } } 
+              } 
+            }
           : n
       )
     );
@@ -120,6 +133,7 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
 
+          {/* ✅ คง Tooltip ไว้ตามที่ขอครับ */}
           <span className="relative inline-flex items-center group">
             <button
               aria-label="Open Homography settings"

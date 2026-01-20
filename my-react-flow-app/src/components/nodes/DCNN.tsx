@@ -4,7 +4,7 @@ import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactf
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus'; 
 
 /* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
@@ -25,43 +25,47 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const edges = useEdges();
   const [open, setOpen] = useState(false);
 
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // 1. Parameters logic
-  const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
+  const params = useMemo(() => {
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
+    return { ...DEFAULT_PARAMS, ...p };
+  }, [data?.params, data?.payload?.params]);
+
   const [form, setForm] = useState<Params>(params);
 
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
-  
-  const handleClose = useCallback(() => { 
-    setForm(params); 
-    setOpen(false); 
-  }, [params]);
+  const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
-      n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } } : n
+      n.id === id 
+        ? { 
+            ...n, 
+            data: { 
+              ...n.data, 
+              params: { ...form }, 
+              payload: { ...(n.data?.payload || {}), params: { ...form } } 
+            } 
+          } 
+        : n
     ));
     setOpen(false);
   }, [rf, id, form]);
   
-  // Logic: Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
   const respJson = data?.payload?.json || data?.payload?.json_data;
 
-  // ข้อมูลจาก Backend Data
-  const originalShape = respJson?.image?.original_shape;
-  const enhancedShape = respJson?.image?.enhanced_shape;
-  const noiseRemoved = respJson?.noise_removed;
+  // ✅ ดึงค่าจาก JSON ที่ Backend ส่งกลับ
+  const enhancedShape = respJson?.image?.enhanced_shape || data?.payload?.image_shape;
+  const usedParams = respJson?.dncnn_parameters_used || {};
 
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
   
-  // Caption (ใช้ isSuccess ช่วย)
   const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'Restoration complete' : 'Connect Noisy Image and run');
@@ -70,12 +74,10 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
-  // Border logic
   let borderColor = 'border-red-500';
   if (selected) borderColor = 'border-red-400 ring-2 ring-red-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // Handle Class Logic
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected 
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' 
@@ -84,7 +86,6 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
-      {/* Handles */}
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
@@ -104,7 +105,6 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             <button onClick={handleOpen} className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/70 hover:bg-gray-100">
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            
             <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
               Settings
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
@@ -115,23 +115,23 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
       {/* Body */}
       <div className="p-4 space-y-3">
-        {(originalShape || enhancedShape) && (
-          <div className="grid grid-cols-2 gap-3 text-[11px]">
-            <div className="rounded border border-gray-700 p-2">
-              <div className="text-gray-500 mb-1 uppercase text-[9px]">Input</div>
-              {originalShape ? <div>{originalShape[1]}×{originalShape[0]}px</div> : <div className="text-gray-600 italic">---</div>}
-            </div>
-            <div className="rounded border border-gray-700 p-2">
-              <div className="text-gray-400 mb-1 uppercase text-[9px]">Enhanced</div>
-              {enhancedShape ? <div>{enhancedShape[1]}×{enhancedShape[0]}px</div> : <div className="text-gray-600 italic">---</div>}
-            </div>
+        {/* ✅ 1. แสดง Dimensions (แบบเรียบ) */}
+        {enhancedShape && (
+          <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
+             Dimensions: {enhancedShape[1]} x {enhancedShape[0]}
           </div>
         )}
 
         {displayUrl && (
-          <div className="space-y-2">
-            <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
-            {noiseRemoved && <div className="text-[10px] text-green-400 text-center font-bold uppercase tracking-widest">Noise Reduced</div>}
+          <div className="relative group">
+             <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
+             
+             {/* ✅ 2. แสดง Model Info ที่มุมขวาล่างรูป */}
+             {usedParams.model_loaded && (
+                <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded backdrop-blur-sm border border-white/10">
+                   {usedParams.model_loaded}
+                </div>
+             )}
           </div>
         )}
         
@@ -141,11 +141,10 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       {/* Status Table */}
-      <div className="border-t-2 border-gray-700 p-2 text-sm">
+      <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
-           {/* ✅ ใช้ isSuccess */}
            <div className={statusDot(isSuccess, 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>

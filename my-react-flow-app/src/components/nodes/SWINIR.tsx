@@ -4,7 +4,7 @@ import { Handle, Position, useReactFlow, useEdges, type NodeProps } from 'reactf
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus'; 
 
 /* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
@@ -25,11 +25,14 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const edges = useEdges();
   const [open, setOpen] = useState(false);
 
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // Parameter logic
-  const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
+  // 1. อ่านค่า Params
+  const params = useMemo(() => {
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
+    return { ...DEFAULT_PARAMS, ...p };
+  }, [data?.params, data?.payload?.params]);
+
   const [form, setForm] = useState<Params>(params);
   
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
@@ -37,25 +40,34 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
+  // 2. บันทึกค่า
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
-      n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } } : n
+      n.id === id 
+        ? { 
+            ...n, 
+            data: { 
+              ...n.data, 
+              params: { ...form }, 
+              payload: { ...(n.data?.payload || {}), params: { ...form } } 
+            } 
+          } 
+        : n
     ));
     setOpen(false);
   }, [rf, id, form]);
   
-  // Logic: Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
   const respJson = data?.payload?.json || data?.payload?.json_data;
   
+  // ดึงขนาดรูป (Input และ Output)
   const originalShape = respJson?.image?.original_shape;
-  const enhancedShape = respJson?.image?.enhanced_shape;
+  const enhancedShape = respJson?.image?.enhanced_shape || data?.payload?.image_shape;
 
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
   
-  // Caption
   const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'Restoration complete' : 'Connect Image Input and run');
@@ -64,12 +76,10 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
-  // Border logic
   let borderColor = 'border-red-500';
   if (selected) borderColor = 'border-red-400 ring-2 ring-red-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // Handle Class Logic
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected 
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' 
@@ -79,7 +89,6 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
       
-      {/* Handles */}
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
@@ -114,17 +123,17 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
       {/* Body */}
       <div className="p-4 space-y-3">
-        {(originalShape || enhancedShape) && (
-          <div className="grid grid-cols-2 gap-3 text-[11px]">
-            <div className="rounded border border-gray-700 p-2">
-              <div className="text-gray-500 mb-1 uppercase text-[9px]">Input</div>
-              {originalShape ? <div>{originalShape[1]}×{originalShape[0]}px</div> : <div className="text-gray-600 italic">---</div>}
-            </div>
-            <div className="rounded border border-gray-700 p-2">
-              <div className="text-gray-400 mb-1 uppercase text-[9px]">Enhanced</div>
-              {enhancedShape ? <div>{enhancedShape[1]}×{enhancedShape[0]}px</div> : <div className="text-gray-600 italic">---</div>}
-            </div>
-          </div>
+        {/* ✅ แสดงขนาดรูปแบบเรียบง่าย (Input -> Output) */}
+        {(originalShape && enhancedShape) ? (
+           <div className="flex items-center gap-2 text-[10px] text-gray-400 font-semibold tracking-tight">
+              <span>{originalShape[1]}x{originalShape[0]}</span>
+              <span className="text-gray-600">➜</span>
+              <span className="text-red-300">{enhancedShape[1]}x{enhancedShape[0]}</span>
+           </div>
+        ) : enhancedShape && (
+           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
+              Dimensions: {enhancedShape[1]} x {enhancedShape[0]}
+           </div>
         )}
         
         {displayUrl && (
@@ -139,7 +148,6 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
-           {/* ✅ ใช้ isSuccess */}
            <div className={statusDot(isSuccess, 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
@@ -166,7 +174,7 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             />
           </div>
         </div>
-        <div className="flex justify-end gap-2 pt-5">
+        <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">
           <button onClick={handleClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition">Cancel</button>
           <button onClick={onSave} className="px-4 py-1.5 rounded bg-red-600 text-white text-xs font-bold cursor-pointer hover:bg-red-500 transition">Save</button>
         </div>

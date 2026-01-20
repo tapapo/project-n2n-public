@@ -1,8 +1,10 @@
+# File: server/main.py
 import os
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+# Import จาก utils_io
 from .utils_io import save_upload, static_url, ensure_dirs, OUT, UPLOAD_DIR
 from .routers import (
     features, matching, alignment, quality, 
@@ -35,6 +37,13 @@ app.include_router(segmentation.router,   prefix="/api/segmentation")
 async def api_upload(files: list[UploadFile] = File(...)):
     saved = []
     for f in files:
+        # save_upload ใน utils_io สร้างชื่อไฟล์แบบ UUID ให้แล้ว (แก้ Cache ได้เลย)
         path = await save_upload(f, UPLOAD_DIR)
-        saved.append({"url": static_url(path, OUT)})
+        
+        # ✅ FIX: ต้องส่ง 'name' และ 'path' กลับไปด้วย (ในโค้ดเดิมที่คุณส่งมามันหายไป)
+        saved.append({
+            "name": f.filename,
+            "path": path,                  # 👈 สำคัญมาก! Frontend ต้องใช้สิ่งนี้
+            "url": static_url(path, OUT)
+        })
     return {"files": saved}

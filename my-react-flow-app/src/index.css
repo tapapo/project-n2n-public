@@ -37,3 +37,17 @@ input[type="number"] {
   stroke: #22d3ee;
   opacity: 0.3;
 }
+
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #14b8a6 !important; 
+  stroke-width: 3px !important;
+  filter: none !important;
+  transition: stroke 0.2s, stroke-width 0.2s;
+}
+
+.react-flow__edge .react-flow__edge-interaction {
+  stroke-width: 25px !important;
+  stroke: transparent !important;
+  cursor: pointer;
+}

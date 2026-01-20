@@ -37,22 +37,25 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
 
-  // ✅ เรียกใช้ Hook (statusDot มาจากที่นี่แล้ว)
+  // Hook เช็คสถานะ
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   const isConnected = useStore(
     useCallback((s: any) => s.edges.some((e: any) => e.target === id), [id])
   );
 
+  // ✅ 1. Logic เดิมที่แก้ให้เมื่อกี้ (อ่านค่า params ที่ watcher มองเห็น)
   const savedParams = useMemo(() => {
-    const p = (data?.payload?.params || {}) as Partial<Params>;
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_PARAMS, ...p };
-  }, [data?.payload?.params]);
+  }, [data?.params, data?.payload?.params]);
 
   const [form, setForm] = useState<Params>(savedParams);
   useEffect(() => setForm(savedParams), [savedParams]);
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
+
+  // ✅ 2. Logic เดิมที่แก้ให้เมื่อกี้ (บันทึกค่าลง data.params เพื่อ trigger watcher)
   const onSave = () => {
     rf.setNodes((nds) =>
       nds.map((n) =>
@@ -61,6 +64,9 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
               ...n,
               data: {
                 ...n.data,
+                // บันทึกที่ root level ให้ watcher เห็น
+                params: { ...form }, 
+                // บันทึกใน payload ด้วย
                 payload: { ...(n.data?.payload || {}), params: { ...form } },
               },
             }
@@ -83,7 +89,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
     ? `${abs(rawUrl)}?t=${Date.now()}` 
     : undefined;
 
-  // Logic ดึงขนาดภาพ
   const displaySize = useMemo(() => {
     const jsonData = data?.payload?.json_data || data?.payload?.output || data?.payload?.json;
     
@@ -130,6 +135,7 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
 
+          {/* ✅ 3. เอา Hover Tooltip กลับมาให้แล้วครับ */}
           <span className="relative inline-flex items-center group">
             <button
               aria-label="Open Affine settings"
@@ -143,6 +149,7 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
               <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
             </span>
           </span>
+
         </div>
       </div>
 

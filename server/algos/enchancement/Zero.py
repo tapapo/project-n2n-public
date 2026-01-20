@@ -2,73 +2,139 @@ import os
 import sys
 import json
 import uuid
-import cv2
-import numpy as np
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+import cv2
+from PIL import Image
+from torchvision.transforms import ToTensor
 
-# You need a Zero-DCE model class (placeholder)
-class ZeroDCEModel(torch.nn.Module):
-    def forward(self, x):
-        # Dummy implementation; replace with real model
+# ============================================================
+# 1. Zero-DCE Model Architecture (Real Implementation)
+# ============================================================
+
+class ZeroDCE(nn.Module):
+    def __init__(self):
+        super(ZeroDCE, self).__init__()
+        self.relu = nn.ReLU(inplace=True)
+        number_f = 32
+        
+        # Encoder
+        self.e_conv1 = nn.Conv2d(3, number_f, 3, 1, 1, bias=True) 
+        self.e_conv2 = nn.Conv2d(number_f, number_f, 3, 1, 1, bias=True) 
+        self.e_conv3 = nn.Conv2d(number_f, number_f, 3, 1, 1, bias=True) 
+        self.e_conv4 = nn.Conv2d(number_f, number_f, 3, 1, 1, bias=True) 
+        
+        # Decoder (Concatenate)
+        self.e_conv5 = nn.Conv2d(number_f*2, number_f, 3, 1, 1, bias=True) 
+        self.e_conv6 = nn.Conv2d(number_f*2, number_f, 3, 1, 1, bias=True) 
+        self.e_conv7 = nn.Conv2d(number_f*2, 24, 3, 1, 1, bias=True) # Output 24 channels (8 iterations * 3 RGB)
+
+    def forward(self, x, num_iters=8):
+        # Feature Extraction
+        x1 = self.relu(self.e_conv1(x))
+        x2 = self.relu(self.e_conv2(x1))
+        x3 = self.relu(self.e_conv3(x2))
+        x4 = self.relu(self.e_conv4(x3))
+
+        # Concatenate & Decode
+        x5 = self.relu(self.e_conv5(torch.cat([x3, x4], 1)))
+        x6 = self.relu(self.e_conv6(torch.cat([x2, x5], 1)))
+        
+        # Predict Curve Parameters (24 channels)
+        x_r = torch.tanh(self.e_conv7(torch.cat([x1, x6], 1)))
+        
+        # Split into 8 sets of curves (each set has 3 channels for R,G,B)
+        curves = torch.split(x_r, 3, dim=1)
+        
+        # Iterative Enhancement
+        # ใช้ค่า num_iters จาก Slider เพื่อกำหนดว่าจะวนลูปปรับแสงกี่รอบ
+        # (สูงสุดได้ 8 รอบ ตามโครงสร้างโมเดลมาตรฐาน)
+        limit = min(len(curves), max(1, num_iters))
+        
+        for i in range(limit):
+            # LE Curve Formula: I_n+1 = I_n + A_n * (I_n^2 - I_n)
+            x = x + curves[i] * (torch.pow(x, 2) - x)
+            
         return x
 
-# Load model (singleton or cached)
-_model = None
-def get_model():
-    global _model
-    if _model is None:
-        _model = ZeroDCEModel()
-        _model.eval()
-    return _model
+# ============================================================
+# 2. Adapter Function
+# ============================================================
 
-def run(image_path: str, out_root: str = ".", **params):
-    img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+# หาตำแหน่งโฟลเดอร์ปัจจุบัน
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def run(image_path: str, out_root: str = ".", model_path: str = None, **params):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    if img is None:
+    # 1. รับค่า iterations จาก params (Default = 8)
+    iterations = int(params.get('iterations', 8))
+    
+    # 2. เตรียม Model
+    model = ZeroDCE().to(device)
+    
+    # ตั้งค่า Path ของ Weights (คุณต้องไปหาโหลดไฟล์ epoch85.pth หรือ similar มาวาง)
+    if model_path is None:
+        model_path = os.path.join(CURRENT_DIR, "weights", "ZeroDCE_epoch99.pth")
+    
+    if os.path.exists(model_path):
+        model.load_state_dict(torch.load(model_path, map_location=device))
+    else:
+        # ถ้าไม่มีไฟล์ weights ให้รันแบบ random init (แต่เตือนไว้หน่อย)
+        print(f"[Warning] Zero-DCE weights not found at {model_path}. Running with random weights (Output might be weird).")
+
+    model.eval()
+
+    # 3. เตรียมภาพ
+    img_bgr = cv2.imread(image_path, cv2.IMREAD_COLOR)
+    if img_bgr is None:
         raise ValueError(f"Cannot read image: {image_path}")
-
     
-    if img.ndim == 3 and img.shape[2] == 4:
-        img = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+    # Resize ถ้ารูปใหญ่เกินไป (Optional: เพื่อความเร็ว)
+    # แต่ Zero-DCE ค่อนข้างเร็ว รัน Full size ได้
     
+    # Normalize 0-1 & HWC -> CHW
+    img = img_bgr.astype(np.float32) / 255.0
+    img = np.transpose(img, (2, 0, 1)) # to CHW
+    img_tensor = torch.from_numpy(img).unsqueeze(0).to(device)
 
-    if img.ndim != 3 or img.shape[2] != 3:
-        raise ValueError(f"Zero-DCE requires a BGR color image")
-
-    # Process: Normalize & Tensor conversion
-    img_norm = img.astype(np.float32) / 255.0
-    img_tensor = torch.from_numpy(img_norm.transpose(2,0,1)).unsqueeze(0)  # C,H,W
-
-    model = get_model()
+    # 4. Run Model
     with torch.no_grad():
-        enhanced_tensor = model(img_tensor)
-    enhanced = enhanced_tensor.squeeze(0).permute(1,2,0).numpy()
-    enhanced = np.clip(enhanced*255, 0, 255).astype(np.uint8)
+        # ส่งค่า iterations เข้าไปใน forward
+        enhanced_tensor = model(img_tensor, num_iters=iterations)
 
-    # Payload
+    # 5. Convert back to Image
+    enhanced = enhanced_tensor.squeeze(0).cpu().numpy()
+    enhanced = np.transpose(enhanced, (1, 2, 0)) # to HWC
+    enhanced = np.clip(enhanced * 255.0, 0, 255).astype(np.uint8)
+
+    # 6. Prepare Output
     payload = {
         "tool": "Zero-DCE",
         "tool_version": {
-            "opencv": cv2.__version__,
-            "python": sys.version.split()[0],
-            "torch": torch.__version__
+            "torch": torch.__version__,
+            "python": sys.version.split()[0]
         },
         "image": {
             "original_path": image_path,
             "file_name": os.path.basename(image_path),
-            "original_shape": list(img.shape), 
+            "original_shape": list(img_bgr.shape), 
             "enhanced_shape": list(enhanced.shape),
             "dtype": str(enhanced.dtype)
         },
-        "zero_dce_parameters_used": params
+        "zero_dce_parameters_used": {
+            "iterations": iterations,
+            "model_path": os.path.basename(model_path)
+        }
     }
 
-    # Unique stem
+    # Paths
     base = os.path.splitext(os.path.basename(image_path))[0]
     unique_id = uuid.uuid4().hex[:8]
     stem = f"{base}_zero_dce_{unique_id}"
 
-    # Output directories
     out_root_abs = os.path.abspath(out_root or ".")
     algo_dir = os.path.join(out_root_abs, "features", "zero_dce_outputs")
     os.makedirs(algo_dir, exist_ok=True)
@@ -77,11 +143,14 @@ def run(image_path: str, out_root: str = ".", **params):
     json_path = os.path.join(algo_dir, stem + ".json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=4)
-    json_path = os.path.abspath(json_path)
 
     # Save visualization
     vis_path = os.path.join(algo_dir, stem + "_vis.jpg")
     cv2.imwrite(vis_path, enhanced)
-    vis_path = os.path.abspath(vis_path)
 
-    return json_path, vis_path
+    return os.path.abspath(json_path), os.path.abspath(vis_path)
+
+if __name__ == "__main__":
+    # Test block
+    j, v = run("test.jpg", ".", iterations=8)
+    print("Saved:", j, v)

@@ -4,7 +4,7 @@ import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactf
 import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus';
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -35,7 +35,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const [open, setOpen] = useState(false);
   
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   const imgRef = useRef<HTMLImageElement>(null); 
@@ -43,7 +42,12 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const isConnected = useMemo(() => edges.some((e) => e.target === id), [edges, id]);
 
-  const savedParams = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
+  // 1. อ่านค่า
+  const savedParams = useMemo(() => {
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
+    return { ...DEFAULT_PARAMS, ...p };
+  }, [data?.params, data?.payload?.params]);
+
   const [form, setForm] = useState<Params>(savedParams);
   useEffect(() => setForm(savedParams), [savedParams]);
 
@@ -53,13 +57,23 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
   
+  // 2. บันทึกค่า
   const onSave = useCallback(() => {
     const k = Math.max(3, Math.floor(form.blur_ksize));
     const oddK = k % 2 === 0 ? k + 1 : k;
+    const finalParams = { ...form, blur_ksize: oddK };
+
     rf.setNodes((nds) =>
       nds.map((n) =>
         n.id === id
-          ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form, blur_ksize: oddK } } } }
+          ? { 
+              ...n, 
+              data: { 
+                ...n.data, 
+                params: finalParams, 
+                payload: { ...(n.data?.payload || {}), params: finalParams } 
+              } 
+            }
           : n
       )
     );
@@ -74,7 +88,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rawUrl = resultImage;
   const displayImage = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
 
-  // ปรับ Caption: ถ้า Success หรือมีรูป ให้โชว์ค่า Threshold
   const caption = (isSuccess || resultImage) 
     ? `Threshold = ${thr ?? '?'}` 
     : 'Connect Image Input and run';
@@ -140,15 +153,12 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
+        {/* ✅ แสดง Dimensions */}
         {imgSize && (
-            <div className="text-[10px] text-gray-400">
-                Input: {imgSize.w}x{imgSize.h}px
+            <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
+                Dimensions: {imgSize.w} x {imgSize.h}
             </div>
         )}
-
-        <p className="text-sm text-gray-300">
-          {caption}
-        </p>
 
         {displayImage && (
           <img
@@ -161,6 +171,10 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             onError={(e) => { e.currentTarget.style.display = 'none'; }}
           />
         )}
+
+        <p className="text-sm text-gray-300">
+          {caption}
+        </p>
       </div>
 
       {/* Status Table */}
@@ -168,7 +182,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
-           {/* ✅ ใช้ isSuccess */}
            <div className={statusDot(isSuccess, 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>

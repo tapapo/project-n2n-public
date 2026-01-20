@@ -27,7 +27,7 @@ const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =>
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.payload?.params || {}) }), [data?.payload?.params]);
+  const params = useMemo(() => ({ ...DEFAULT_PARAMS, ...(data?.params || data?.payload?.params || {}) }), [data?.params, data?.payload?.params]);
   const [form, setForm] = useState<Params>(params);
   
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
@@ -37,7 +37,14 @@ const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =>
 
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
-      n.id === id ? { ...n, data: { ...n.data, payload: { ...(n.data?.payload || {}), params: { ...form } } } } : n
+      n.id === id ? { 
+        ...n, 
+        data: { 
+          ...n.data, 
+          params: { ...form }, 
+          payload: { ...(n.data?.payload || {}), params: { ...form } } 
+        } 
+      } : n
     ));
     setOpen(false);
   }, [rf, id, form]);
@@ -55,6 +62,19 @@ const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =>
   const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? `Found ${detections.length} objects` : 'Connect Image & Run');
+
+  // Logic คำนวณขนาดรูปภาพ
+  const displaySize = useMemo(() => {
+    const imgMeta = json_data?.image || {};
+    const shape = imgMeta.segmented_shape || imgMeta.mask_shape || imgMeta.original_shape || data?.payload?.output_shape;
+
+    if (Array.isArray(shape) && shape.length >= 2) {
+      const h = shape[0];
+      const w = shape[1];
+      return `${w} x ${h}`; // แสดงแค่ตัวเลข W x H
+    }
+    return null;
+  }, [json_data, data?.payload]);
 
   let borderColor = 'border-yellow-600';
   if (selected) borderColor = 'border-yellow-400 ring-2 ring-yellow-500';
@@ -100,11 +120,17 @@ const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =>
       </div>
 
       <div className="p-4 space-y-3">
+        {/* ✅ ปรับคำเป็น "Dimensions" ให้ดูทางการ + ฟอนต์สีเทาเรียบๆ */}
+        {displaySize && (
+          <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
+            Dimensions: {displaySize}
+          </div>
+        )}
+
         {displayUrl && (
           <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
         )}
 
-        {/* ตารางแสดงรายการวัตถุที่เจอ */}
         {detections.length > 0 && (
             <div className="max-h-24 overflow-y-auto bg-gray-900/50 p-2 rounded border border-gray-700 scrollbar-hide">
                 <table className="w-full text-[10px] text-left">

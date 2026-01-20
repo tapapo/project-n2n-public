@@ -1,10 +1,10 @@
-// File: my-react-flow-app/src/components/nodes/SiftNode.tsx
+// File: src/components/nodes/SiftNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api'; 
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus';
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -15,7 +15,6 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
   </svg>
 );
 
-// Parameters เดิมของ SIFT
 const DEFAULT_SIFT = {
   nfeatures: 500,
   nOctaveLayers: 3,
@@ -25,20 +24,19 @@ const DEFAULT_SIFT = {
 };
 type Params = typeof DEFAULT_SIFT;
 
-/* ---------------- Component ---------------- */
 const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges(); 
   const [open, setOpen] = useState(false);
 
-  // ✅ เรียกใช้ Hook: ดึงสถานะที่คำนวณมาอย่างถูกต้อง (รองรับ Copy Paste)
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // 1. Parameter Logic
-  const params = useMemo(
-    () => ({ ...DEFAULT_SIFT, ...(data?.payload?.params || {}) }),
-    [data?.payload?.params]
-  );
+  // 1. อ่านค่า
+  const params = useMemo(() => {
+    const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
+    return { ...DEFAULT_SIFT, ...p };
+  }, [data?.params, data?.payload?.params]);
+
   const [form, setForm] = useState<Params>(params);
   
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
@@ -46,22 +44,26 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
+  // 2. บันทึกค่า
   const onSave = useCallback(() => {
+    const validParams = {
+        nfeatures: Number(form.nfeatures),
+        nOctaveLayers: Number(form.nOctaveLayers),
+        contrastThreshold: Number(form.contrastThreshold),
+        edgeThreshold: Number(form.edgeThreshold),
+        sigma: Number(form.sigma)
+    };
+
     rf.setNodes((nds) => nds.map((n) =>
       n.id === id
         ? { 
             ...n, 
             data: { 
               ...n.data, 
+              params: validParams,
               payload: { 
                 ...(n.data?.payload || {}), 
-                params: {
-                  nfeatures: Number(form.nfeatures),
-                  nOctaveLayers: Number(form.nOctaveLayers),
-                  contrastThreshold: Number(form.contrastThreshold),
-                  edgeThreshold: Number(form.edgeThreshold),
-                  sigma: Number(form.sigma)
-                } 
+                params: validParams
               } 
             } 
           }
@@ -70,32 +72,24 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     setOpen(false);
   }, [rf, id, form]);
   
-  // Logic: Check connection
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // Logic: Display Size
+  // ✅ Logic ดึงขนาดรูป (Priority: Output -> Input)
   const displaySize = useMemo(() => {
-    const processedShape = data?.payload?.json_data?.image?.processed_sift_shape || data?.payload?.image_shape;
+    const processedShape = data?.payload?.json_data?.image?.processed_sift_shape || 
+                           data?.payload?.image_shape || 
+                           data?.payload?.output?.image_shape;
+
     if (Array.isArray(processedShape) && processedShape.length >= 2) {
-      return `${processedShape[1]}×${processedShape[0]}px`;
-    }
-    const incomingEdge = rf.getEdges().find((e) => e.target === id);
-    if (incomingEdge) {
-      const sourceNode = rf.getNodes().find((n) => n.id === incomingEdge.source);
-      const payload = sourceNode?.data?.payload as any;
-      if (payload) {
-        const w = payload.width || payload.image_shape?.[1];
-        const h = payload.height || payload.image_shape?.[0];
-        if (w && h) return `${w}×${h}px`;
-      }
+      // SIFT ปกติไม่เปลี่ยนขนาด ดังนั้นใช้ค่าไหนก็ได้ที่เจอ
+      return `${processedShape[1]} x ${processedShape[0]}`; 
     }
     return null;
-  }, [id, rf, data?.payload]);
+  }, [data?.payload]);
 
   const rawUrl = data?.payload?.vis_url || data?.payload?.result_image_url;
   const displayUrl = rawUrl ? `${abs(rawUrl)}?t=${Date.now()}` : undefined;
   
-  // Caption: ถ้า Success (หรือมีรูปจาก Copy) ให้โชว์คำอธิบาย
   const caption = (isSuccess && data?.description) 
     ? data.description 
     : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
@@ -104,12 +98,10 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
-  // Border logic
   let borderColor = 'border-green-500';
   if (selected) borderColor = 'border-green-400 ring-2 ring-green-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
 
-  // Handle Class Logic
   const targetHandleClass = `w-2 h-2 rounded-full border-2 transition-all duration-300 ${
     isFault && !isConnected 
       ? '!bg-red-500 !border-red-300 !w-4 !h-4 shadow-[0_0_10px_rgba(239,68,68,1)] ring-4 ring-red-500/30' 
@@ -119,11 +111,9 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   return (
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 overflow-visible transition-all duration-200 ${borderColor}`}>
       
-      {/* Handles */}
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>SIFT</div>
         <div className="flex items-center gap-2">
@@ -152,11 +142,11 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
+        {/* ✅ แสดง Dimensions แบบเรียบ (สีเทา) */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
-            Input: {displaySize}
+            Dimensions: {displaySize}
           </div>
         )}
 
@@ -167,11 +157,9 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>
-          {/* ใช้ data.status เดิมสำหรับ start/running เพื่อคง Animation */}
           <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
         </div>
         <div className="flex justify-between items-center py-1">
@@ -180,7 +168,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
         <div className="flex justify-between items-center py-1">
           <span className="text-green-400">success</span>
-          {/* ✅ ใช้ isSuccess จาก Hook เพื่อให้ไฟเขียวติดถ้ามีข้อมูล */}
           <div className={statusDot(isSuccess, 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1">
@@ -189,7 +176,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Modal Settings */}
       <Modal open={open} title="SIFT Settings" onClose={handleClose}>
         <div className="grid grid-cols-2 gap-4 text-xs text-gray-300">
           <div className="col-span-2">
