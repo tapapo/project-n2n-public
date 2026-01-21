@@ -47,7 +47,6 @@ export async function updateNodeStatus(
   await new Promise((r) => setTimeout(r, 50));
 }
 
-// ✅ [CORE FIX] ฟังก์ชันค้นหา Path รูปภาพจาก Node ก่อนหน้า
 export function findInputImage(
   nodeId: string, 
   nodes: RFNode[], 
@@ -62,14 +61,12 @@ export function findInputImage(
   const p = (parent.data.payload || parent.data.output) as any;
   if (!p) return undefined;
   
-  // 1. System Path (Uploads / Generated Files) - สำคัญที่สุด
   if (typeof p.path === 'string') return p.path; 
   if (typeof p.aligned_path === 'string') return p.aligned_path;
   if (typeof p.image_path === 'string') return p.image_path;
   if (typeof p.output_path === 'string') return p.output_path;
 
-  // 2. ✅ FIX PRIORITY: เช็ค URL ที่เป็น Static หรือ HTTP ก่อน Name!
-  // เพื่อรองรับ Template Images ที่เป็น /static/samples/...
+  
   if (typeof p.url === 'string' && (p.url.startsWith('/static') || p.url.startsWith('http'))) {
       return p.url;
   }
@@ -80,12 +77,10 @@ export function findInputImage(
       return p.result_image_url;
   }
 
-  // 3. Name (Fallback) - ใช้เฉพาะถ้าไม่มี Path และ URL ปกติ
   if (typeof p.name === 'string' && !p.url?.startsWith('blob:')) {
       return p.name; 
   }
 
-  // 4. Fallback อื่นๆ
   if (typeof p.output_image === 'string') return p.output_image;
   if (typeof p.vis_url === 'string') return p.vis_url;
   if (typeof p.url === 'string') return p.url; 

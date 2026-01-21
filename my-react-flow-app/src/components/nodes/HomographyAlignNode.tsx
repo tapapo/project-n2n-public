@@ -25,16 +25,13 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
 
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   const isConnected = useStore(
     useCallback((s: any) => s.edges.some((e: any) => e.target === id), [id])
   );
 
-  // ✅ แก้จุดที่ 1: อ่านค่าจาก data.params ก่อน (Watcher friendly)
   const savedParams: Params = useMemo(() => {
-    // อ่านจาก root params ก่อน -> ถ้าไม่มีค่อยไป payload -> ถ้าไม่มีใช้ Default
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_PARAMS, ...p };
   }, [data?.params, data?.payload?.params]);
@@ -44,7 +41,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
 
-  // ✅ แก้จุดที่ 2: บันทึกค่าลง data.params โดยตรง (เพื่อให้ Watcher เห็นและรีเซ็ตสีให้)
   const onSave = () => {
     rf.setNodes(nds =>
       nds.map(n =>
@@ -53,9 +49,7 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
               ...n, 
               data: { 
                 ...n.data, 
-                // บันทึกที่ root level สำหรับ Watcher
                 params: { ...form },
-                // บันทึกใน payload สำหรับ Runner เดิม
                 payload: { ...(n.data?.payload || {}), params: { ...form } } 
               } 
             }
@@ -70,7 +64,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
     data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
-  // --- Image URL Logic ---
   const resp = data?.payload?.json as any | undefined;
   const rawUrl = data?.payload?.aligned_url || data?.payload?.result_image_url || resp?.output?.aligned_url || resp?.output?.aligned_image;
 
@@ -88,7 +81,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
       ? `Alignment complete${inliers != null ? ` — ${inliers} inliers` : ''}`
       : 'Connect a Matcher node and run';
 
-  // Logic ดึงขนาดภาพ
   const displaySize = useMemo(() => {
     const jsonData = data?.payload?.json_data || data?.payload?.output || data?.payload?.json;
     let shape = jsonData?.output?.aligned_shape;
@@ -101,7 +93,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
     return null;
   }, [data?.payload]);
 
-  // Style
   let borderColor = 'border-purple-500';
   if (selected) borderColor = 'border-purple-400 ring-2 ring-purple-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -119,7 +110,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-purple-500 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>Homography Align</div>
         <div className="flex items-center gap-2">
@@ -133,7 +123,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
 
-          {/* ✅ คง Tooltip ไว้ตามที่ขอครับ */}
           <span className="relative inline-flex items-center group">
             <button
               aria-label="Open Homography settings"
@@ -193,7 +182,6 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
         )}
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>

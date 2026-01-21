@@ -5,18 +5,16 @@ import cv2
 import json
 import sys
 import uuid
-import hashlib # ✅ Use hashlib
-from datetime import datetime # ✅ Use datetime
+import hashlib 
+from datetime import datetime
 import numpy as np
 from typing import Any, Dict, Tuple, Optional
 
 import skimage.metrics
 
-# --- Config ---
-# Calculate project root relative to this file
+
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
-# ---------- Helpers ----------
 def _ensure_dir(d: str):
     os.makedirs(d, exist_ok=True)
 
@@ -51,14 +49,12 @@ def _ensure_valid_win_size(h: int, w: int, win_size: int | None) -> int:
         ws = max(3, ws - 1)
     return ws
 
-# ✅ Updated path resolution logic (consistent with PSNR)
 def _resolve_path(path: str) -> str:
     if path.lower().endswith(".json"):
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 meta = json.load(f)
             
-            # Allow alignment/segmentation image results, but try to extract path
             extracted = (
                 meta.get("image", {}).get("original_path") or 
                 meta.get("output", {}).get("aligned_image") or
@@ -86,7 +82,6 @@ def _validate_is_image(path: str, label: str):
             with open(path, 'r', encoding='utf-8') as f:
                 meta = json.load(f)
             tool = meta.get("tool") or meta.get("matching_tool")
-            # Block Feature/Matcher JSONs
             if tool in ["SIFT", "SURF", "ORB", "BFMatcher", "FLANNBasedMatcher"]: 
                 raise ValueError(
                     f"Invalid Input for '{label}': Received a '{tool}' result file. "
@@ -104,7 +99,7 @@ def _serialize(
     color_mode_used: str,
     message: str,
     is_color_input: bool,
-    config_hash: dict # Add hash map to output for reference
+    config_hash: dict 
 ) -> Dict[str, Any]:
     try:
         import skimage
@@ -139,7 +134,6 @@ def _serialize(
     }
 
 
-# ---------- Core Function ----------
 def run_ssim_assessment(
     original_img_path: str,
     processed_img_path: str,
@@ -149,7 +143,6 @@ def run_ssim_assessment(
     **ssim_params
 ) -> Tuple[float, str, str, bool]:
     
-    # 1. Validate Inputs
     _validate_is_image(original_img_path, "Input 1 (Original)")
     _validate_is_image(processed_img_path, "Input 2 (Processed)")
 
@@ -159,11 +152,9 @@ def run_ssim_assessment(
     if original_img_raw is None or processed_img_raw is None:
         raise FileNotFoundError("Could not load one or both images.")
 
-    # Drop alpha if present
     original_img = _drop_alpha(original_img_raw)
     processed_img = _drop_alpha(processed_img_raw)
 
-    # Determine input color status
     both_color = is_color(original_img) and is_color(processed_img) and \
                  (original_img.shape[2] == processed_img.shape[2] == 3)
 
@@ -172,7 +163,6 @@ def run_ssim_assessment(
 
     color_mode_used = "Color (Multi-channel)" if calculate_on_color and both_color else "Grayscale"
 
-    # Prepare images for SSIM
     if color_mode_used == "Color (Multi-channel)":
         img1, img2 = original_img, processed_img
         ssim_params["channel_axis"] = -1
@@ -180,11 +170,9 @@ def run_ssim_assessment(
         img1 = cv2.cvtColor(original_img, cv2.COLOR_BGR2GRAY) if is_color(original_img) else original_img
         img2 = cv2.cvtColor(processed_img, cv2.COLOR_BGR2GRAY) if is_color(processed_img) else processed_img
 
-    # Shapes must match
     if img1.shape != img2.shape:
         raise ValueError(f"Image shape mismatch: {img1.shape} vs {img2.shape}")
 
-    # Ensure params
     if "data_range" not in ssim_params or ssim_params["data_range"] is None:
         ssim_params["data_range"] = _auto_data_range(img1, img2)
 
@@ -194,7 +182,6 @@ def run_ssim_assessment(
     if ssim_params.get("gaussian_weights", False) and ("sigma" not in ssim_params or ssim_params["sigma"] is None):
         ssim_params["sigma"] = 1.5
 
-    # Compute SSIM
     try:
         ssim_score = skimage.metrics.structural_similarity(img1, img2, **ssim_params)
         message = "SSIM calculation successful."
@@ -205,7 +192,6 @@ def run_ssim_assessment(
     return float(ssim_score), color_mode_used, message, is_color_input
 
 
-# ---------- Adapter ----------
 def compute_ssim(
     original_file: str,
     processed_file: str,
@@ -216,7 +202,6 @@ def compute_ssim(
     **override_params
 ) -> Dict[str, Any]:
     
-    # Resolve paths first
     real_orig_path = _resolve_path(original_file)
     real_proc_path = _resolve_path(processed_file)
 
@@ -231,7 +216,6 @@ def compute_ssim(
     }
     ssim_parameters.update(override_params or {})
 
-    # Run Core Logic
     score, color_mode, message, is_color_input = run_ssim_assessment(
         real_orig_path,
         real_proc_path,
@@ -240,12 +224,9 @@ def compute_ssim(
         **ssim_parameters
     )
 
-    # Prepare JSON payload
     params_for_json = dict(ssim_parameters)
-    # Fill data_range for record if it was None
     if params_for_json.get("data_range") is None:
-        # Re-read roughly just to get range (inefficient but accurate for record)
-        # In production, we might pass the range back from run_ssim_assessment
+       
         img1 = _drop_alpha(cv2.imread(real_orig_path, cv2.IMREAD_UNCHANGED))
         img2 = _drop_alpha(cv2.imread(real_proc_path, cv2.IMREAD_UNCHANGED))
         if color_mode == "Grayscale":
@@ -253,7 +234,6 @@ def compute_ssim(
             img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY) if is_color(img2) else img2
         params_for_json["data_range"] = float(_auto_data_range(img1, img2))
 
-    # ✅ Generate Hash from inputs & params
     config_map = {
         "img1": os.path.basename(real_orig_path),
         "img2": os.path.basename(real_proc_path),
@@ -275,7 +255,6 @@ def compute_ssim(
         config_map
     )
 
-    # Save JSON
     if out_root is None:
         out_root = os.path.join(PROJECT_ROOT, "outputs")
 
@@ -285,18 +264,15 @@ def compute_ssim(
     stem_a = os.path.splitext(os.path.basename(real_orig_path))[0]
     stem_b = os.path.splitext(os.path.basename(real_proc_path))[0]
 
-    # ssim_[img1]_[img2]_[hash].json
     json_path = os.path.join(out_dir, f"ssim_{stem_a}_vs_{stem_b}_{param_hash}.json")
     
-    # Check Cache
     if os.path.exists(json_path):
          try:
             with open(json_path, "r", encoding="utf-8") as f:
-                # Verify it's valid JSON
                 json.load(f)
             return {"score": score, "json": json_result, "json_path": json_path}
          except:
-            pass # Overwrite if invalid
+            pass 
 
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(json_result, f, indent=2, ensure_ascii=False)

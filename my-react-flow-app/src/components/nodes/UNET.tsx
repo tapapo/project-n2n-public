@@ -6,7 +6,6 @@ import { abs, uploadImages } from "../../lib/api";
 import type { CustomNodeData } from "../../types";
 import { useNodeStatus } from '../../hooks/useNodeStatus';
 
-/* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -22,7 +21,6 @@ const DEFAULT_PARAMS = {
 };
 type Params = typeof DEFAULT_PARAMS;
 
-/* ---------------- Component ---------------- */
 const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
@@ -102,7 +100,6 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ? data.description 
     : (displayUrl ? 'Segmentation complete' : 'Connect Image & Set Model');
 
-  // ✅ 1. เพิ่ม Logic คำนวณขนาดรูปภาพ
   const displaySize = useMemo(() => {
     const imgMeta = json_data?.image || {};
     const shape = imgMeta.segmented_shape || imgMeta.mask_shape || imgMeta.original_shape || data?.payload?.output_shape;
@@ -110,7 +107,7 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     if (Array.isArray(shape) && shape.length >= 2) {
       const h = shape[0];
       const w = shape[1];
-      return `${w} x ${h}`; // แสดง Width x Height
+      return `${w} x ${h}`;
     }
     return null;
   }, [json_data, data?.payload]);
@@ -160,7 +157,6 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ✅ 2. แสดง Dimensions แบบเรียบง่าย (สีเทา) */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
             Dimensions: {displaySize}

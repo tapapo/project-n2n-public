@@ -57,7 +57,6 @@ export async function runFeature(
     const num_keypoints = resp.num_keypoints ?? resp.kps_count ?? 0;
     const visUrl = resp.vis_url ? abs(resp.vis_url) : undefined;
 
-    // ✅ FIX: หา Image Shape ให้เจอไม่ว่าจะซ่อนอยู่ที่ไหน
     const foundShape = resp?.json_data?.image?.original_shape 
                     || resp?.image_shape 
                     || resp?.shape;
@@ -82,7 +81,6 @@ export async function runFeature(
                   output_image: visUrl,
                   num_keypoints: num_keypoints,
                   
-                  // ✅ FIX: ส่ง image_shape ต่อไปให้ FLANN
                   image_shape: foundShape,
                   
                   output: {

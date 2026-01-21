@@ -5,9 +5,7 @@ import type { Edge } from 'reactflow';
 import type { RFNode, SetNodes } from './utils';
 import type { CustomNodeData } from '../../types';
 
-/**
- * Runner สำหรับกลุ่ม Restoration (DnCNN, SwinIR, Real-ESRGAN)
- */
+
 export async function runRestoration(
   node: RFNode,
   setNodes: SetNodes,
@@ -31,7 +29,6 @@ export async function runRestoration(
     throw new Error(msg);
   };
 
-  // 1. เช็คการเชื่อมต่อ
   const incoming = getIncoming(nodeId);
   if (incoming.length === 0) {
     return fail('No input connection (Please connect an Image source).');
@@ -39,7 +36,6 @@ export async function runRestoration(
 
   const prevNode = nodes.find((n) => n.id === incoming[0].source);
 
-  // 2. เช็ค Bad Sources
   const BAD_SOURCES = [
     'bfmatcher', 'flannmatcher',     
     'psnr', 'ssim', 'brisque',       
@@ -53,14 +49,12 @@ export async function runRestoration(
     return fail(`Invalid Input: ${nodeLabel} requires a raw Image source, not a '${tool}' result.`);
   }
 
-  // 3. หา Path รูปภาพ
   const imagePath = findInputImage(nodeId, nodes, edges);
 
   if (!imagePath) {
     return fail('No input image found. Please connect and run an Image source.');
   }
 
-  // 4. ระบุ Algorithm
   let prefix = '';
   let runner: any;
 
@@ -86,7 +80,6 @@ export async function runRestoration(
       return fail(`Unknown Restoration node type: ${node.type}`);
   }
 
-  // 5. Logic ตรวจสอบ Input Channels
   if (prevNode) {
     const prevPayload = prevNode.data.payload as any;
     const shape = prevPayload?.image_shape || prevPayload?.json_data?.image?.shape;
@@ -104,7 +97,6 @@ export async function runRestoration(
     }
   }
 
-  // 6. เริ่มการทำงาน
   await markStartThenRunning(nodeId, `Restoring with ${prefix}...`, setNodes);
 
   try {
@@ -127,7 +119,6 @@ export async function runRestoration(
     const imgData = resp.json_data?.image || {};
     const finalShape = imgData.enhanced_shape || imgData.original_shape || resp.image_shape;
 
-    // 7. อัปเดตข้อมูลเมื่อสำเร็จ
     setNodes((nds: RFNode[]) =>
       nds.map((n: RFNode) =>
         n.id === nodeId
@@ -142,7 +133,6 @@ export async function runRestoration(
                   ...resp,
                   params,
                   
-                  // ✅ FIX: ต้องใส่ json: resp เพื่อให้ Save JSON Node ทำงานได้
                   json: resp,
                   
                   vis_url: visUrl,

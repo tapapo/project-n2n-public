@@ -63,7 +63,6 @@ const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =>
     ? data.description 
     : (displayUrl ? `Found ${detections.length} objects` : 'Connect Image & Run');
 
-  // Logic คำนวณขนาดรูปภาพ
   const displaySize = useMemo(() => {
     const imgMeta = json_data?.image || {};
     const shape = imgMeta.segmented_shape || imgMeta.mask_shape || imgMeta.original_shape || data?.payload?.output_shape;
@@ -71,7 +70,7 @@ const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =>
     if (Array.isArray(shape) && shape.length >= 2) {
       const h = shape[0];
       const w = shape[1];
-      return `${w} x ${h}`; // แสดงแค่ตัวเลข W x H
+      return `${w} x ${h}`; 
     }
     return null;
   }, [json_data, data?.payload]);
@@ -120,7 +119,6 @@ const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =>
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ✅ ปรับคำเป็น "Dimensions" ให้ดูทางการ + ฟอนต์สีเทาเรียบๆ */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
             Dimensions: {displaySize}

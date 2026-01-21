@@ -17,7 +17,6 @@ import SnakeNode from '../components/nodes/SnakeNode';
 import SaveImageNode from '../components/nodes/SaveImageNode';
 import SaveJsonNode from '../components/nodes/SaveJsonNode';
 
-// โหนดของเพื่อน
 import CLAHENode from '../components/nodes/CLAHE';
 import MSRCRNode from '../components/nodes/MSRCR';
 import ZeroDCENode from '../components/nodes/ZERO';
@@ -45,7 +44,6 @@ export const nodeTypes: NodeTypes = {
   'save-image': SaveImageNode,
   'save-json': SaveJsonNode,
 
-  // --- โหนดของเพื่อน (ลงทะเบียนดักไว้ทั้งชื่อสั้นและชื่อยาว) ---
   'clahe': CLAHENode,
   
   'msrcr': MSRCRNode,
@@ -54,18 +52,18 @@ export const nodeTypes: NodeTypes = {
   'zeroDce': ZeroDCENode, 
   
   'dcnn': DnCNNNode,
-  'dncnn': DnCNNNode,     // ✅ ดัก Error: dncnn not found
+  'dncnn': DnCNNNode,     
   
   'real': RealESRGANNode,
-  'realesrgan': RealESRGANNode, // ✅ ดัก Error: realesrgan not found
+  'realesrgan': RealESRGANNode, 
   
   'swinir': SwinIRNode,
   
   'deep': DeepLabNode,
-  'deeplab': DeepLabNode, // ✅ ดัก Error: deeplab not found
+  'deeplab': DeepLabNode, 
   
   'mask': MaskRCNNNode,
-  'maskrcnn': MaskRCNNNode, // ✅ ดัก Error: maskrcnn not found
+  'maskrcnn': MaskRCNNNode, 
   
   'unet': UNetNode,
 };

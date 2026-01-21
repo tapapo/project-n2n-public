@@ -48,9 +48,9 @@ ln -sf cv2/python-3.11/cv2.cpython-311-darwin.so cv2.so
 
 5. การติดตั้ง BRISQUE (Image Quality Check)
 ติดตั้งโมดูลวัดคุณภาพภาพโดย ห้ามรัน pip install opencv-python ทับเด็ดขาด:
-sudo chown -R $(whoami) .venv  # คืนสิทธิ์ไฟล์ให้ User
+sudo chown -R $(whoami) .venv  
 pip install libsvm-official
-pip install brisque --no-deps  # ติดตั้งโดยไม่ให้ลาก OpenCV ตัวอื่นมาทับ
+pip install brisque --no-deps  
 pip install requests urllib3 charset_normalizer 
 
 6. การตรวจสอบผลลัพธ์ (Verification)

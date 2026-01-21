@@ -6,7 +6,6 @@ import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
 
-/* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -19,7 +18,6 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
 const DEFAULT_PARAMS = { scale: 4, model: 'swinir' };
 type Params = typeof DEFAULT_PARAMS;
 
-/* ---------------- Component ---------------- */
 const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
@@ -27,7 +25,6 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // 1. อ่านค่า Params
   const params = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_PARAMS, ...p };
@@ -40,7 +37,6 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
-  // 2. บันทึกค่า
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
       n.id === id 
@@ -62,7 +58,6 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
   const respJson = data?.payload?.json || data?.payload?.json_data;
   
-  // ดึงขนาดรูป (Input และ Output)
   const originalShape = respJson?.image?.original_shape;
   const enhancedShape = respJson?.image?.enhanced_shape || data?.payload?.image_shape;
 
@@ -92,7 +87,6 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-red-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>SwinIR</div>
         <div className="flex items-center gap-2">
@@ -121,9 +115,7 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
-        {/* ✅ แสดงขนาดรูปแบบเรียบง่าย (Input -> Output) */}
         {(originalShape && enhancedShape) ? (
            <div className="flex items-center gap-2 text-[10px] text-gray-400 font-semibold tracking-tight">
               <span>{originalShape[1]}x{originalShape[0]}</span>
@@ -143,7 +135,6 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
@@ -153,7 +144,6 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings */}
       <Modal open={open} title="SwinIR Settings" onClose={handleClose}>
         <div className="grid grid-cols-1 gap-4 text-xs text-gray-300">
           <div className="space-y-4">

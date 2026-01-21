@@ -77,9 +77,7 @@ This works similarly to SSIM (Structural Similarity), but PSNR focuses purely on
   ],
 };
 
-// =============================================================================
-// TEMPLATE 2: BRISQUE ONLY (No-Reference Quality)
-// =============================================================================
+
 export const BRISQUE_ASSESSMENT_TEMPLATE: WorkflowTemplate = {
   name: 'BRISQUE (Blind/Referenceless Image Spatial Quality Evaluator)',
   descriptor: {

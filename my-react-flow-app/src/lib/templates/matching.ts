@@ -2,7 +2,6 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// --- Path Configuration ---
 const IMG_1_URL = '/static/samples/1.png';
 const IMG_2_URL = '/static/samples/2.png';
 
@@ -21,7 +20,6 @@ export const FEATURE_MATCHING_PIPELINE: WorkflowTemplate = {
     th: 'ตัวจับคู่จุดเด่นที่เน้นความเร็วสูง โดยใช้การค้นหาแบบประมาณค่า (Approximate)'
   },
   
-  // ✅ 1. เพิ่ม description ที่ขาดไป (แก้ Error TS)
   description: 'IMAGE + SIFT + FLANN',
   
   longDescription: {
@@ -34,7 +32,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
   },
   color: 'orange',
   nodes: [
-    // --- Image 1 ---
     { 
       id: 'n1-img1', 
       type: 'image-input', 
@@ -53,7 +50,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       } 
     } as Node,
 
-    // --- SIFT 1 ---
     { 
       id: 'n3-sift-1', 
       type: 'sift', 
@@ -66,7 +62,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
           params: { nfeatures: 500, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 12, sigma: 1.6 },
           num_keypoints: 500,
           
-          // ✅ 2. เพิ่มขนาดรูปให้ SIFT (เพื่อให้ UI แสดง Dimensions)
           image_shape: [288, 512],
 
           vis_url: SIFT_1_VIS,
@@ -80,7 +75,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       } 
     } as Node,
 
-    // --- Image 2 ---
     { 
       id: 'n2-img2', 
       type: 'image-input', 
@@ -99,7 +93,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       } 
     } as Node,
 
-    // --- SIFT 2 ---
     { 
       id: 'n4-sift-2', 
       type: 'sift', 
@@ -112,7 +105,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
           params: { nfeatures: 0, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 10, sigma: 1.6 },
           num_keypoints: 89,
           
-          // ✅ 2. เพิ่มขนาดรูปให้ SIFT
           image_shape: [240, 310],
 
           vis_url: SIFT_2_VIS,
@@ -126,7 +118,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       } 
     } as Node,
 
-    // --- FLANN Matcher ---
     { 
       id: 'n5-flann', 
       type: 'flannmatcher', 
@@ -144,7 +135,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
           json_url: FLANN_JSON,
           json_path: FLANN_JSON,
           
-          // คงไว้ตามเดิมที่คุณบอกว่าถูกต้องแล้ว
           json: {
             matching_statistics: { num_inliers: 28, num_good_matches: 30, summary: "28 inliers / 30 good matches" },
             vis_url: FLANN_VIS,
@@ -162,7 +152,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       } 
     } as Node,
 
-    // --- Save Node ---
     { 
       id: 'n6-save', 
       type: 'save-json', 

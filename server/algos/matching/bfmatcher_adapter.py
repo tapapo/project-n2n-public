@@ -1,9 +1,9 @@
+#server/algos/matching/bfmatcher_adapter.py
 import os, json, cv2, sys, uuid
 import hashlib 
 import numpy as np
 from typing import Tuple, Optional, Any, Dict, List
 
-# --- Config ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 def _norm_from_str(s: Optional[str]) -> Optional[int]:
@@ -41,7 +41,6 @@ def _read_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
         
-# ✅ Helper to resolve image paths (Smart Version)
 def _resolve_image_path(path: str) -> str:
     if not path: return path
     if os.path.exists(path): return path
@@ -144,7 +143,6 @@ def _validate_norm(tool: str, norm_override: Optional[str], resolved_norm: int):
     tool = tool.upper()
     norm_str = str(norm_override).upper() if norm_override else "AUTO"
 
-    # กฎของ SIFT/SURF (Float features)
     if tool in ("SIFT", "SURF"):
         if "HAMMING" in norm_str or resolved_norm in (cv2.NORM_HAMMING, cv2.NORM_HAMMING2):
              raise ValueError(
@@ -152,7 +150,6 @@ def _validate_norm(tool: str, norm_override: Optional[str], resolved_norm: int):
                  f"Please select 'L2' or 'L1'."
              )
 
-    # กฎของ ORB (Binary features)
     if tool == "ORB":
         if "L" in norm_str or resolved_norm in (cv2.NORM_L1, cv2.NORM_L2):
              raise ValueError(
@@ -184,14 +181,12 @@ def run(
     cross_check: Optional[bool] = None,
     draw_mode: Optional[str] = "good",
 ):
-    # 1. Load Data
     kp1, des1, tool1, img_path1, default_norm1, extra1 = load_descriptor_data(json_a)
     kp2, des2, tool2, img_path2, default_norm2, extra2 = load_descriptor_data(json_b)
 
     if tool1 != tool2:
         raise ValueError(f"Mismatch: Input 1 is '{tool1}' but Input 2 is '{tool2}'. They must be the same.")
 
-    # ORB handling
     if tool1 == "ORB":
         wta1 = extra1.get("WTA_K")
         wta2 = extra2.get("WTA_K")
@@ -202,15 +197,12 @@ def run(
         else:
             default_norm1 = default_norm2 = cv2.NORM_HAMMING
 
-    # Determine norm
     parsed_norm = _norm_from_str(norm_override)
     if parsed_norm is None and norm_override and str(norm_override).strip().upper() not in ("AUTO", "DEFAULT"):
-         # ถ้า parse ไม่ได้และไม่ใช่ AUTO ถือว่าผิด
          raise ValueError(f"Unknown norm_override '{norm_override}'")
 
     desired_norm = parsed_norm if parsed_norm is not None else default_norm1
 
-    # 🔥 VALIDATE STRICTLY: เรียกยามเฝ้าประตู
     _validate_norm(tool1, norm_override, desired_norm)
 
     if ransac_thresh <= 0:
@@ -230,7 +222,6 @@ def run(
     if mode_in not in ("good", "inliers"):
         mode_in = "good"
 
-    # 2. Matching
     bf = cv2.BFMatcher(desired_norm, crossCheck=use_cross_check)
 
     raw_matches, good_matches = [], []
@@ -251,7 +242,6 @@ def run(
                     good_matches.append(m)
             good_matches = sorted(good_matches, key=lambda x: x.distance)
 
-    # 3. Homography
     inliers = 0
     inlier_mask = None
     homography_reason = None
@@ -275,7 +265,6 @@ def run(
     else:
         homography_reason = "not_enough_good_matches"
 
-    # 4. Prepare Output Dir
     if out_root is None:
         out_root = os.path.join(PROJECT_ROOT, "outputs")
         
@@ -285,7 +274,6 @@ def run(
             os.makedirs(path, exist_ok=True)
     _ensure_dir(out_dir)
     
-    # Generate Hash
     config_map = {
         "json1": os.path.basename(json_a),
         "json2": os.path.basename(json_b),
@@ -311,7 +299,6 @@ def run(
          except:
             pass
 
-    # 5. Visualization
     w1, h1, c1 = _image_size(img_path1)
     w2, h2, c2 = _image_size(img_path2)
     
@@ -333,7 +320,6 @@ def run(
             cv2.imwrite(out_vis_path, vis)
             vis_path_rel = f"/static/features/bfmatcher_outputs/{stem}_vis.jpg"
 
-    # 6. Save JSON
     result = {
         "matching_tool": "BFMatcher",
         "tool_version": {"opencv": cv2.__version__, "python": sys.version.split()[0]},

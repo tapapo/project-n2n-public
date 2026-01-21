@@ -2,13 +2,12 @@
 import os
 import json
 import uuid
-import hashlib # ✅ เพิ่ม hashlib สำหรับสร้างรหัสจากพารามิเตอร์
+import hashlib 
 from typing import Dict, Any, Tuple, Optional, List
 
 import cv2
 import numpy as np
 
-# Try importing skimage (scikit-image)
 try:
     from skimage.segmentation import active_contour
     from skimage.filters import gaussian
@@ -53,7 +52,6 @@ def _draw_overlay(base: np.ndarray, contour_rc: np.ndarray, color=(0, 0, 255)) -
         cv2.polylines(vis, [pts], isClosed=True, color=color, thickness=2, lineType=cv2.LINE_AA)
     return vis
 
-# --- Initialization Helpers ---
 
 def _init_snake_circle(h: int, w: int, cx: Optional[int], cy: Optional[int], r: Optional[int], pts: int) -> np.ndarray:
     if cx is None: cx = w // 2
@@ -133,7 +131,6 @@ def run(
     gaussian_blur_ksize: int = 5,
 ) -> Tuple[str, Optional[str], Optional[str]]:
     
-    # 1. Validation & Path
     if image_path.lower().endswith(".json"):
         try:
             data = _read_json(image_path)
@@ -155,7 +152,6 @@ def run(
     gray = _to_gray(img)
     h, w = gray.shape[:2]
     
-    # 2. Initialization
     pts = int(max(8, init_points))
     snake0 = None
 
@@ -169,7 +165,6 @@ def run(
     else:
         snake0 = _init_snake_circle(h, w, init_cx, init_cy, init_radius, pts)
 
-    # 3. Run Snake
     warning_msg = None
     if HAS_SKIMAGE:
         fimg = _prepare_image_for_snake(gray, gaussian_blur_ksize)
@@ -195,13 +190,11 @@ def run(
         warning_msg = "scikit-image not installed. Showing initial contour only."
         snake_rc = snake0
 
-    # 4. Save Outputs (✅ ใช้ Hash จาก Params เพื่อกันไฟล์ซ้ำ)
     out_dir = os.path.join(out_root, "features", "snake_outputs")
     _ensure_dir(out_dir)
     
-    # รวบรวมค่า Config ที่มีผลต่อการคำนวณ
     config_to_hash = {
-        "image_filename": os.path.basename(image_path), # รูปเดียวกัน
+        "image_filename": os.path.basename(image_path), 
         "alpha": alpha,
         "beta": beta,
         "gamma": gamma,
@@ -211,21 +204,19 @@ def run(
         "convergence": convergence,
         "gaussian_blur_ksize": gaussian_blur_ksize,
         "init_mode": init_mode,
-        "init_params": { # ตำแหน่งเริ่มต้นเดียวกัน
+        "init_params": { 
             "cx": init_cx, "cy": init_cy, "r": init_radius,
             "px": from_point_x, "py": from_point_y,
             "bbox": [bbox_x1, bbox_y1, bbox_x2, bbox_y2]
         }
     }
     
-    # สร้าง Hash (รหัสย่อ)
     config_str = json.dumps(config_to_hash, sort_keys=True)
     param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
     
     base_name = os.path.splitext(os.path.basename(image_path))[0]
     
-    # ชื่อไฟล์: snake_[ชื่อรูป]_[รหัสพารามิเตอร์].json
-    # ถ้าพารามิเตอร์เดิม -> รหัสเดิม -> ไฟล์เดิม (ทับของเก่า)
+
     stem = f"snake_{base_name}_{param_hash}"
 
     mask = _contour_to_mask(snake_rc, shape=(h, w))

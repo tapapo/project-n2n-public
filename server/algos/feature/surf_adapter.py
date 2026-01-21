@@ -2,7 +2,7 @@
 import os
 import sys
 import json
-import hashlib # ✅ ใช้ Hash
+import hashlib 
 import numpy as np
 import cv2
 from typing import TYPE_CHECKING, Optional, Union, Tuple, Dict, Any
@@ -10,10 +10,8 @@ from typing import TYPE_CHECKING, Optional, Union, Tuple, Dict, Any
 if TYPE_CHECKING:
     import cv2
 
-# Config
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
-# ---------------- Utils ----------------
 def ensure_dir(path: Union[str, os.PathLike]) -> None:
     path = os.fspath(path)
     if not os.path.exists(path):
@@ -38,14 +36,12 @@ def _resolve_image_path(path: str) -> str:
     if os.path.exists(rel_path): return rel_path
     return path
 
-# ---------------- Main API ----------------
 def run(
     image_path: Union[str, os.PathLike],
     out_dir: Optional[Union[str, os.PathLike]] = None,
     **params
 ) -> Tuple[str, str]:
     
-    # 1. Validation & Path
     image_path_str = os.fspath(image_path)
     if image_path_str.lower().endswith(".json"):
         try:
@@ -68,18 +64,15 @@ def run(
 
     image_path = _resolve_image_path(os.fspath(image_path))
 
-    # 2. Check Availability
     if not hasattr(cv2, "xfeatures2d") or not hasattr(cv2.xfeatures2d, "SURF_create"):
         raise RuntimeError("SURF not available. Please install 'opencv-contrib-python'.")
 
-    # 3. Output Dir
     if out_dir is None:
         out_dir = os.path.join(PROJECT_ROOT, "outputs")
     
     algo_dir = os.path.join(out_dir, "features", "surf_outputs")
     ensure_dir(algo_dir)
 
-    # ✅ 4. Generate Hash (ป้องกันไฟล์ซ้ำ)
     hessian = float(params.get("hessianThreshold", 100))
     n_octaves = int(params.get("nOctaves", 4))
     n_layers = int(params.get("nOctaveLayers", 3))
@@ -103,7 +96,6 @@ def run(
     json_path = os.path.join(algo_dir, f"{stem}.json")
     vis_path = os.path.join(algo_dir, f"{stem}_vis.jpg")
 
-    # ✅ 5. Check Cache
     if os.path.exists(json_path) and os.path.exists(vis_path):
         try:
             with open(json_path, 'r', encoding='utf-8') as f:
@@ -112,7 +104,6 @@ def run(
         except:
             pass
 
-    # 6. Read Image
     if not os.path.exists(image_path):
         raise FileNotFoundError(f"Image file not found: {image_path}")
 
@@ -120,7 +111,6 @@ def run(
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
 
-    # 7. Run SURF
     surf = cv2.xfeatures2d.SURF_create(
         hessianThreshold=hessian,
         nOctaves=n_octaves,
@@ -139,7 +129,6 @@ def run(
 
     kplist = [_kp_dict(k, desc[i] if i < len(desc) else None) for i, k in enumerate(kps or [])]
 
-    # 8. Metadata
     if img.ndim == 3 and img.shape[2] in (3, 4):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.shape[2] == 3 else cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
     else:
@@ -168,7 +157,6 @@ def run(
         "parameters_hash": config_map
     }
 
-    # 9. Save
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
 

@@ -2,7 +2,6 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// Placeholder Paths
 const SAMPLE_IMG = '/static/samples/placeholder_enhancement.jpg';
 const RESULT_IMG = '/static/samples/json/enhancement/result_placeholder.jpg';
 const RESULT_JSON = '/static/samples/json/enhancement/result_placeholder.json';
@@ -64,7 +63,6 @@ export const ENHANCEMENT_CLAHE_TEMPLATE: WorkflowTemplate = {
     } as Node
   ],
   edges: [
-    // ✅ แก้สีเส้นเป็น #64748b (สีปกติ)
     { id: 'e1', source: 'n1-enhance', target: 'n2-clahe', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 } },
     { id: 'e2', source: 'n2-clahe', target: 'n3-save-enhance', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 } },
   ]

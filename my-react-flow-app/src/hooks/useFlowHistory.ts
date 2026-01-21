@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { Node, Edge } from 'reactflow';
 import type { CustomNodeData, NodeStatus } from '../types';
 
-// ---------- Types ----------
 type RFNode = Node<CustomNodeData>;
 
 type GraphSnapshot = {
@@ -51,7 +50,6 @@ const hasEdgeChange = (prevEdges: Edge[], currEdges: Edge[]) => {
 };
 
 
-// ---------- Hook ----------
 export function useFlowHistory({
   nodes,
   edges,
@@ -59,8 +57,7 @@ export function useFlowHistory({
   setEdges,
   isDraggingRef,
 }: UseFlowHistoryArgs) {
-  
-  // State ล่าสุดเสมอ
+
   const nodesRef = useRef<RFNode[]>(nodes);
   const edgesRef = useRef<Edge[]>(edges);
 
@@ -72,15 +69,12 @@ export function useFlowHistory({
     edgesRef.current = edges;
   }, [edges]);
 
-  // History State
   const historyRef = useRef<GraphSnapshot[]>([]);
   const historyIndexRef = useRef<number>(-1);
   const isApplyingHistoryRef = useRef(false);
   
-  // Debounce Timer
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Snapshot Maker
   const makeSnapshot = useCallback((): GraphSnapshot => {
     return {
       nodes: nodesRef.current.map((n) => ({

@@ -3,7 +3,6 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useReactFlow, type Node, type Edge } from 'reactflow';
 import type { CustomNodeData } from '../types';
 
-// ---------- Types ----------
 type RFNode = Node<CustomNodeData>;
 type RFEdge = Edge;
 
@@ -21,7 +20,6 @@ export type UseFlowHotkeysOptions = {
   redo: () => void;
 };
 
-// ---------- Helpers ----------
 const isCmdOrCtrl = (e: KeyboardEvent) => e.metaKey || e.ctrlKey;
 
 const isTypingTarget = (target: EventTarget | null) => {
@@ -34,7 +32,6 @@ const isTypingTarget = (target: EventTarget | null) => {
 const makeId = () =>
   `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 
-// ---------- Hook ----------
 export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
   const { getPastePosition, runNodeById, undo, redo } = opts;
   const { getNodes, getEdges, setNodes, setEdges, screenToFlowPosition } =
@@ -42,7 +39,6 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
 
   const clipboardRef = useRef<ClipboardData | null>(null);
 
-  // -------- Copy --------
   const doCopy = useCallback(() => {
     const nodes = getNodes();
     const edges = getEdges();
@@ -60,7 +56,6 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
     };
   }, [getNodes, getEdges]);
 
-  // -------- Paste --------
   const doPaste = useCallback(
     (event?: MouseEvent) => {
       const clip = clipboardRef.current;
@@ -144,7 +139,6 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
     [getNodes, getEdges, setNodes, setEdges, getPastePosition, runNodeById, screenToFlowPosition]
   );
 
-  // -------- Delete --------
   const doDelete = useCallback(() => {
     const nodes = getNodes();
     const edges = getEdges();
@@ -165,7 +159,6 @@ export function useFlowHotkeys(opts: UseFlowHotkeysOptions) {
     setEdges(keptEdges);
   }, [getNodes, getEdges, setNodes, setEdges]);
 
-  // -------- Keyboard listener --------
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (isTypingTarget(e.target)) return;

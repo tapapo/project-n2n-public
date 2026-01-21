@@ -24,31 +24,25 @@ class AffineReq(BaseModel):
     confidence: Optional[float] = 0.99
     refine_iters: Optional[int] = 10
 
-# ✅ ฟังก์ชันช่วยอ่านขนาดรูป (ปรับปรุงใหม่)
 def inject_shape_info(result_dict, out_root):
     try:
-        # ลองหา path ของรูปผลลัพธ์
         output_data = result_dict.get("output", {})
         rel_path = output_data.get("aligned_image")
         
         if rel_path:
             full_path = os.path.join(out_root, rel_path)
             if os.path.exists(full_path):
-                # อ่านรูปเพื่อเอาขนาดจริง
                 img = cv2.imread(full_path)
                 if img is not None:
-                    # ✅ แก้ไข 1: เอา shape เต็มๆ (รวม channel) [H, W, C]
-                    # เพื่อให้ Node ถัดไปรู้ว่าเป็นภาพสี (ถ้ามี 3 channels)
+              
                     shape = list(img.shape) 
                     
                     if "output" not in result_dict:
                         result_dict["output"] = {}
                     
-                    # ✅ แก้ไข 2: ใส่ aligned_shape และ image_shape (มาตรฐานที่ Enhancement ใช้)
                     result_dict["output"]["aligned_shape"] = shape
                     result_dict["output"]["shape"] = shape
                     
-                    # ใส่ที่ Root level ด้วย เพื่อความชัวร์ในการดึงข้อมูล
                     result_dict["image_shape"] = shape
                     result_dict["channels"] = shape[2] if len(shape) > 2 else 1
                     
@@ -70,10 +64,8 @@ def alignment_homography(req: HomographyReq):
             blend=req.blend,
         )
 
-        # 1. ยัดข้อมูล Shape
         result = inject_shape_info(result, OUT)
 
-        # 2. สร้าง URL
         aligned_url = ""
         if result.get("output", {}).get("aligned_image"):
             aligned_url = static_url(result["output"]["aligned_image"], OUT)
@@ -85,9 +77,8 @@ def alignment_homography(req: HomographyReq):
         return {
             "status": "success",
             "tool": "HomographyAlignment",
-            # ✅ แก้ไข 3: ส่ง output_image กลับไปด้วย (Node Enhancement มองหา key นี้)
             "output_image": aligned_url,
-            "vis_url": aligned_url, # เผื่อบางโหนดใช้ vis_url
+            "vis_url": aligned_url, 
             **result
         }
     except Exception as e:
@@ -112,10 +103,8 @@ def alignment_affine(req: AffineReq):
             refine_iters=req.refine_iters,
         )
 
-        # 1. ยัดข้อมูล Shape
         result = inject_shape_info(result, OUT)
 
-        # 2. สร้าง URL
         aligned_url = ""
         if result.get("output", {}).get("aligned_image"):
             aligned_url = static_url(result["output"]["aligned_image"], OUT)
@@ -127,7 +116,6 @@ def alignment_affine(req: AffineReq):
         return {
             "status": "success",
             "tool": "AffineAlignment",
-            # ✅ แก้ไข 3: ส่ง output_image/vis_url กลับไปด้วย
             "output_image": aligned_url,
             "vis_url": aligned_url,
             **result

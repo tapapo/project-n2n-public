@@ -14,7 +14,6 @@ export async function runSegmentation(
   const nodeId = node.id;
   const nodeLabel = node.data.label || node.type || 'Segmentation';
 
-  // Helper สำหรับดึง Edge ขาเข้า
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
 
   const fail = async (msg: string) => {
@@ -29,7 +28,6 @@ export async function runSegmentation(
     throw new Error(msg);
   };
 
-  // 1. เช็คการเชื่อมต่อ
   const incoming = getIncoming(nodeId);
   if (incoming.length === 0) {
     return fail('No input image found. Please connect and run an Image source.');
@@ -46,13 +44,11 @@ export async function runSegmentation(
     return fail(`Invalid Input: ${nodeLabel} requires a raw Image source, not a '${tool}' result.`);
   }
 
-  // 2. ค้นหา Path รูปภาพ
   const imagePath = findInputImage(nodeId, nodes, edges);
   if (!imagePath) {
     return fail('No input image found. Please connect and run an Image source.');
   }
 
-  // 3. เลือก Runner
   let prefix = '';
   let runner: any;
 
@@ -75,16 +71,13 @@ export async function runSegmentation(
       return fail(`Unknown Segmentation node type: ${node.type}`);
   }
 
-  // 4. เริ่มทำงาน
   await markStartThenRunning(nodeId, `Segmenting with ${prefix}...`, setNodes);
 
   try {
-    // ✅ จุดที่แก้ไข: ดึง model_path ออกมาด้วย
     const payload = node.data.payload || {};
     const params = payload.params || {};
-    const modelPath = payload.model_path; // ค่านี้มาจาก Input ใน UNET Node
+    const modelPath = payload.model_path; 
 
-    // 5. เรียก API (ส่ง modelPath ไปเป็นตัวที่ 3)
     const resp = await runner(imagePath, params, modelPath);
 
     if (resp.detail || resp.status === 'error') {
@@ -92,8 +85,7 @@ export async function runSegmentation(
       return fail(errorMsg); 
     }
 
-    // 6. จัดการ URL ผลลัพธ์
-    // รองรับทั้ง vis_url (ใหม่) และ keys เดิม
+   
     const visUrlRaw = resp.vis_url || resp.segmented_image || resp.full_vis_image || resp.output_image;
     
     if (!visUrlRaw) {
@@ -102,10 +94,8 @@ export async function runSegmentation(
 
     const finalVisUrl = abs(visUrlRaw);
     
-    // ✅ จัดการ Mask URL (ถ้ามี)
     const maskUrl = resp.mask_url ? abs(resp.mask_url) : undefined;
 
-    // 7. บันทึกผลลัพธ์
     setNodes((nds) =>
       nds.map((n) =>
         n.id === nodeId
@@ -119,12 +109,10 @@ export async function runSegmentation(
                   ...(n.data as CustomNodeData)?.payload,
                   ...resp,
                   
-                  // เซ็ตค่าให้ครบเพื่อความชัวร์
                   json: resp,
                   vis_url: finalVisUrl,
-                  mask_url: maskUrl, // เพิ่ม mask_url ให้ frontend ใช้งาน
+                  mask_url: maskUrl, 
                   
-                  // Fallback keys
                   output_image: finalVisUrl, 
                   result_image_url: finalVisUrl,
                   

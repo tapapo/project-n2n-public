@@ -32,7 +32,6 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // 1. อ่านค่า
   const params = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_PARAMS, ...p };
@@ -44,7 +43,6 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     if (!open) setForm(params);
   }, [params, open]);
 
-  // 2. บันทึกค่า
   const onSave = useCallback(() => {
     const cleanParams = {
       clipLimit: Number(form.clipLimit),
@@ -77,19 +75,16 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
-  // Fallback data sources
   const json_data = data?.payload?.json_data || data?.payload?.json;
 
-  // ✅ Logic ดึงขนาดรูป (Priority: Output -> Input)
   const displaySize = useMemo(() => {
     const imgMeta = json_data?.image || {};
-    // CLAHE ไม่เปลี่ยนขนาด ดังนั้น enhanced_shape หรือ original_shape ก็ค่าเท่ากัน
     const shape = imgMeta.enhanced_shape || imgMeta.original_shape || data?.payload?.image_shape;
     
     if (Array.isArray(shape) && shape.length >= 2) {
       const h = shape[0];
       const w = shape[1];
-      return `${w} x ${h}`; // แสดง Width x Height
+      return `${w} x ${h}`; 
     }
     return null;
   }, [json_data, data?.payload]);
@@ -100,7 +95,6 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ? data.description
     : (displayUrl ? 'Enhancement complete' : 'Connect Image Input and run');
 
-  // Border Style
   let borderColor = 'border-indigo-500';
   if (selected) borderColor = 'border-indigo-400 ring-2 ring-indigo-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -116,7 +110,6 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-indigo-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>CLAHE</div>
         <div className="flex items-center gap-2">
@@ -145,9 +138,7 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
-        {/* ✅ แสดง Dimensions แบบมาตรฐาน (สีเทา เรียบๆ) */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
             Dimensions: {displaySize}
@@ -163,7 +154,6 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>
@@ -183,7 +173,6 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Modal Settings */}
       <Modal open={open} title="CLAHE Settings" onClose={() => setOpen(false)}>
         <div className="space-y-4 text-xs text-gray-300">
           <div className="grid grid-cols-2 gap-4">

@@ -2,12 +2,11 @@
 import { memo, useCallback, useMemo } from 'react';
 import { Handle, Position, type NodeProps, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
-import { useNodeStatus } from '../../hooks/useNodeStatus'; // ✅ Import Hook
+import { useNodeStatus } from '../../hooks/useNodeStatus'; 
 
 const SsimNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const edges = useEdges();
 
-  // ✅ เรียกใช้ Hook
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'input1'), [edges, id]);
@@ -26,7 +25,6 @@ const SsimNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         ? `SSIM = ${val.toFixed(4)}`
         : 'Connect two Image Input and run');
 
-  // Style
   let borderColor = 'border-blue-500';
   if (selected) borderColor = 'border-blue-400 ring-2 ring-blue-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -44,7 +42,6 @@ const SsimNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} id="input2" className={getHandleClass(isConnected2)} style={{ top: '65%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} id="json" className={getHandleClass(true)} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-blue-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>SSIM</div>
         <button
@@ -65,7 +62,6 @@ const SsimNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         )}
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>
@@ -77,7 +73,6 @@ const SsimNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
         <div className="flex justify-between items-center py-1">
           <span className="text-green-400">success</span>
-          {/* ✅ ใช้ isSuccess */}
           <div className={statusDot(isSuccess, 'bg-green-500')} />
         </div>
         <div className="flex justify-between items-center py-1">

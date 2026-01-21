@@ -10,7 +10,6 @@ export const useNodeStatus = (data: CustomNodeData | undefined) => {
     const isRunning = status === 'start' || status === 'running';
     const isFault = status === 'fault';
 
-    // เช็คว่ามีผลลัพธ์ค้างอยู่หรือไม่ (รวมทุก key ที่เป็นไปได้)
     const hasResult = !!(
         payload?.result_image_url || 
         payload?.json_url || 
@@ -20,7 +19,6 @@ export const useNodeStatus = (data: CustomNodeData | undefined) => {
         payload?.overlay_url
     );
 
-    // ✅ สูตรลับ: ถ้าสถานะบอกว่าเสร็จ หรือ (มีของครบ และไม่ได้กำลังรัน/Error) = ไฟเขียว
     const isSuccess = status === 'success' || (hasResult && !isRunning && !isFault);
 
     return {

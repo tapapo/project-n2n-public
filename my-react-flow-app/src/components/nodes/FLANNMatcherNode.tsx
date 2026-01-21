@@ -6,7 +6,6 @@ import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
 
-/* --- Helpers --- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -44,7 +43,6 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
   const isConnected1 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file1'), [edges, id]);
   const isConnected2 = useMemo(() => edges.some(e => e.target === id && e.targetHandle === 'file2'), [edges, id]);
 
-  // ✅ 1. แก้การอ่านค่า
   const params = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<FLANNParams>;
     return { ...DEFAULT_PARAMS, ...p };
@@ -55,15 +53,14 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
 
   const onClose = () => { setForm(params); setOpen(false); };
   
-  // ✅ 2. แก้การบันทึกค่า
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
       n.id === id ? { 
         ...n, 
         data: { 
           ...n.data, 
-          params: form, // Watcher
-          payload: { ...(n.data?.payload || {}), params: form } // Runner
+          params: form, 
+          payload: { ...(n.data?.payload || {}), params: form } 
         } 
       } : n
     ));
@@ -112,7 +109,6 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
     ? rawSummary.replace(/\(FLANN\)/gi, '').trim() 
     : (visUrl ? 'Matches preview' : 'Connect feature nodes and run');
 
-  // Style (Orange)
   let borderColor = 'border-orange-500'; 
   if (selected) borderColor = 'border-orange-400 ring-2 ring-orange-500'; 
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50'; 
@@ -126,7 +122,6 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
       <Handle type="target" position={Position.Left} id="file2" className={getHandleClass(isConnected2)} style={{ top: '65%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={getHandleClass(true)} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header (Orange) */}
       <div className="bg-gray-700 text-orange-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>FLANN Matcher</div>
         <div className="flex items-center gap-2">
@@ -202,7 +197,6 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings */}
       <Modal open={open} title="FLANN Settings" onClose={onClose}>
         <div className="grid grid-cols-2 gap-4 text-xs text-gray-300 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
           <div>

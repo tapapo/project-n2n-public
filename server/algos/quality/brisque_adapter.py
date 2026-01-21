@@ -2,14 +2,13 @@
 import os
 import sys
 import json
-import hashlib # ✅ ใช้ Hash
+import hashlib 
 from typing import Optional, Tuple, Dict, Any
 
 import cv2
 import numpy as np
 
 
-# --- Config ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 MODEL_PATH = os.path.join(PROJECT_ROOT, "server/algos/quality/brisque_models/brisque_model_live.yml")
 RANGE_PATH = os.path.join(PROJECT_ROOT, "server/algos/quality/brisque_models/brisque_range_live.yml")
@@ -59,7 +58,6 @@ def _interpret_brisque(score: float) -> str:
 
 def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str, Any]]:
     
-    # 1. Validation
     if image_path.lower().endswith(".json"):
         try:
             with open(image_path, 'r', encoding='utf-8') as f:
@@ -70,7 +68,6 @@ def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str,
                     f"Invalid Input: Received a '{tool}' result file. "
                     "BRISQUE requires an Image file, not a JSON result."
                 )
-            # Fallback path extraction
             image_path = (
                 meta.get("image", {}).get("original_path") or 
                 meta.get("output", {}).get("aligned_image") or
@@ -79,23 +76,19 @@ def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str,
         except (json.JSONDecodeError, FileNotFoundError, PermissionError):
             pass
 
-    # 2. Resolve Path
     abs_path = os.path.abspath(image_path)
     if not os.path.exists(abs_path):
-         # Try resolving relative to project root if absolute check fails
          potential_path = os.path.join(PROJECT_ROOT, image_path.lstrip("/"))
          if os.path.exists(potential_path):
              abs_path = potential_path
 
-    # 3. Prepare Output
     if out_root is None:
         out_root = os.path.join(PROJECT_ROOT, "outputs")
         
     out_dir = os.path.join(out_root, "features", "brisque_outputs")
     _ensure_dir(out_dir)
 
-    # ✅ 4. Generate Hash (Deduplication)
-    # เนื่องจาก BRISQUE ไม่มีพารามิเตอร์ปรับแต่ง เรา Hash จากชื่อรูปและ Path ของ Model
+    
     config_map = {
         "img": os.path.basename(abs_path),
         "model": "default_live",
@@ -108,16 +101,14 @@ def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str,
     stem = f"brisque_{base_name}_{param_hash}"
     out_json = os.path.join(out_dir, f"{stem}.json")
 
-    # ✅ 5. Check Cache (ถ้ามีไฟล์แล้ว อ่านตอบกลับเลย ไม่ต้องคำนวณใหม่)
     if os.path.exists(out_json):
         try:
             with open(out_json, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return out_json, data
         except Exception:
-            pass # ถ้าไฟล์เสีย คำนวณใหม่
+            pass 
 
-    # 6. Compute Logic
     img = cv2.imread(abs_path, cv2.IMREAD_UNCHANGED)
     if img is None:
         raise ValueError(f"Cannot read image: {abs_path}")
@@ -140,7 +131,6 @@ def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str,
     score_rounded = round(score, 4)
     score_bucket = _interpret_brisque(score)
 
-    # 7. Save JSON
     data: Dict[str, Any] = {
         "tool": "BRISQUE",
         "tool_version": {
@@ -161,7 +151,7 @@ def run(image_path: str, out_root: Optional[str] = None) -> Tuple[str, Dict[str,
         },
         "quality_score": score_rounded,
         "quality_bucket": score_bucket,
-        "parameters_hash": config_map # เก็บค่า Hash ไว้ดูเล่น
+        "parameters_hash": config_map 
     }
 
     with open(out_json, "w", encoding="utf-8") as f:

@@ -4,17 +4,14 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-# ✅ แก้ไข: เปลี่ยนการนำเข้าจาก ..main เป็น ..utils_io ทั้งหมดเพื่อป้องกัน Circular Import
 from ..utils_io import resolve_image_path, OUT, RESULT_DIR, static_url
 
-# นำเข้า Adapters ของหมวด Quality
 from server.algos.quality.brisque_adapter import run as brisque_run
 from server.algos.quality.psnr_adapter import run as psnr_run
 from server.algos.quality.ssim_adapter import compute_ssim
 
 router = APIRouter()
 
-# --- Schemas ---
 
 class QualityReq(BaseModel):
     image_path: str
@@ -25,14 +22,10 @@ class MetricReq(BaseModel):
     processed_path: str
     params: Optional[dict] = None
 
-# --- Endpoints ---
 
 @router.post("/brisque")
 def quality_brisque(req: QualityReq):
-    """
-    BRISQUE: วัดคุณภาพภาพโดยไม่ต้องมีภาพอ้างอิง (No-reference)
-    เหมาะสำหรับตรวจดูความสวยงามหรือสัญญาณรบกวน (คะแนนยิ่งน้อยยิ่งดี)
-    """
+    
     img_path = resolve_image_path(req.image_path)
     if not os.path.exists(img_path):
         raise HTTPException(status_code=404, detail="Image not found")
@@ -52,9 +45,7 @@ def quality_brisque(req: QualityReq):
 
 @router.post("/psnr")
 def quality_psnr(req: MetricReq):
-    """
-    PSNR: วัดความแตกต่างระหว่างภาพเดิมและภาพที่ประมวลผล (คะแนนยิ่งสูงยิ่งดี)
-    """
+   
     p1 = resolve_image_path(req.original_path)
     p2 = resolve_image_path(req.processed_path)
     
@@ -75,10 +66,7 @@ def quality_psnr(req: MetricReq):
 
 @router.post("/ssim")
 def quality_ssim(req: MetricReq):
-    """
-    SSIM: วัดความคล้ายคลึงเชิงโครงสร้าง (Structural Similarity)
-    คะแนนอยู่ระหว่าง 0-1 (1.0 คือเหมือนกันทุกประการ)
-    """
+    
     p1 = resolve_image_path(req.original_path)
     p2 = resolve_image_path(req.processed_path)
     

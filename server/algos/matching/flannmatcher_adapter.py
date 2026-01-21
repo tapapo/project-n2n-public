@@ -1,13 +1,11 @@
-# File: server/algos/matching/flannmatcher_adapter.py
+# server/algos/matching/flannmatcher_adapter.py
 import os, json, cv2, sys
 import hashlib 
 import numpy as np
 from typing import Optional, Dict, Any, List, Tuple
 
-# --- Config ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
-# ---------- utils ----------
 def _read_json(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
         raise FileNotFoundError(f"JSON file not found: {path}")
@@ -49,7 +47,6 @@ def _image_size(img_path: str) -> Tuple[Optional[int], Optional[int], Optional[i
     return w, h, c
 
 
-# ---------- load features ----------
 def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray, str, str, Dict[str, Any]]:
     data = _read_json(json_path)
 
@@ -107,7 +104,6 @@ def load_descriptor_data(json_path: str) -> Tuple[List[cv2.KeyPoint], np.ndarray
     return keypoints, descriptors, tool, img_path, extra
 
 
-# ---------- humanizers ----------
 def humanize_index_name(index_params: Dict[str, Any]) -> str:
     alg = index_params.get("algorithm")
     if alg == 1:
@@ -130,7 +126,6 @@ def humanize_search_name(search_params: Dict[str, Any]) -> str:
     return f"checks={checks}" if checks is not None else "default"
 
 
-# ---------- main ----------
 def run(
     json_a: str,
     json_b: str,
@@ -148,25 +143,21 @@ def run(
     max_draw: Optional[int] = None,
 ) -> Dict[str, Any]:
 
-    # 1. Load Data
     kp1, des1, tool1, img1_path, extra1 = load_descriptor_data(json_a)
     kp2, des2, tool2, img2_path, extra2 = load_descriptor_data(json_b)
 
     if tool1 != tool2 and tool1 != "UNKNOWN" and tool2 != "UNKNOWN":
         raise ValueError(f": Tool mismatch: {tool1} vs {tool2}")
 
-    # 🔥 GUARD CLAUSE: Strict Validation 🔥
     if len(des1) == 0 or len(des2) == 0:
          raise ValueError(f": Descriptor Empty (0 features found)")
 
-    # 1.1 Check WTA_K mismatch for ORB (Simplified Message)
     if tool1 == "ORB" and tool2 == "ORB":
         wta1 = extra1.get("WTA_K")
         wta2 = extra2.get("WTA_K")
         if wta1 is not None and wta2 is not None and wta1 != wta2:
             raise ValueError(f": ORB WTA_K mismatch: {wta1} vs {wta2}")
 
-    # 1.2 Check general descriptor compatibility
     if des1.dtype != des2.dtype:
         raise ValueError(f": Type mismatch: {des1.dtype} vs {des2.dtype}")
 
@@ -174,7 +165,6 @@ def run(
         raise ValueError(f": Dimension mismatch: {des1.shape[1]} vs {des2.shape[1]}")
 
 
-    # 2. Select Index & Validate STRICTLY 
     requested = (index_mode or "AUTO").upper()
 
     if tool1 in ("SIFT", "SURF"):
@@ -192,7 +182,6 @@ def run(
         index_selected = requested
         index_selected_reason = "override_respected"
 
-    # Setup DType & Index Params
     if index_selected == "KD_TREE":
         des1 = des1.astype(np.float32, copy=False)
         des2 = des2.astype(np.float32, copy=False)
@@ -208,19 +197,16 @@ def run(
     search_checks = max(1, int(search_checks))
     search_params = dict(checks=search_checks)
 
-    # Setup Lowe & RANSAC
     eff_ratio = 0.8 if (lowe_ratio is None and tool1 == "ORB") else (0.75 if lowe_ratio is None else float(lowe_ratio))
     if not (0.0 < eff_ratio < 1.0):
         raise ValueError(": lowe_ratio must be between 0 and 1")
     if ransac_thresh <= 0:
         raise ValueError(": ransac_thresh must be > 0")
 
-    # Draw Mode
     mode_in = (draw_mode or "good").lower()
     if mode_in not in ("good", "inliers"):
         mode_in = "good"
 
-    # 3. Output Directory
     if out_root is None:
         out_root = os.path.join(PROJECT_ROOT, "outputs")
         
@@ -228,7 +214,6 @@ def run(
     if not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
-    # 4. Caching
     config_map = {
         "json1": os.path.basename(json_a),
         "json2": os.path.basename(json_b),
@@ -255,7 +240,6 @@ def run(
          except:
             pass
 
-    # 5. Matching Process
     flann = cv2.FlannBasedMatcher(index_params, search_params)
     raw_matches: List[Any] = []
     good_matches: List[cv2.DMatch] = []
@@ -272,10 +256,8 @@ def run(
                     good_matches.append(m)
             good_matches.sort(key=lambda x: x.distance)
         except Exception as e:
-            # Catch internal OpenCV errors (Simplified Message)
             raise RuntimeError(f"[FLANN] 💥 Error: Internal failed: {str(e)}")
 
-    # 6. RANSAC & Homography
     inliers = 0
     inlier_mask = None
     homography_reason = None
@@ -303,7 +285,6 @@ def run(
     else:
         homography_reason = "not_enough_good_matches"
 
-    # 7. Visualization
     w1, h1, c1 = _image_size(img1_path)
     w2, h2, c2 = _image_size(img2_path)
 
@@ -328,7 +309,6 @@ def run(
             cv2.imwrite(out_vis_path, vis)
             vis_path_rel = f"/static/features/flannmatcher_outputs/{stem}_vis.jpg"
 
-    # 8. Save Result
     matches_output_data = [
         {"queryIdx": m.queryIdx, "trainIdx": m.trainIdx, "distance": round(float(m.distance), 4)}
         for m in good_matches

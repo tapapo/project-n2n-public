@@ -1,7 +1,7 @@
 # project_n2n/server/algos/Classification/otsu_adapter.py
 import os
 import json
-import hashlib # ✅ ใช้ Hash เพื่อป้องกันไฟล์ซ้ำ
+import hashlib 
 from typing import Dict, Any, Tuple, Optional
 
 import cv2
@@ -21,7 +21,7 @@ def _read_json(path: str) -> Dict[str, Any]:
 def _to_gray(img: np.ndarray) -> np.ndarray:
     if img.ndim == 2:
         return img
-    if img.ndim == 3 and img.shape[2] == 4: # Handle BGRA
+    if img.ndim == 3 and img.shape[2] == 4: 
         return cv2.cvtColor(img, cv2.COLOR_BGRA2GRAY)
     return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
@@ -72,7 +72,6 @@ def run(
     **kwargs
 ) -> Tuple[str, Optional[str]]:
     
-    # 1. Validation & Path Resolution
     if image_path.lower().endswith(".json"):
         try:
             data = _read_json(image_path)
@@ -92,7 +91,6 @@ def run(
     out_dir = os.path.join(out_root, "features", "otsu_outputs")
     _ensure_dir(out_dir)
     
-    # ✅ 2. สร้าง Hash จาก Parameters (เหมือน Snake)
     config_map = {
         "img": os.path.basename(image_path),
         "blur": gaussian_blur, "k": blur_ksize,
@@ -126,7 +124,6 @@ def run(
     if morph_open or morph_close:
         binary = _apply_morph(binary, morph_open, morph_close, morph_kernel)
 
-    # ✅ 3. ตั้งชื่อไฟล์และเช็คว่ามีอยู่แล้วหรือไม่
     bin_name = f"{stem}_binary.png"
     json_name = f"{stem}.json"
     hist_name = f"{stem}_hist.png"
@@ -135,7 +132,6 @@ def run(
     json_path = os.path.join(out_dir, json_name)
     hist_path = os.path.join(out_dir, hist_name)
 
-    # ถ้ามีไฟล์อยู่แล้ว (Hash ตรงกัน) ไม่ต้องคำนวณซ้ำ
     if not (os.path.exists(json_path) and os.path.exists(bin_path)):
         cv2.imwrite(bin_path, binary)
 
@@ -159,7 +155,7 @@ def run(
                 "shape": [H, W],
                 "dtype": str(gray.dtype),
             },
-            "parameters": config_map, # เก็บค่าที่ใช้ Hash
+            "parameters": config_map, 
             "threshold_value": tval,
             "output": {
                 "binary_mask_path": bin_path,

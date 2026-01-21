@@ -6,7 +6,6 @@ import { abs } from "../../lib/api";
 import type { CustomNodeData } from "../../types";
 import { useNodeStatus } from '../../hooks/useNodeStatus';
 
-// --- Constants ---
 const VOC_CLASSES = [
   "background", "aeroplane", "bicycle", "bird", "boat", "bottle", "bus", "car", "cat",
   "chair", "cow", "diningtable", "dog", "horse", "motorbike", "person", "pottedplant",
@@ -31,7 +30,6 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
   }, [data, id, isRunning]);
 
   const visUrl = data?.payload?.vis_url || data?.payload?.segmented_image;
-  // Fallback: บางที backend ส่งมาใน json_data
   const json_data = data?.payload?.json_data || data?.payload?.json || data?.payload; 
 
   const displayUrl = visUrl ? `${abs(visUrl)}?t=${Date.now()}` : undefined;
@@ -40,16 +38,14 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
     ? data.description 
     : (displayUrl ? 'Segmentation complete' : 'Detects all supported objects');
 
-  // ✅ 1. เพิ่ม Logic คำนวณขนาดรูปภาพ
   const displaySize = useMemo(() => {
     const imgMeta = json_data?.image || {};
-    // ลำดับการหา: Output > Mask > Input
     const shape = imgMeta.segmented_shape || imgMeta.mask_shape || imgMeta.original_shape || data?.payload?.output_shape;
 
     if (Array.isArray(shape) && shape.length >= 2) {
       const h = shape[0];
       const w = shape[1];
-      return `${w} x ${h}`; // แสดง Width x Height
+      return `${w} x ${h}`; 
     }
     return null;
   }, [json_data, data?.payload]);
@@ -69,7 +65,6 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-yellow-600" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-yellow-500 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>DeepLabv3+</div>
         <div className="flex items-center gap-2">
@@ -98,9 +93,7 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
-        {/* ✅ 2. แสดง Dimensions แบบเรียบง่าย */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
             Dimensions: {displaySize}
@@ -116,7 +109,6 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
@@ -124,7 +116,6 @@ const DeepLabNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(data?.status === 'fault', 'bg-yellow-500')} /></div>
       </div>
 
-       {/* Info Modal */}
        <Modal open={open} title="Supported Classes (Pascal VOC)" onClose={() => setOpen(false)}>
         <div className="space-y-4 text-xs text-gray-300">
             <p className="text-gray-400 italic">

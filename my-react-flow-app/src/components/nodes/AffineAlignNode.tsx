@@ -37,14 +37,12 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
 
-  // Hook เช็คสถานะ
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
   const isConnected = useStore(
     useCallback((s: any) => s.edges.some((e: any) => e.target === id), [id])
   );
 
-  // ✅ 1. Logic เดิมที่แก้ให้เมื่อกี้ (อ่านค่า params ที่ watcher มองเห็น)
   const savedParams = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_PARAMS, ...p };
@@ -55,7 +53,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
 
-  // ✅ 2. Logic เดิมที่แก้ให้เมื่อกี้ (บันทึกค่าลง data.params เพื่อ trigger watcher)
   const onSave = () => {
     rf.setNodes((nds) =>
       nds.map((n) =>
@@ -64,9 +61,7 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
               ...n,
               data: {
                 ...n.data,
-                // บันทึกที่ root level ให้ watcher เห็น
                 params: { ...form }, 
-                // บันทึกใน payload ด้วย
                 payload: { ...(n.data?.payload || {}), params: { ...form } },
               },
             }
@@ -121,7 +116,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-purple-500 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>Affine Align</div>
         <div className="flex items-center gap-2">
@@ -135,7 +129,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
 
-          {/* ✅ 3. เอา Hover Tooltip กลับมาให้แล้วครับ */}
           <span className="relative inline-flex items-center group">
             <button
               aria-label="Open Affine settings"
@@ -177,7 +170,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
         </p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1">
           <span className="text-red-400">start</span>

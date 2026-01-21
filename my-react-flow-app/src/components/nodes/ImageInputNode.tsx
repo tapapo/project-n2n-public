@@ -4,7 +4,6 @@ import { Handle, Position, useReactFlow, type NodeProps } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import { uploadImages, abs } from '../../lib/api';
 
-/* ---------------- UI helpers ---------------- */
 const statusDot = (active: boolean, color: string) => 
   `h-4 w-4 rounded-full ${active ? color : 'bg-gray-600'} flex-shrink-0 shadow-inner transition-colors duration-200`;
 
@@ -78,7 +77,6 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
 
   const isRunning = uploading || data?.status === 'running';
   
-  // ✅ แก้ไข: เช็คว่าถ้ามี status success หรือ มีรูปภาพอยู่แล้ว (และไม่ error/running) ให้ถือว่า Success
   const isSuccess = data?.status === 'success' || (!!rawUrl && !isRunning && data?.status !== 'fault');
 
   let borderColor = 'border-teal-500';
@@ -91,12 +89,10 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
     <div className={`bg-gray-800 border-2 rounded-xl shadow-2xl w-72 text-gray-200 transition-all duration-200 overflow-visible ${borderColor}`}>
       <Handle type="source" position={Position.Right} id="img" className={handleClasses} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       
-      {/* Header */}
       <div className="bg-gray-700 text-center font-bold p-2 text-teal-400 rounded-t-xl">
         {data?.label || 'Image Input'}
       </div>
       
-      {/* Body */}
       <div className="p-4 space-y-3">
         <div className="text-sm text-gray-300">Select an image to upload:</div>
         
@@ -137,7 +133,6 @@ const ImageInputNode = memo(({ id, data, selected }: Props) => {
         {error && <div className="text-xs text-red-400 font-bold">{error}</div>}
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1">
             <span className="text-red-400">start</span>

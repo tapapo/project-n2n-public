@@ -3,34 +3,28 @@ import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react
 import { ReactFlowProvider } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-// Components
 import Sidebar from './components/sidebar';
 import FlowCanvas, { type FlowCanvasHandle } from './FlowCanvas';
 import WorkflowControls from './components/WorkflowControls';
 import WorkflowTabs from './components/WorkflowTabs';
 
-// Types
 import type { WorkflowTemplate } from './lib/workflowTemplates';
 import type { WorkflowTab, NodeStatus } from './types'; 
 
-// Keys
 const STORAGE_KEY_APP_TABS = 'n2n_app_tabs';
 const STORAGE_KEY_ACTIVE_TAB = 'n2n_active_tab_id';
 
 export default function App() {
   const [isRunning, setIsRunning] = useState(false);
   
-  // 🛡️ GATEKEEPER: ป้องกันการ Save ทับในช่วงเริ่มโหลด (แก้ภาพกระพริบ)
   const isInitializing = useRef(true); 
 
-  // 1. CLEAN LOAD: โหลดและล้างสถานะเป็น Idle ทันที (แก้รีเฟรช 2 รอบ)
   const [tabs, setTabs] = useState<WorkflowTab[]>(() => {
     try {
       const savedTabs = localStorage.getItem(STORAGE_KEY_APP_TABS);
       if (savedTabs) {
         const parsedTabs = JSON.parse(savedTabs);
         
-        // ล้างข้อมูล: บังคับให้ status เป็น 'idle'
         const cleanTabs = parsedTabs.map((tab: any) => ({
           ...tab,
           nodes: tab.nodes.map((node: any) => ({
@@ -42,7 +36,6 @@ export default function App() {
           }))
         }));
         
-        // เขียนทับลง Storage ทันทีเพื่อฆ่าค่าเก่า
         localStorage.setItem(STORAGE_KEY_APP_TABS, JSON.stringify(cleanTabs));
         return cleanTabs;
       }
@@ -60,20 +53,16 @@ export default function App() {
 
   const canvasRef = useRef<FlowCanvasHandle>(null);
 
-  // 2. UNLOCK GATE: ปลดล็อคหลังจากผ่านไป 500ms
   useEffect(() => {
     isInitializing.current = true;
     const timer = setTimeout(() => {
         isInitializing.current = false;
-        // เซฟทับอีกครั้งเพื่อความชัวร์เมื่อระบบนิ่งแล้ว
         localStorage.setItem(STORAGE_KEY_APP_TABS, JSON.stringify(tabs));
     }, 500);
     return () => clearTimeout(timer);
   }, []);
 
-  // 3. AUTO-SAVE: บันทึกเมื่อมีการเปลี่ยนแปลง
   useEffect(() => {
-    // ถ้ายังโหลดไม่เสร็จ ห้ามเซฟ
     if (isInitializing.current) return;
 
     try {
@@ -83,7 +72,6 @@ export default function App() {
           const oldPayload = node.data.payload || {};
           let newPayload = undefined;
 
-          // เก็บข้อมูลตามเงื่อนไข แต่บังคับ status เป็น idle
           if (node.type === 'image-input') {
              newPayload = oldPayload; 
           }
@@ -124,7 +112,7 @@ export default function App() {
             data: {
               ...node.data,
               payload: newPayload,
-              status: 'idle' as NodeStatus // Force Idle on save
+              status: 'idle' as NodeStatus 
             }
           };
         })
@@ -139,7 +127,6 @@ export default function App() {
   }, [tabs, activeTabId]);
 
 
-  // 4. RESTORE VIEW: วาดลงจอ (Force Clean View)
   useLayoutEffect(() => {
     const timer = setTimeout(() => {
       const currentTab = tabs.find(t => t.id === activeTabId);
@@ -158,7 +145,6 @@ export default function App() {
     return () => clearTimeout(timer);
   }, []); 
 
-  // --- LOGIC การจัดการ TAB และ CANVAS ---
 
   const syncCanvasToCurrentTab = useCallback(() => {
     if (!canvasRef.current) return;
@@ -167,13 +153,11 @@ export default function App() {
   }, [activeTabId]);
 
   const handleFlowChange = useCallback((changes: { nodes: any[], edges: any[], viewport: any }) => {
-    // ป้องกัน Canvas ส่งค่าเก่ามาทับตอนโหลด
     if (isInitializing.current) return;
 
     setTabs((prevTabs) => 
       prevTabs.map((tab) => {
         if (tab.id !== activeTabId) return tab;
-        // ป้องกัน Ghost State (เขียวทั้งที่ไม่ได้รัน)
         const safeNodes = changes.nodes.map(n => {
             if (!isRunning && n.data?.status === 'success') {
                 return { ...n, data: { ...n.data, status: 'idle' as NodeStatus } };
@@ -239,18 +223,14 @@ export default function App() {
     setTabs((prevTabs) => prevTabs.map((tab) => tab.id === tabId ? { ...tab, name: newName || 'Untitled' } : tab));
   };
 
-  // ✅ [NEW LOGIC] Check Empty Canvas before Run
   const handleStart = useCallback(() => {
-    // 1. หา Tab ปัจจุบัน
     const currentTab = tabs.find(t => t.id === activeTabId);
     
-    // 2. ถ้าไม่มี Tab หรือ ไม่มี Nodes ใน Tab นั้น
     if (!currentTab || currentTab.nodes.length === 0) {
       alert("Canvas is empty! Please add nodes before running.");
-      return; // จบการทำงาน ไม่เปลี่ยนสถานะเป็น Running
+      return; 
     }
 
-    // 3. ถ้ามีโหนด ค่อยเริ่มรัน
     setIsRunning(true);
   }, [tabs, activeTabId]);
 

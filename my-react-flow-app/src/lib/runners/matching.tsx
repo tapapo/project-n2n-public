@@ -14,7 +14,6 @@ export async function runMatcher(
   const nodeId = node.id;
   const getIncoming = (id: string) => edges.filter((e) => e.target === id);
 
-  // Helper สำหรับ Fail และเปลี่ยนสถานะเป็น Fault
   const fail = async (msg: string) => {
     await updateNodeStatus(nodeId, 'fault', setNodes);
     throw new Error(msg);
@@ -39,7 +38,6 @@ export async function runMatcher(
   const e1 = incoming.find((e) => e.targetHandle === 'file1');
   const e2 = incoming.find((e) => e.targetHandle === 'file2');
 
-  // --- 1. Validation Checks (Basic) ---
   if (!e1 || !e2) {
     await fail('Need two feature inputs. Please connect Feature Extraction nodes.');
   }
@@ -55,17 +53,14 @@ export async function runMatcher(
      await fail(`Invalid input: Requires SIFT/SURF/ORB nodes.`);
   }
 
-  // --- 2. Check Tool Mismatch ---
   if (type1 !== type2) {
     await fail(`Mismatch: Cannot match '${type1.toUpperCase()}' with '${type2.toUpperCase()}'. Both inputs must be the same type.`);
   }
 
-  // --- 3. 🔥 Check ORB WTA_K Mismatch (Frontend Check) 🔥 ---
   if (type1 === 'orb' && type2 === 'orb') {
     const p1 = (n1?.data?.payload?.params as any) || {};
     const p2 = (n2?.data?.payload?.params as any) || {};
 
-    // Default WTA_K is usually 2 if not set
     const k1 = p1.WTA_K ?? 2;
     const k2 = p2.WTA_K ?? 2;
 

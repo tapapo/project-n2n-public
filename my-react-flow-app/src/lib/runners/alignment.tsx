@@ -15,7 +15,6 @@ function getIncoming(edges: Edge[], id: string) {
 function pickMatchJsonFromNode(matchNode?: RF): string | null {
   if (!matchNode) return null;
   const p = (matchNode.data as CustomNodeData | undefined)?.payload;
-  // รองรับหลาย Path
   const matchPath = p?.output?.match_json || p?.json?.json_path || p?.json_path;
   
   if (!matchPath || typeof matchPath !== 'string' || !matchPath.endsWith('.json')) return null;
@@ -35,7 +34,6 @@ export async function runAlignment(
   const nodeId = node.id;
   const kind = node.type || 'homography-align';
 
-  // 1. ตรวจสอบ Connection
   const incoming = getIncoming(edges, nodeId);
   if (!incoming.length) {
     const msg = 'No input connection. Please connect a Matcher node (BF/FLANN).';
@@ -46,7 +44,6 @@ export async function runAlignment(
   const srcEdge = incoming[0];
   const matchNode = nodes.find((n) => n.id === srcEdge.source);
 
-  // 2. ตรวจสอบประเภทโหนดต้นทาง
   const allowedTypes = ['bfmatcher', 'flannmatcher'];
   if (!matchNode || !allowedTypes.includes(matchNode.type || '')) {
     const label = matchNode?.data?.label || matchNode?.type || 'Unknown Node';
@@ -56,7 +53,6 @@ export async function runAlignment(
     throw new Error(msg);
   }
   
-  // 3. ดึง JSON Path
   const matchJson = pickMatchJsonFromNode(matchNode);
   if (!matchJson) {
     const msg = 'Matcher output not ready. Please Run the Matcher node first.';
@@ -93,25 +89,21 @@ export async function runAlignment(
                 status: 'success',
                 description: `${kind === 'affine-align' ? 'Affine' : 'Homography'} aligned (${inliers} inliers)`,
                 payload: {
-                  ...(x.data?.payload || {}), // ของเดิมที่มีค่าเก่าติดอยู่
+                  ...(x.data?.payload || {}),
                   
                   tool: kind === 'affine-align' ? 'AffineAlignment' : 'HomographyAlignment',
                   output_type: 'alignment', 
                   params,
                   
-                  // ✅ 1. แก้ Save JSON ไม่ครบ: ต้องใส่ json: resp เพื่อทับค่าเก่า
                   json: resp, 
                   json_data: resp, 
                   
-                  // ✅ 2. แก้รูปไม่เปลี่ยน: ต้องใส่ aligned_url: alignedUrl เพื่อทับค่าเก่า
                   aligned_url: alignedUrl, 
                   
-                  // URL อื่นๆ ใส่ให้ครบเพื่อความชัวร์
                   vis_url: alignedUrl, 
                   result_image_url: alignedUrl,
                   output_image: alignedUrl, 
                   
-                  // Metadata
                   image_shape: resp.image_shape || resp.output?.aligned_shape,
                   channels: resp.channels || (resp.image_shape ? resp.image_shape[2] : 3),
 

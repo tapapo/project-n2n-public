@@ -1,9 +1,7 @@
 // src/lib/api.ts
 export const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
-/**
- * แปลง URL หรือ Path สัมพัทธ์ให้เป็น URL สมบูรณ์
- */
+
 export const abs = (url?: string) => {
   if (!url) return undefined;
   if (/^(https?:|blob:|data:)/i.test(url)) return url;
@@ -13,10 +11,8 @@ export const abs = (url?: string) => {
 export const absStrict = (url: string) =>
   /^(https?:|blob:|data:)/i.test(url) ? url : `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
 
-// ✅ Helper ใหม่: เช็ค Error จาก Backend อัตโนมัติ
 async function handleResponse(resp: Response) {
   if (!resp.ok) {
-    // พยายามอ่านข้อความ Error จาก Backend (เช่น "Configuration Error...")
     const errBody = await resp.json().catch(() => ({}));
     const msg = errBody.detail || `Request failed with status ${resp.status}`;
     throw new Error(msg);
@@ -33,7 +29,6 @@ export async function uploadImages(files: File[], signal?: AbortSignal) {
     body: formData,
     signal,
   });
-  // Upload มักเช็คแยก แต่ใช้ helper ก็ได้ (อันนี้คงเดิมไว้ตามสไตล์คุณ)
   if (!resp.ok) throw new Error("Upload failed");
   return await resp.json();
 }
@@ -46,7 +41,7 @@ export async function runSift(image_path: string, params?: Record<string, any>, 
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp); // ✅ ใช้ handleResponse
+  return handleResponse(resp); 
 }
 
 export async function runSurf(image_path: string, params?: Record<string, any>, signal?: AbortSignal) {
@@ -56,7 +51,7 @@ export async function runSurf(image_path: string, params?: Record<string, any>, 
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp); // ✅ ใช้ handleResponse
+  return handleResponse(resp); 
 }
 
 export async function runOrb(image_path: string, params?: Record<string, any>, signal?: AbortSignal) {
@@ -66,7 +61,7 @@ export async function runOrb(image_path: string, params?: Record<string, any>, s
     body: JSON.stringify({ image_path, params }),
     signal,
   });
-  return handleResponse(resp); // ✅ ใช้ handleResponse
+  return handleResponse(resp); 
 }
 
 // ---------- 3. Enhancement ----------
@@ -105,20 +100,20 @@ export async function runBfmatcher(jsonA: string, jsonB: string, params?: any, s
   const resp = await fetch(`${API_BASE}/api/match/bf`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ json_a: jsonA, json_b: jsonB, ...params }), // ...params ถูกต้องแล้ว
+    body: JSON.stringify({ json_a: jsonA, json_b: jsonB, ...params }),
     signal,
   });
-  return handleResponse(resp); // ✅ สำคัญ: ต้องดัก Error ตรงนี้ ไม่งั้น Node ไม่แดง
+  return handleResponse(resp); 
 }
 
 export async function runFlannmatcher(jsonA: string, jsonB: string, params?: any, signal?: AbortSignal) {
   const resp = await fetch(`${API_BASE}/api/match/flann`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ json_a: jsonA, json_b: jsonB, ...params }), // ...params ถูกต้องแล้ว
+    body: JSON.stringify({ json_a: jsonA, json_b: jsonB, ...params }), 
     signal,
   });
-  return handleResponse(resp); // ✅ สำคัญ: ต้องดัก Error ตรงนี้ ไม่งั้น Node ไม่แดง
+  return handleResponse(resp);
 }
 
 export async function runHomographyAlignment(match_json: string, params?: any, signal?: AbortSignal) {

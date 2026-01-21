@@ -42,7 +42,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const isConnected = useMemo(() => edges.some((e) => e.target === id), [edges, id]);
 
-  // 1. อ่านค่า
   const savedParams = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_PARAMS, ...p };
@@ -57,7 +56,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
   
-  // 2. บันทึกค่า
   const onSave = useCallback(() => {
     const k = Math.max(3, Math.floor(form.blur_ksize));
     const oddK = k % 2 === 0 ? k + 1 : k;
@@ -102,7 +100,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     }
   }, [imgSize]); 
 
-  // Style
   let borderColor = 'border-pink-500';
   if (selected) {
     borderColor = 'border-pink-400 ring-2 ring-pink-500';
@@ -122,7 +119,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-pink-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>Otsu Threshold</div>
         <div className="flex items-center gap-2">
@@ -153,7 +149,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ✅ แสดง Dimensions */}
         {imgSize && (
             <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
                 Dimensions: {imgSize.w} x {imgSize.h}
@@ -177,7 +172,6 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>

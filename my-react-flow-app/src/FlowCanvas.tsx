@@ -71,10 +71,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
   const isDraggingRef = useRef(false);
   const isCanceledRef = useRef(false);
   
-  // Lock ไม่ให้รันซ้อน
   const isProcessingRef = useRef(false); 
 
-  // Auto-save hook
   useEffect(() => {
     if (!onFlowChange) return;
     const timer = setTimeout(() => {
@@ -158,7 +156,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
 
       try {
         const typeKey = node.type.toLowerCase();
-        // ส่ง nodes ล่าสุดไปให้ Adapter
         const freshNodes = getNodes();
         const freshEdges = getEdges();
 
@@ -206,7 +203,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
   }, [nodes, runNodeById, setNodes]);
 
 
-  // 🔥🔥🔥 EXECUTION CONTROLLER 🔥🔥🔥
   useEffect(() => {
     if (!isRunning) { 
         isCanceledRef.current = true; 
@@ -214,7 +210,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
         return; 
     }
     
-    // ป้องกันรันซ้อน
     if (isProcessingRef.current) return;
     
     isProcessingRef.current = true;
@@ -246,26 +241,20 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
               return (executionPriority[a.type?.toLowerCase() || ''] || 100) - (executionPriority[b.type?.toLowerCase() || ''] || 100);
           });
 
-          // 2. วนลูป (Force Loop)
           for (const node of sortedNodes) {
             if (isCanceledRef.current) { addLog('Pipeline stopped.', 'warning'); break; }
             if (!node?.id || !node?.type) continue;
             
-            // ข้ามพวก Save ถ้าต้องการ
             if (node.type.startsWith('save-')) continue;
 
             try { 
-                // บังคับเปลี่ยนสถานะเป็น Running (สีเหลือง)
                 setNodes((nds) => nds.map(n => n.id === node.id ? { ...n, data: { ...n.data, status: 'running' as NodeStatus } } : n));
                 
-                // รอ 50ms ให้ React อัปเดตสถานะเสร็จก่อน
                 await new Promise(r => setTimeout(r, 50));
 
-                // สั่งรัน -> ซึ่งจะไปเรียก getNodes() ใหม่อีกทีข้างใน
                 await runNodeById(node.id); 
 
-                // ✅✅✅ FIX: บังคับพักหลังรันเสร็จ (Delay) เพื่อให้ React วาดรูปและ Browser โหลดรูป
-                // ถ้าเป็น Segmentation (Heavy) พักนานหน่อย (500ms), ตัวอื่นพักนิดเดียว (100ms)
+              
                 const isHeavyNode = ['deep', 'deeplab', 'mask', 'maskrcnn', 'unet'].includes(node.type?.toLowerCase() || '');
                 const delayTime = isHeavyNode ? 500 : 100;
 
@@ -286,7 +275,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       }
     };
 
-    // ดีดตัวออกจากลูป React ปัจจุบัน
     setTimeout(() => runAllNodes(), 0);
     
     return () => { isProcessingRef.current = false; };

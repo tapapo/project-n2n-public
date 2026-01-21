@@ -2,22 +2,18 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// Input Images
 const IMG_1_URL = '/static/samples/1.png';
 const IMG_2_URL = '/static/samples/2.png';
 
-// Feature Results (SIFT)
 const SIFT_1_JSON = '/static/samples/json/feature/sift_1.json';
 const SIFT_1_VIS  = '/static/samples/json/feature/sift_1_vis.jpg';
 
 const SIFT_2_JSON = '/static/samples/json/feature/sift_2.json';
 const SIFT_2_VIS  = '/static/samples/json/feature/sift_2_vis.jpg';
 
-// Matching Result (FLANN)
 const FLANN_JSON = '/static/samples/json/matching/flann_sift.json';
 const FLANN_VIS  = '/static/samples/json/matching/flann_sift_vis.jpg';
 
-// Alignment Result (Homography)
 const HOMO_JSON = '/static/samples/json/alignment/homo_sift.json';
 const HOMO_IMG  = '/static/samples/json/alignment/homo_sift.jpg';
 
@@ -65,7 +61,6 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
           params: { nfeatures: 500, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 12, sigma: 1.6 },
           num_keypoints: 500,
           
-          // ✅ เพิ่มขนาดรูป
           image_shape: [288, 512],
 
           vis_url: SIFT_1_VIS,
@@ -101,7 +96,6 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
           params: { nfeatures: 0, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 10, sigma: 1.6 },
           num_keypoints: 89,
           
-          // ✅ เพิ่มขนาดรูป
           image_shape: [240, 310],
 
           vis_url: SIFT_2_VIS,
@@ -149,8 +143,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
         payload: {
           params: { warp_mode: "image2_to_image1", blend: true },
           
-          // ✅✅✅ ใส่ aligned_shape เพื่อให้ Homography Node แสดง Output Size
-          aligned_shape: [288, 512], // เท่ากับ Ref
+          aligned_shape: [288, 512], 
 
           aligned_url: HOMO_IMG,
           result_image_url: HOMO_IMG,

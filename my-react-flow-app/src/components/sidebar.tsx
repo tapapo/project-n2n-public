@@ -71,19 +71,16 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
 
   const getTemplateStyles = (color: string) => {
     const colorMap: Record<string, { border: string, stripe: string, text: string, hoverText: string }> = {
-      // Existing
       green: { border: 'hover:border-green-500/50', stripe: 'bg-green-500', text: 'text-green-400', hoverText: 'group-hover:text-green-300' },
       pink: { border: 'hover:border-pink-500/50', stripe: 'bg-pink-500', text: 'text-pink-400', hoverText: 'group-hover:text-pink-300' },
       orange: { border: 'hover:border-orange-500/50', stripe: 'bg-orange-500', text: 'text-orange-400', hoverText: 'group-hover:text-orange-300' },
       purple: { border: 'hover:border-purple-500/50', stripe: 'bg-purple-500', text: 'text-purple-400', hoverText: 'group-hover:text-purple-300' },
       blue: { border: 'hover:border-blue-500/50', stripe: 'bg-blue-500', text: 'text-blue-400', hoverText: 'group-hover:text-blue-300' },
       
-      // ✅ New Colors (Indigo, Red, Yellow)
       indigo: { border: 'hover:border-indigo-500/50', stripe: 'bg-indigo-500', text: 'text-indigo-400', hoverText: 'group-hover:text-indigo-300' },
       red: { border: 'hover:border-red-500/50', stripe: 'bg-red-500', text: 'text-red-400', hoverText: 'group-hover:text-red-300' },
       yellow: { border: 'hover:border-yellow-500/50', stripe: 'bg-yellow-500', text: 'text-yellow-400', hoverText: 'group-hover:text-yellow-300' },
       
-      // Fallback
       teal: { border: 'hover:border-teal-500/50', stripe: 'bg-teal-500', text: 'text-teal-400', hoverText: 'group-hover:text-teal-300' },
       cyan: { border: 'hover:border-cyan-500/50', stripe: 'bg-cyan-500', text: 'text-cyan-400', hoverText: 'group-hover:text-cyan-300' },
       rose: { border: 'hover:border-rose-500/50', stripe: 'bg-rose-500', text: 'text-rose-400', hoverText: 'group-hover:text-rose-300' },
@@ -189,7 +186,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
       let headerColor = 'text-teal-400';
       let sortOrder = 99;
 
-      // ✅ FIX: เพิ่ม Logic แยกตามสีให้ตรงกับ jobs ด้านบน
       if (t.color === 'indigo') { 
         key = 'Enhancement'; 
         headerColor = 'text-indigo-400'; 
@@ -205,7 +201,6 @@ const Sidebar = ({ onLoadTemplate }: SidebarProps) => {
         headerColor = 'text-yellow-400'; 
         sortOrder = 3; 
       }
-      // ของเดิม
       else if (t.color === 'green') { key = 'Feature Extraction'; headerColor = 'text-green-400'; sortOrder = 4; }
       else if (t.color === 'orange') { key = 'Matching'; headerColor = 'text-orange-400'; sortOrder = 5; }
       else if (t.color === 'purple') { key = 'Object Alignment'; headerColor = 'text-purple-400'; sortOrder = 6; }

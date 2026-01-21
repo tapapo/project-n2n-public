@@ -6,7 +6,6 @@ import { abs } from "../../lib/api"
 import type { CustomNodeData } from "../../types"
 import { useNodeStatus } from '../../hooks/useNodeStatus';
 
-/* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -65,22 +64,17 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
   }, [rf, id, form]);
 
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
-  // Fallback: ดึงข้อมูลจาก json_data หรือ json (เผื่อ backend ส่งมาต่างกัน)
   const sourceData = data?.payload?.json_data || data?.payload?.json || {};
 
-  // ✅ Logic แสดงขนาดพร้อม Label: Input -> Output
   const getSizeText = useMemo(() => {
     let w_in, h_in, w_out, h_out;
 
-    // 1. ดึงข้อมูล
     if (sourceData.input_resolution) [w_in, h_in] = sourceData.input_resolution;
     if (sourceData.output_resolution) [w_out, h_out] = sourceData.output_resolution;
     
-    // Fallback
     if (!w_in && sourceData.image?.original_shape) [h_in, w_in] = sourceData.image.original_shape;
     if (!w_out && sourceData.image?.enhanced_shape) [h_out, w_out] = sourceData.image.enhanced_shape;
 
-    // กรณีมีทั้ง Input และ Output (แสดงการเปรียบเทียบ)
     if (w_in && h_in && w_out && h_out) {
         return (
             <div className="flex items-center justify-between w-full text-[10px] bg-slate-900/40 p-1.5 rounded border border-gray-700/50">
@@ -99,7 +93,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
         );
     }
     
-    // กรณีมีแค่ Output
     if (w_out && h_out) {
         return <span className="text-[10px] text-gray-400">Output: {w_out} x {h_out}</span>;
     }
@@ -114,7 +107,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
     ? data.description 
     : (displayUrl ? 'Result preview' : 'Connect Image Input and run');
 
-  // Style
   let borderColor = 'border-red-500';
   if (selected) borderColor = 'border-red-400 ring-2 ring-red-500'; 
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -131,7 +123,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-red-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>Real-ESRGAN</div>
         <div className="flex items-center gap-2">
@@ -161,7 +152,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ✅ แสดง Input -> Output แบบมี Label ชัดเจน */}
         {getSizeText}
         
         {displayUrl && (
@@ -174,7 +164,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
@@ -184,7 +173,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings */}
       <Modal open={open} title="Real-ESRGAN Settings" onClose={handleClose}>
         <div className="grid grid-cols-1 gap-3 text-xs text-gray-300">
           <div>

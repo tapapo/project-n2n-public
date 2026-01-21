@@ -2,14 +2,11 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// Input Image
 const MOON_URL = '/static/samples/Moonsample.jpg';
 
-// OTSU paths
 const OTSU_JSON = '/static/samples/json/classification/otsu_moon.json';
 const OTSU_BIN  = '/static/samples/json/classification/otsu_moon_bin.png';
 
-// SNAKE paths
 const SNAKE_JSON = '/static/samples/json/classification/snake_moon.json';
 const SNAKE_VIS  = '/static/samples/json/classification/snake_moon_vis.png';
 const SNAKE_MASK = '/static/samples/json/classification/snake_moon_mask.png';
@@ -32,9 +29,7 @@ const INPUT_NODE: Node = {
   }
 };
 
-// =============================================================================
-// 1) OTSU CLASSIFICATION TEMPLATE
-// =============================================================================
+
 
 export const OTSU_CLASSIFICATION_TEMPLATE: WorkflowTemplate = {
   name: 'Otsu Thresholding',
@@ -68,37 +63,31 @@ It is the most standard way to segment objects without manually guessing the thr
           preview_url: OTSU_BIN,
           json_url: OTSU_JSON,
           json_path: OTSU_JSON,
-          // ✅ ใส่ json: resp ให้ครบถ้วน เพื่อให้ Save JSON ดึงไปใช้ได้
           json: { threshold_value: 49, binary_url: OTSU_BIN, json_url: OTSU_JSON }
         }
       }
     } as Node,
-    // Node Save Image (เดิม)
     {
       id: 'n3-save-otsu',
       type: 'save-image',
-      position: { x: 1100, y: 200 }, // ขยับขึ้นหน่อย
+      position: { x: 1100, y: 200 }, 
       data: { label: 'Save Binary Mask', status: 'idle' }
     } as Node,
-    // ✅ เพิ่ม Node Save JSON
     {
       id: 'n4-save-otsu-json',
       type: 'save-json',
-      position: { x: 1100, y: 370 }, // อยู่ข้างล่าง
+      position: { x: 1100, y: 370 }, 
       data: { label: 'Save Threshold Info', status: 'idle' }
     } as Node
   ],
   edges: [
     { id: 'e1', source: 'n1-moon', target: 'n2-otsu', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
     { id: 'e2', source: 'n2-otsu', target: 'n3-save-otsu', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
-    // ✅ เพิ่มเส้นไปหา Save JSON
     { id: 'e3', source: 'n2-otsu', target: 'n4-save-otsu-json', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
   ]
 };
 
-// =============================================================================
-// 2) SNAKE (ACTIVE CONTOUR) TEMPLATE
-// =============================================================================
+
 
 export const SNAKE_CLASSIFICATION_TEMPLATE: WorkflowTemplate = {
   name: 'Active Contour (Snake)',
@@ -144,7 +133,6 @@ This is useful for segmenting objects with irregular shapes where simple thresho
       position: { x: 1100, y: 200 },
       data: { label: 'Save Snake Overlay', status: 'idle' }
     } as Node,
-    // ✅ แถม: เพิ่ม Save JSON ให้ Snake ด้วย (เผื่ออยากดูพิกัด Contour)
     {
       id: 'n4-save-snake-json',
       type: 'save-json',
@@ -155,7 +143,6 @@ This is useful for segmenting objects with irregular shapes where simple thresho
   edges: [
     { id: 'e1', source: 'n1-moon', target: 'n2-snake', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
     { id: 'e2', source: 'n2-snake', target: 'n3-save-snake', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
-    // ✅ เส้นใหม่
     { id: 'e3', source: 'n2-snake', target: 'n4-save-snake-json', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
   ]
 };

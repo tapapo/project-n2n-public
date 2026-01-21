@@ -6,7 +6,6 @@ import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
 
-/* ---------------- UI helpers ---------------- */
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
     <g strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.4}>
@@ -19,7 +18,6 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
 const DEFAULT_PARAMS = { sigma: 25 };
 type Params = typeof DEFAULT_PARAMS;
 
-/* ---------------- Component ---------------- */
 const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
@@ -60,7 +58,6 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
   const respJson = data?.payload?.json || data?.payload?.json_data;
 
-  // ✅ ดึงค่าจาก JSON ที่ Backend ส่งกลับ
   const enhancedShape = respJson?.image?.enhanced_shape || data?.payload?.image_shape;
   const usedParams = respJson?.dncnn_parameters_used || {};
 
@@ -89,7 +86,6 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-red-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>DnCNN</div>
         <div className="flex items-center gap-2">
@@ -113,9 +109,7 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
-        {/* ✅ 1. แสดง Dimensions (แบบเรียบ) */}
         {enhancedShape && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
              Dimensions: {enhancedShape[1]} x {enhancedShape[0]}
@@ -126,7 +120,6 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
           <div className="relative group">
              <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
              
-             {/* ✅ 2. แสดง Model Info ที่มุมขวาล่างรูป */}
              {usedParams.model_loaded && (
                 <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded backdrop-blur-sm border border-white/10">
                    {usedParams.model_loaded}
@@ -140,7 +133,6 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
@@ -150,7 +142,6 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Settings Modal */}
       <Modal open={open} title="DnCNN Settings" onClose={handleClose}>
         <div className="space-y-4 text-xs text-gray-300 min-w-[250px]">
           

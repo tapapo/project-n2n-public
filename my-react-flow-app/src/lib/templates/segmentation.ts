@@ -2,7 +2,6 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// Placeholder Paths
 const SAMPLE_IMG = '/static/samples/placeholder_segmentation.jpg';
 const RESULT_IMG = '/static/samples/json/segmentation/result_placeholder.png';
 const RESULT_JSON = '/static/samples/json/segmentation/result_placeholder.json';
@@ -70,7 +69,6 @@ export const SEGMENTATION_DEEPLAB_TEMPLATE: WorkflowTemplate = {
     } as Node
   ],
   edges: [
-    // ✅ แก้สีเส้นเป็น #64748b (สีปกติ)
     { id: 'e1', source: 'n1-seg', target: 'n2-deeplab', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 } },
     { id: 'e2', source: 'n2-deeplab', target: 'n3-save-seg-img', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 } },
     { id: 'e3', source: 'n2-deeplab', target: 'n4-save-seg-json', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 } },

@@ -36,9 +36,11 @@ import {
   BRISQUE_ASSESSMENT_TEMPLATE,
 } from './templates/quality';
 
-// ✅ 5. NEW TEMPLATES
+// 5. NEW TEMPLATES
 import { ENHANCEMENT_CLAHE_TEMPLATE } from './templates/enhancement';
+// 6. Restoration
 import { RESTORATION_REALESRGAN_TEMPLATE } from './templates/restoration';
+// 7. Segmentation
 import { SEGMENTATION_DEEPLAB_TEMPLATE } from './templates/segmentation';
 
 

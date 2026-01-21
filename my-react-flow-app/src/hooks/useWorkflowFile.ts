@@ -3,7 +3,6 @@ import { useCallback, useRef } from 'react';
 import { useReactFlow, type Node, type Edge } from 'reactflow';
 import type { CustomNodeData, NodeStatus } from '../types';
 
-// ---------- Types ----------
 type RFNode = Node<CustomNodeData>;
 
 export type UseWorkflowFileArgs = {
@@ -23,7 +22,6 @@ type SavedWorkflow = {
   edges: Edge[];
 };
 
-// ---------- Hook ----------
 export function useWorkflowFile({
   nodes,
   edges,
@@ -36,7 +34,6 @@ export function useWorkflowFile({
   
   const { fitView } = useReactFlow();
 
-  // ---------- Save ----------
   const saveWorkflow = useCallback(() => {
     const payload: SavedWorkflow = {
       version: 1,
@@ -66,7 +63,6 @@ export function useWorkflowFile({
     URL.revokeObjectURL(url);
   }, [nodes, edges, flowName]);
 
-  // ---------- Load ----------
   const handleFileChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const file = event.target.files?.[0];
@@ -82,12 +78,10 @@ export function useWorkflowFile({
 
           const parsed = JSON.parse(text) as Partial<SavedWorkflow>;
 
-          // Validation
           if (!Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
             throw new Error('Invalid workflow JSON structure');
           }
 
-          // Normalize
           const loadedNodes: RFNode[] = parsed.nodes.map((n) => ({
             ...n,
             data: {
@@ -98,7 +92,6 @@ export function useWorkflowFile({
 
           const loadedEdges: Edge[] = parsed.edges.map((e) => ({ ...e }));
 
-          // Pause History
           if (isApplyingHistoryRef) {
             isApplyingHistoryRef.current = true;
           }
@@ -106,13 +99,11 @@ export function useWorkflowFile({
           setNodes(() => loadedNodes);
           setEdges(() => loadedEdges);
 
-          // Fit View
           setTimeout(() => {
             window.requestAnimationFrame(() => {
                 fitView({ padding: 0.2, duration: 800 });
             });
             
-            // Resume History
             if (isApplyingHistoryRef) {
               isApplyingHistoryRef.current = false;
             }

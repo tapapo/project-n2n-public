@@ -5,16 +5,13 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-# ✅ แก้ไข: นำเข้าเครื่องมือจาก utils_io แทนเพื่อป้องกัน Circular Import
 from ..utils_io import resolve_image_path, OUT, _read_json, RESULT_DIR, static_url
 
-# นำเข้า Adapters (ใช้ Absolute Import เพื่อความปลอดภัยในการรันแบบ Package)
 from server.algos.Classification.otsu_adapter import run as otsu_run
 from server.algos.Classification.snake_adapter import run as snake_run
 
 router = APIRouter()
 
-# --- Schemas ---
 
 class OtsuReq(BaseModel):
     image_path: str
@@ -40,7 +37,6 @@ class SnakeReq(BaseModel):
     init_cy: Optional[int] = None
     init_radius: Optional[int] = None
     init_points: int = 400
-    # รองรับพิกัดจาก Frontend สำหรับการวาดจุดเริ่มต้น
     from_point_x: Optional[float] = None
     from_point_y: Optional[float] = None
     bbox_x1: Optional[float] = None
@@ -49,20 +45,16 @@ class SnakeReq(BaseModel):
     bbox_y2: Optional[float] = None
     gaussian_blur_ksize: int = 5
 
-# --- Endpoints ---
 
 @router.post("/otsu")
 def classify_otsu(req: OtsuReq):
-    """
-    Otsu Thresholding: แยกวัตถุออกจากพื้นหลังโดยการคำนวณค่าขีดจำกัดอัตโนมัติ
-    """
+    
     img_path = resolve_image_path(req.image_path)
     
     if not os.path.exists(img_path):
         raise HTTPException(status_code=404, detail="Image not found")
 
     try:
-        # เรียกใช้งาน Otsu Adapter
         json_path, bin_path = otsu_run(
             image_path=img_path,
             out_root=RESULT_DIR,
@@ -91,17 +83,14 @@ def classify_otsu(req: OtsuReq):
 
 @router.post("/snake")
 def classify_snake(req: SnakeReq):
-    """
-    Snake Active Contour: อัลกอริทึมหารูปทรงของขอบวัตถุโดยใช้พลังงานภายในและภายนอก
-    """
+    
     img_path = resolve_image_path(req.image_path)
 
     if not os.path.exists(img_path):
         raise HTTPException(status_code=404, detail="Image not found")
 
     try:
-        # รัน Snake Adapter โดยส่งพารามิเตอร์ทั้งหมดจาก request
-        # ใช้ model_dump() แทน dict() (สำหรับ Pydantic v2)
+      
         params = req.model_dump(exclude={"image_path"})
         
         json_path, overlay_path, mask_path = snake_run(

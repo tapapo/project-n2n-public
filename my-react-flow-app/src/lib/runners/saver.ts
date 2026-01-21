@@ -38,7 +38,6 @@ function generateFilename(node: Node<CustomNodeData>, extension: string): string
   return `${cleanLabel}_${timestamp}.${extension}`;
 }
 
-// ✅ Helper: ดึง Payload ออกมาตรงๆ
 function findInputPayload(
   nodeId: string,
   nodes: Node<CustomNodeData>[],
@@ -53,7 +52,6 @@ function findInputPayload(
   return parentNode.data.payload;
 }
 
-// 1. RUN SAVE IMAGE
 export async function runSaveImage(
   node: Node<CustomNodeData>,
   setNodes: React.Dispatch<React.SetStateAction<Node<CustomNodeData>[]>>,
@@ -119,7 +117,6 @@ export async function runSaveImage(
   }
 }
 
-// 2. RUN SAVE JSON (ฉลาดขึ้น รองรับ Template)
 export async function runSaveJson(
   node: Node<CustomNodeData>,
   setNodes: React.Dispatch<React.SetStateAction<Node<CustomNodeData>[]>>,
@@ -130,16 +127,14 @@ export async function runSaveJson(
   await updateNodeStatus(nodeId, 'running', setNodes);
 
   try {
-    // 1. ดึง Payload มาก่อน
     const payload = findInputPayload(nodeId, nodes, edges);
 
     if (!payload) {
       throw new Error("Input node does not have any data (Please run the parent node first).");
     }
 
-    let finalData = payload.json || payload; // Default fallback
+    let finalData = payload.json || payload; 
 
-    // 2. Strategy: หา URL ของไฟล์ JSON จริงๆ
     let targetUrl = 
         payload.json_url ||                 
         payload.output?.json_url ||         
@@ -152,7 +147,6 @@ export async function runSaveJson(
         try {
           const fetchUrl = abs(targetUrl);
           
-          // ✅ FIX ERROR: เพิ่มการเช็คว่า fetchUrl มีค่าจริงหรือไม่ ก่อนส่งเข้า fetch
           if (fetchUrl) {
             console.log(`[SaveJSON] Attempting to fetch full JSON from: ${fetchUrl}`);
             const res = await fetch(fetchUrl);
@@ -170,7 +164,6 @@ export async function runSaveJson(
       }
     }
 
-    // 3. สร้างไฟล์ดาวน์โหลด
     const jsonString = JSON.stringify(finalData, null, 2);
     const blob = new Blob([jsonString], { type: "application/json" });
     

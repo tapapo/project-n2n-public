@@ -31,7 +31,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // 1. อ่านค่า
   const params = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_SIFT, ...p };
@@ -44,7 +43,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
-  // 2. บันทึกค่า
   const onSave = useCallback(() => {
     const validParams = {
         nfeatures: Number(form.nfeatures),
@@ -74,14 +72,12 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // ✅ Logic ดึงขนาดรูป (Priority: Output -> Input)
   const displaySize = useMemo(() => {
     const processedShape = data?.payload?.json_data?.image?.processed_sift_shape || 
                            data?.payload?.image_shape || 
                            data?.payload?.output?.image_shape;
 
     if (Array.isArray(processedShape) && processedShape.length >= 2) {
-      // SIFT ปกติไม่เปลี่ยนขนาด ดังนั้นใช้ค่าไหนก็ได้ที่เจอ
       return `${processedShape[1]} x ${processedShape[0]}`; 
     }
     return null;
@@ -143,7 +139,6 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ✅ แสดง Dimensions แบบเรียบ (สีเทา) */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
             Dimensions: {displaySize}

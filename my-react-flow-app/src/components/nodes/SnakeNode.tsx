@@ -23,7 +23,6 @@ const stopKeys: React.KeyboardEventHandler<HTMLInputElement | HTMLSelectElement>
   if (k === 'Backspace' || k === 'Delete' || k === 'Enter' || k === ' ') {}
 };
 
-// --- Types ---
 type InitMode = 'circle' | 'point' | 'bbox';
 type Numish = number | string | null | undefined;
 
@@ -37,7 +36,6 @@ type Params = {
   real_height?: number;
 };
 
-// --- Helpers ---
 const normalize = (v?: string): InitMode => {
   if (v === 'auto_circle') return 'circle';
   if (v === 'auto_rect') return 'bbox';
@@ -56,7 +54,6 @@ const toFloat = (v: any, fallback: number) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-// --- Helper Components ---
 interface NumProps { label: string; value: Numish; onChange: (v: Numish) => void; step?: number; min?: number; max?: number; }
 const Num = ({ label, value, onChange, step = 1, min, max }: NumProps) => (
   <label className="block">
@@ -97,7 +94,6 @@ const DEFAULT_PARAMS: Params = {
   bbox_x1: null, bbox_y1: null, bbox_x2: null, bbox_y2: null
 };
 
-// --- Main Component ---
 const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
@@ -108,7 +104,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // Interactive State
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgSize, setImgSize] = useState<{w: number, h: number} | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -152,7 +147,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // 1. อ่านค่า
   const savedParams = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_PARAMS, ...p, init_mode: normalize(p.init_mode as any) };
@@ -169,7 +163,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const onRun = useCallback(() => { if (!isRunning) data?.onRunNode?.(id); }, [data, id, isRunning]);
   const onClose = () => { setForm(savedParams); setOpen(false); };
 
-  // 2. บันทึกค่า
   const updateNodeData = useCallback((newParams: Params) => { 
     rf.setNodes((nds) => nds.map((n) => 
       n.id === id ? { 
@@ -218,7 +211,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       }
   }
 
-  // Style
+
   let borderColor = 'border-pink-500';
   if (selected) borderColor = 'border-pink-400 ring-2 ring-pink-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -244,7 +237,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     }
   }, [imgSize]); 
 
-  // ... (Event Handlers เหมือนเดิม) ...
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.stopPropagation(); 
     if (form.init_mode === 'bbox' || form.init_mode === 'point') { e.preventDefault(); }
@@ -318,7 +310,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className={sourceHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-pink-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>Snake</div>
         <div className="flex items-center gap-2">
@@ -355,7 +346,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         onMouseUp={handleMouseUp}
         onClick={handleClick}
       >
-        {/* ✅ แสดง Dimensions */}
         {imgSize && (
             <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
                 Dimensions: {imgSize.w} x {imgSize.h}
@@ -406,7 +396,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         {displayImage && isEditing && form.init_mode === 'bbox' && <div className="text-[10px] text-gray-400 text-center mt-1">Drag to draw bounding box</div>}
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
@@ -417,8 +406,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <Modal open={open} title="Snake Settings" onClose={onClose}>
-         {/* ... Settings ... */}
-         {/* ... (ส่วนนี้ยาวมาก เลยย่อไว้ใน Code ข้างบน) ... */}
+      
          <div className="space-y-5 text-xs text-gray-300 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar" onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll}>
             <div className="space-y-2">
                 <div className="font-semibold text-pink-300 uppercase text-[10px] tracking-wider mb-2">Core Parameters</div>

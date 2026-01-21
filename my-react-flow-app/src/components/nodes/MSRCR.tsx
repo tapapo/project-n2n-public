@@ -32,7 +32,6 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const { isRunning, isSuccess, isFault, statusDot } = useNodeStatus(data);
 
-  // 1. อ่านค่า
   const params = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_PARAMS, ...p };
@@ -41,7 +40,6 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const [form, setForm] = useState<Params>(params);
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
 
-  // 2. บันทึกค่า
   const onSave = useCallback(() => {
     const payloadParams = {
       ...form,
@@ -75,10 +73,8 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
   const visUrl = data?.payload?.vis_url || data?.payload?.output_image;
-  // Fallback data sources
   const json_data = data?.payload?.json_data || data?.payload?.json;
 
-  // ✅ Logic ดึงขนาดรูป
   const displaySize = useMemo(() => {
     const imgMeta = json_data?.image || {};
     const shape = imgMeta.enhanced_shape || imgMeta.original_shape || data?.payload?.image_shape;
@@ -97,7 +93,6 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     ? data.description 
     : (displayUrl ? 'Enhancement complete' : 'Connect Color Image and run');
 
-  // Style (Indigo Theme)
   let borderColor = 'border-indigo-500';
   if (selected) borderColor = 'border-indigo-400 ring-2 ring-indigo-500';
   else if (isRunning) borderColor = 'border-yellow-500 ring-2 ring-yellow-500/50';
@@ -113,7 +108,6 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <Handle type="target" position={Position.Left} className={targetHandleClass} style={{ top: '50%', transform: 'translateY(-50%)' }} />
       <Handle type="source" position={Position.Right} className="w-2 h-2 rounded-full border-2 bg-white border-gray-500" style={{ top: '50%', transform: 'translateY(-50%)' }} />
 
-      {/* Header */}
       <div className="bg-gray-700 text-indigo-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>MSRCR</div>
         <div className="flex items-center gap-2">
@@ -142,9 +136,7 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </div>
       </div>
 
-      {/* Body */}
       <div className="p-4 space-y-3">
-        {/* ✅ แสดง Dimensions */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
             Dimensions: {displaySize}
@@ -160,7 +152,6 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         </p>
       </div>
 
-      {/* Status Table */}
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
@@ -170,7 +161,6 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
-      {/* Modal Settings */}
       <Modal open={open} title="MSRCR Settings" onClose={() => setOpen(false)}>
         <div className="space-y-4 text-xs text-gray-300">
           <div className="grid grid-cols-2 gap-4">

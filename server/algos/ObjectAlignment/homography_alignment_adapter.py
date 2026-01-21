@@ -1,12 +1,11 @@
+#server/algos/ObjectAlignment/AffineTransformEstimation.py
 import cv2
 import numpy as np
 import json
 import os
 import hashlib 
-# import time  <-- ไม่ต้องใช้แล้ว
 from typing import Dict, Any
 
-# --- Config ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 def _read_json(path: str):
@@ -15,7 +14,6 @@ def _read_json(path: str):
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-# ✅ Helper: Smart Path Resolution (ยังเก็บไว้นะครับ เพราะจำเป็นสำหรับ Template)
 def _resolve_file_path(path: str) -> str:
     if not path: return path
     if os.path.exists(path): return path
@@ -48,14 +46,12 @@ def run(
     warp_mode: str = "image2_to_image1", 
     blend: bool = False
 ):
-    # 1. Resolve Path
     real_match_json = _resolve_file_path(match_json_path)
     data = _read_json(real_match_json)
 
     if "matching_tool" not in data:
         raise ValueError("Invalid input: Not a Matcher result.")
 
-    # 2. Images
     details = data.get("input_features_details", {})
     img1_info = details.get("image1", {})
     img2_info = details.get("image2", {})
@@ -69,7 +65,6 @@ def run(
     img1 = cv2.imread(path1)
     img2 = cv2.imread(path2)
     
-    # 3. Points
     matched_points = data.get("matched_points", [])
     if not matched_points:
          raise ValueError("JSON missing 'matched_points'. Please Re-Run Matcher Node.")
@@ -95,24 +90,20 @@ def run(
     src_pts = np.float32(src_pts).reshape(-1, 1, 2)
     dst_pts = np.float32(dst_pts).reshape(-1, 1, 2)
 
-    # 4. Homography
     H, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
     inliers_count = int(mask.sum()) if mask is not None else 0
     if H is None: raise RuntimeError("Cannot compute homography.")
 
-    # 5. Save Logic (Smart Cache กลับมาแล้ว)
     if out_root is None:
         out_root = os.path.join(PROJECT_ROOT, "outputs")
     
     out_dir = os.path.join(out_root, "features", "homography_outputs")
     os.makedirs(out_dir, exist_ok=True)
 
-    # ✅ คำนวณ Hash จาก Params เท่านั้น (เอา Time ออก)
     config_map = {
         "match_json": os.path.basename(match_json_path),
         "warp": warp_mode,
         "blend": blend
-        # ไม่มี "ts" แล้ว
     }
     config_str = json.dumps(config_map, sort_keys=True)
     param_hash = hashlib.md5(config_str.encode('utf-8')).hexdigest()[:8]
@@ -126,7 +117,6 @@ def run(
     out_img_path = os.path.join(out_dir, out_img_name)
     out_json_path = os.path.join(out_dir, out_json_name)
 
-    # ✅ Check Cache: ถ้ามีไฟล์เดิมอยู่แล้ว ให้ใช้ไฟล์เดิมเลย (ไม่รกเครื่อง)
     if os.path.exists(out_json_path) and os.path.exists(out_img_path):
         print(f"⚡ [Homography] Cache Hit: {out_img_name}")
         try:
@@ -135,7 +125,7 @@ def run(
             data["json_path"] = out_json_path
             return data
         except:
-            pass # ถ้าอ่าน JSON พัง ก็ให้ทำใหม่ข้างล่าง
+            pass 
 
     print(f"⚙️ [Homography] Computing New Result...")
     h_target, w_target = target_img.shape[:2]

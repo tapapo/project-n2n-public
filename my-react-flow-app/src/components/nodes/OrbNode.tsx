@@ -38,7 +38,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // 1. อ่านค่า
   const params = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
     return { ...DEFAULT_ORB, ...p };
@@ -47,7 +46,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const [form, setForm] = useState<Params>(params);
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
 
-  // ✅ Logic ดึงขนาดรูป
   const displaySize = useMemo(() => {
     const imgData = data?.payload?.json_data?.image;
     const shape = imgData?.processed_orb_shape || 
@@ -61,7 +59,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     return null;
   }, [data?.payload]);
 
-  // 2. บันทึกค่า
   const saveParams = useCallback(() => {
     rf.setNodes((nds) =>
       nds.map((n) =>
@@ -133,7 +130,6 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
-        {/* ✅ แสดง Dimensions แบบเรียบ (สีเทา) */}
         {displaySize && (
           <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
             Dimensions: {displaySize}

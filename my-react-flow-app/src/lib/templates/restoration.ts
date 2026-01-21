@@ -2,7 +2,6 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-// Placeholder Paths
 const SAMPLE_IMG = '/static/samples/placeholder_restoration.jpg';
 const RESULT_IMG = '/static/samples/json/restoration/result_placeholder.jpg';
 const RESULT_JSON = '/static/samples/json/restoration/result_placeholder.json';
@@ -64,7 +63,6 @@ export const RESTORATION_REALESRGAN_TEMPLATE: WorkflowTemplate = {
     } as Node
   ],
   edges: [
-    // ✅ แก้สีเส้นเป็น #64748b (สีปกติ)
     { id: 'e1', source: 'n1-restore', target: 'n2-realesrgan', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 } },
     { id: 'e2', source: 'n2-realesrgan', target: 'n3-save-restore', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 } },
   ]
