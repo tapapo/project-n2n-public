@@ -26,7 +26,7 @@ import { runSegmentation } from './lib/runners/segmentation';
 import { useFlowHotkeys } from './hooks/useFlowHotkeys';
 import { useFlowHistory } from './hooks/useFlowHistory';
 import { useWorkflowFile } from './hooks/useWorkflowFile';
-import { validateNodeInput } from './lib/validation';
+import { validateNodeInput, validateConnection } from './lib/validation'; 
 import LogPanel from './components/LogPanel';
 
 export interface FlowCanvasHandle {
@@ -56,7 +56,8 @@ function cleanErrorMessage(rawMsg: string): string {
 const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
   ({ isRunning, onPipelineDone, onFlowChange, currentTabName }, ref) => {
   
-  const { screenToFlowPosition, fitView, getViewport, setViewport, getNode, getNodes, getEdges } = useReactFlow(); 
+  // ลบ getNode ออกจากตรงนี้ครับ เพราะไม่ได้ใช้แล้ว
+  const { screenToFlowPosition, fitView, getViewport, setViewport, getNodes, getEdges } = useReactFlow(); 
 
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
   const onMouseMove = useCallback((event: React.MouseEvent) => {
@@ -145,7 +146,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       const check = validateNodeInput(nodeId, currentNodes, currentEdges); 
       if (!check.isValid) {
         const cleanMsg = cleanErrorMessage(check.message || '');
-        addLog(`[${nodeName}] ❌ Skip: ${cleanMsg}`, 'error', nodeId);
+        addLog(`[${nodeName}] ❌ fault: ${cleanMsg}`, 'error', nodeId);
         setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' as NodeStatus } } : n)));
         setIncomingEdgesStatus(nodeId, 'error');
         throw new Error(check.message); 
@@ -280,12 +281,9 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
     return () => { isProcessingRef.current = false; };
   }, [isRunning]);
 
-  const isValidConnection = useCallback((connection: Connection) => {
-      if (connection.source === connection.target) return false;
-      const t = getNode(connection.target!);
-      if (!t || t.type === 'image-input') return false;
-      return true;
-  }, [getNode]);
+  const onValidateConnection = useCallback((connection: Connection) => {
+      return validateConnection(connection, nodes, edges);
+  }, [nodes, edges]);
 
   const onConnect = useCallback((conn: Edge | Connection) => setEdges((eds) => addEdge(conn, eds)), [setEdges]);
   const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }, []);
@@ -300,6 +298,8 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       }));
       addLog(`Added ${type}`, 'info', id);
     }, [screenToFlowPosition, setNodes, runNodeById, addLog]);
+
+  
 
   return (
     <div className="relative flex-1 h-full flex flex-col">
@@ -320,10 +320,24 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           fitView minZoom={0.08} maxZoom={5}
           onNodeDragStart={() => (isDraggingRef.current = true)}
           onNodeDragStop={() => (isDraggingRef.current = false)}
-          isValidConnection={isValidConnection}
+          isValidConnection={onValidateConnection}
         >
-          <MiniMap style={{ background: 'rgba(15,23,42,0.9)' }} maskColor="rgba(0,0,0,0.6)" nodeColor={(n) => n.data?.status === 'success' ? '#22c55e' : '#94a3b8'} />
-          <Controls />
+          <MiniMap 
+            position="bottom-left" 
+            style={{ 
+              background: 'rgba(15,23,42,0.9)', 
+              left: 50, 
+              bottom: -2 
+            }} 
+            maskColor="rgba(0,0,0,0.6)" 
+            nodeColor={(n) => n.data?.status === 'success' ? '#22c55e' : '#94a3b8'} 
+          />
+          
+          <Controls 
+            position="bottom-left" 
+            style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '22px' }}
+          />
+          
           <Background variant={BackgroundVariant.Dots} gap={12} size={1} color="#334155" />
         </ReactFlow>
       </div>
