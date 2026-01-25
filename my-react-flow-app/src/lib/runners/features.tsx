@@ -1,4 +1,4 @@
-// File: my-react-flow-app/src/lib/runners/features.tsx
+// File: src/lib/runners/features.tsx
 import { runSift, runSurf, runOrb, abs } from '../api';
 import { markStartThenRunning, updateNodeStatus, findInputImage } from './utils';
 import type { Edge } from 'reactflow';
@@ -29,7 +29,7 @@ export async function runFeature(
 
   if (prevNode && BAD_SOURCES.includes(prevNode.type || '')) {
     const tool = prevNode.data.label || prevNode.type;
-    return fail(`Invalid Input: Feature Extraction requires an Image source, not a '${tool}' result.`);
+    return fail(`Invalid Input: Feature Extraction requires a raw Image source, not a '${tool}' result.`);
   }
 
   const imagePath = findInputImage(nodeId, nodes, edges);

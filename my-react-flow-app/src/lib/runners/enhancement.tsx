@@ -1,4 +1,4 @@
-// File: my-react-flow-app/src/lib/runners/enhancement.tsx
+// File: src/lib/runners/enhancement.tsx
 import { type Node, type Edge } from 'reactflow'; 
 import { runCLAHE, runMSRCR, runZeroDCE, abs } from '../api';
 import { markStartThenRunning, updateNodeStatus, findInputImage } from './utils';
@@ -41,7 +41,7 @@ export async function runEnhancement(
     'bfmatcher', 'flannmatcher',     
     'psnr', 'ssim', 'brisque',       
     'save-json',                     
-    'otsu', 'snake',
+    'otsu', 'snake', 
     'sift', 'surf', 'orb' 
   ];
 
@@ -86,6 +86,7 @@ export async function runEnhancement(
     }
 
     if (prefix === 'CLAHE' && channels !== 1 && shape) {
+ 
        return fail(`CLAHE requires grayscale image `);
     }
   }

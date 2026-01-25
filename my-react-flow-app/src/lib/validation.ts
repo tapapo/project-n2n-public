@@ -48,8 +48,8 @@ const NODE_RULES: Record<string, { inputs: string[]; output: string }> = {
   'unet': { inputs: ['image'], output: 'image' },
 
   // --- Classification / Logic ---
-  'otsu': { inputs: ['image'], output: 'image' },
-  'snake': { inputs: ['image'], output: 'image' },
+  'otsu': { inputs: ['image'], output: 'mask' },
+  'snake': { inputs: ['image'], output: 'mask' },
 
   // --- Quality Metrics ---
   'brisque': { inputs: ['image'], output: 'metric' },
@@ -58,7 +58,7 @@ const NODE_RULES: Record<string, { inputs: string[]; output: string }> = {
 
   // --- Output Nodes (Flexible Savers) ---
   'save-image': { 
-      inputs: ['image', 'feature', 'match', 'metric'], 
+      inputs: ['image', 'feature', 'match', 'metric','mask'], 
       output: 'none' 
   },
   'save-json': { 

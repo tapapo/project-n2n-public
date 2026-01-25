@@ -61,7 +61,14 @@ export async function runAlignment(
     throw new Error(msg);
   }
 
-  const params = getNodeParams(node);
+  const rawParams = getNodeParams(node);
+  const params = {
+      ...rawParams,
+      ransac_thresh: Number(rawParams.ransac_thresh) || 3.0,
+      confidence: Number(rawParams.confidence) || 0.99,
+      refine_iters: rawParams.refine_iters !== undefined ? Number(rawParams.refine_iters) : 10 
+  };
+
   const label = kind === 'affine-align' ? 'Running Affine...' : 'Running Homography...';
 
   await markStartThenRunning(nodeId, label, setNodes);
@@ -99,7 +106,6 @@ export async function runAlignment(
                   json_data: resp, 
                   
                   aligned_url: alignedUrl, 
-                  
                   vis_url: alignedUrl, 
                   result_image_url: alignedUrl,
                   output_image: alignedUrl, 
