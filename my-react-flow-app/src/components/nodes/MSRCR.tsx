@@ -43,11 +43,13 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const onSave = useCallback(() => {
     const payloadParams = {
       ...form,
-      sigma_list: Array.isArray(form.sigma_list) ? form.sigma_list.map(Number) : [15, 80, 250],
-      G: Number(form.G),
+      sigma_list: Array.isArray(form.sigma_list) 
+        ? form.sigma_list.map(v => Math.max(1, Number(v) || 1)) 
+        : [15, 80, 250],
+      G: Math.max(0.1, Number(form.G)),
+      alpha: Math.max(1.0, Number(form.alpha)),
+      beta: Math.max(1.0, Number(form.beta)),
       b: Number(form.b),
-      alpha: Number(form.alpha),
-      beta: Number(form.beta)
     };
     rf.setNodes(nds => nds.map(n => 
       n.id === id 
@@ -91,7 +93,7 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const caption = (isSuccess && data?.description) 
     ? data.description 
-    : (displayUrl ? 'Enhancement complete' : 'Connect Color Image and run');
+    : (displayUrl ? 'Enhancement complete' : 'Connect Image Input and run');
 
   let borderColor = 'border-indigo-500';
   if (selected) borderColor = 'border-indigo-400 ring-2 ring-indigo-500';
@@ -169,29 +171,62 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Gaussian Scales (CSV)</label>
               <input 
                 className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
-                value={form.sigma_list.join(',')} 
+                value={form.sigma_list.join(', ')} 
                 onChange={(e) => setForm(s => ({ ...s, sigma_list: e.target.value.split(',').map(v => Number(v.trim()) || 0) }))} 
+                onBlur={() => {
+                    const cleanList = form.sigma_list
+                        .map(n => Math.max(1, Number(n))) 
+                        .filter(n => !isNaN(n));
+                    if (cleanList.length === 0) {
+                        setForm(s => ({ ...s, sigma_list: [15, 80, 250] }));
+                    } else {
+                        setForm(s => ({ ...s, sigma_list: cleanList }));
+                    }
+                }}
               />
             </div>
 
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Gain (G)</label>
-              <input type="number" step="0.1" className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" value={form.G} onChange={(e) => setForm(s => ({ ...s, G: Number(e.target.value) }))} />
+              <input 
+                type="number" step="0.1" min="0.1"
+                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
+                value={form.G} 
+                onChange={(e) => setForm(s => ({ ...s, G: Number(e.target.value) }))}
+                onBlur={(e) => setForm(s => ({...s, G: Math.max(0.1, Number(e.target.value))}))}
+              />
             </div>
 
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Offset (b)</label>
-              <input type="number" className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" value={form.b} onChange={(e) => setForm(s => ({ ...s, b: Number(e.target.value) }))} />
+              <input 
+                type="number" 
+                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
+                value={form.b} 
+                onChange={(e) => setForm(s => ({ ...s, b: Number(e.target.value) }))}
+              />
             </div>
 
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Alpha</label>
-              <input type="number" className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" value={form.alpha} onChange={(e) => setForm(s => ({ ...s, alpha: Number(e.target.value) }))} />
+              <input 
+                type="number" min="1"
+                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
+                value={form.alpha} 
+                onChange={(e) => setForm(s => ({ ...s, alpha: Number(e.target.value) }))}
+                onBlur={(e) => setForm(s => ({...s, alpha: Math.max(1.0, Number(e.target.value))}))}
+              />
             </div>
 
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Beta</label>
-              <input type="number" className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" value={form.beta} onChange={(e) => setForm(s => ({ ...s, beta: Number(e.target.value) }))} />
+              <input 
+                type="number" min="1"
+                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
+                value={form.beta} 
+                onChange={(e) => setForm(s => ({ ...s, beta: Number(e.target.value) }))}
+                onBlur={(e) => setForm(s => ({...s, beta: Math.max(1.0, Number(e.target.value))}))}
+              />
             </div>
 
           </div>

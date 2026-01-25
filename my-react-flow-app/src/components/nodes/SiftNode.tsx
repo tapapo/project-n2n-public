@@ -45,11 +45,16 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const onSave = useCallback(() => {
     const validParams = {
-        nfeatures: Number(form.nfeatures),
-        nOctaveLayers: Number(form.nOctaveLayers),
-        contrastThreshold: Number(form.contrastThreshold),
-        edgeThreshold: Number(form.edgeThreshold),
-        sigma: Number(form.sigma)
+        // nfeatures ยอมให้เป็น 0 ได้ (Unlimited) แต่ถ้าติดลบแก้เป็น 0
+        nfeatures: Math.max(0, Number(form.nfeatures)), 
+        // ห้ามต่ำกว่า 1
+        nOctaveLayers: Math.max(1, Number(form.nOctaveLayers)),
+        // ห้ามต่ำกว่า 0.01
+        contrastThreshold: Math.max(0.01, Number(form.contrastThreshold)),
+        // ห้ามต่ำกว่า 1
+        edgeThreshold: Math.max(1, Number(form.edgeThreshold)),
+        // ห้ามต่ำกว่า 0.1
+        sigma: Math.max(0.1, Number(form.sigma))
     };
 
     rf.setNodes((nds) => nds.map((n) =>
@@ -59,10 +64,7 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             data: { 
               ...n.data, 
               params: validParams,
-              payload: { 
-                ...(n.data?.payload || {}), 
-                params: validParams
-              } 
+              payload: { ...(n.data?.payload || {}), params: validParams } 
             } 
           }
         : n
@@ -113,115 +115,112 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>SIFT</div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleRun}
-            disabled={isRunning}
-            className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white cursor-pointer ${
-              isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700'
-            }`}
-          >
+          <button onClick={handleRun} disabled={isRunning} className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white cursor-pointer ${isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700'}`}>
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
           
           <span className="relative inline-flex items-center group">
-            <button
-              onClick={handleOpen}
-              className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition focus-visible:outline-none cursor-pointer hover:bg-gray-100 active:scale-95"
-            >
+            <button onClick={handleOpen} className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition focus-visible:outline-none cursor-pointer hover:bg-gray-100 active:scale-95">
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
-              Settings
-              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-            </span>
+            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">Settings<span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" /></span>
           </span>
         </div>
       </div>
 
       <div className="p-4 space-y-3">
-        {displaySize && (
-          <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
-            Dimensions: {displaySize}
-          </div>
-        )}
-
-        {displayUrl && (
-          <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
-        )}
-        
+        {displaySize && <div className="text-[10px] text-gray-400 font-semibold tracking-tight">Dimensions: {displaySize}</div>}
+        {displayUrl && <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />}
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1">
-          <span className="text-red-400">start</span>
-          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-cyan-400">running</span>
-          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-green-400">success</span>
-          <div className={statusDot(isSuccess, 'bg-green-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          <div className={statusDot(isFault, 'bg-yellow-500')} />
-        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(isSuccess, 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
       <Modal open={open} title="SIFT Settings" onClose={handleClose}>
         <div className="grid grid-cols-2 gap-4 text-xs text-gray-300">
+          
           <div className="col-span-2">
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">nFeatures</label>
             <input 
-              type="number" 
+              type="number" min="0" step="10"
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.nfeatures} 
               onChange={(e) => setForm((s: Params) => ({ ...s, nfeatures: Number(e.target.value) }))} 
             />
+            {/* ✅ แสดงคำอธิบายถ้าเป็น 0 */}
+            {form.nfeatures === 0 && (
+                <div className="text-[9px] text-amber-400 mt-1 italic">
+                    ⚠ 0 = Unlimited (Keep all keypoints)
+                </div>
+            )}
           </div>
+
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Octave Layers</label>
             <input 
-              type="number" 
+              type="number" min="1"
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.nOctaveLayers} 
-              onChange={(e) => setForm((s: Params) => ({ ...s, nOctaveLayers: Number(e.target.value) }))} 
+              onChange={(e) => setForm((s: Params) => ({ ...s, nOctaveLayers: Number(e.target.value) }))}
+              // ✅ Auto-fix on Blur
+              onBlur={(e) => {
+                  const val = Number(e.target.value);
+                  if (val < 1) setForm(s => ({ ...s, nOctaveLayers: 1 }));
+              }}
             />
           </div>
+
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Sigma</label>
             <input 
-              type="number" step="0.1"
+              type="number" step="0.1" min="0.1"
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.sigma} 
               onChange={(e) => setForm((s: Params) => ({ ...s, sigma: Number(e.target.value) }))} 
+              // ✅ Auto-fix on Blur
+              onBlur={(e) => {
+                  const val = Number(e.target.value);
+                  if (val < 0.1) setForm(s => ({ ...s, sigma: 0.1 }));
+              }}
             />
           </div>
+
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Contrast Th.</label>
             <input 
-              type="number" step="0.01"
+              type="number" step="0.01" min="0.01"
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.contrastThreshold} 
               onChange={(e) => setForm((s: Params) => ({ ...s, contrastThreshold: Number(e.target.value) }))} 
+              onBlur={(e) => {
+                  const val = Number(e.target.value);
+                  if (val < 0.01) setForm(s => ({ ...s, contrastThreshold: 0.01 }));
+              }}
             />
           </div>
+
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Edge Th.</label>
             <input 
-              type="number" 
+              type="number" min="1"
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.edgeThreshold} 
               onChange={(e) => setForm((s: Params) => ({ ...s, edgeThreshold: Number(e.target.value) }))} 
+              onBlur={(e) => {
+                  const val = Number(e.target.value);
+                  if (val < 1) setForm(s => ({ ...s, edgeThreshold: 1 }));
+              }}
             />
           </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">
-          <button onClick={handleClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition">Cancel</button>
+          <button onClick={handleClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>
           <button onClick={onSave} className="px-4 py-1.5 rounded bg-green-600 text-white text-xs font-bold cursor-pointer hover:bg-green-500 transition">Save</button>
         </div>
       </Modal>

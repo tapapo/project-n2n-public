@@ -45,10 +45,10 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const onSave = useCallback(() => {
     const cleanParams = {
-      clipLimit: Number(form.clipLimit),
-      tileGridSize: [Number(form.tileGridSizeX), Number(form.tileGridSizeY)],
-      tileGridSizeX: Number(form.tileGridSizeX),
-      tileGridSizeY: Number(form.tileGridSizeY)
+      clipLimit: Math.max(0.1, Number(form.clipLimit)),
+      tileGridSize: [Math.max(1, Math.floor(form.tileGridSizeX)), Math.max(1, Math.floor(form.tileGridSizeY))],
+      tileGridSizeX: Math.max(1, Math.floor(form.tileGridSizeX)),
+      tileGridSizeY: Math.max(1, Math.floor(form.tileGridSizeY))
     };
 
     rf.setNodes((nds) => nds.map((n) => 
@@ -179,28 +179,40 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             <div className="col-span-2">
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Clip Limit</label>
               <input 
-                type="number" step="0.1" 
+                type="number" step="0.1" min="0.1"
                 className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
                 value={form.clipLimit} 
                 onChange={(e) => setForm(s => ({ ...s, clipLimit: Number(e.target.value) }))} 
+                onBlur={(e) => {
+                    const val = Number(e.target.value);
+                    if (val < 0.1) setForm(s => ({ ...s, clipLimit: 0.1 }));
+                }}
               />
             </div>
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Tile X</label>
               <input 
-                type="number" 
+                type="number" min="1"
                 className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
                 value={form.tileGridSizeX} 
-                onChange={(e) => setForm(s => ({ ...s, tileGridSizeX: Number(e.target.value) }))} 
+                onChange={(e) => setForm(s => ({ ...s, tileGridSizeX: Number(e.target.value) }))}
+                onBlur={(e) => {
+                    const val = Math.floor(Number(e.target.value));
+                    setForm(s => ({ ...s, tileGridSizeX: Math.max(1, val) }));
+                }}
               />
             </div>
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Tile Y</label>
               <input 
-                type="number" 
+                type="number" min="1"
                 className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
                 value={form.tileGridSizeY} 
                 onChange={(e) => setForm(s => ({ ...s, tileGridSizeY: Number(e.target.value) }))} 
+                onBlur={(e) => {
+                    const val = Math.floor(Number(e.target.value));
+                    setForm(s => ({ ...s, tileGridSizeY: Math.max(1, val) }));
+                }}
               />
             </div>
           </div>

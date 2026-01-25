@@ -46,7 +46,13 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
   const onSave = useCallback(() => {
-    const finalParams = { ...form, model: FIXED_MODEL };
+    // ✅ Validation ก่อน Save
+    const finalParams = { 
+      ...form, 
+      model: FIXED_MODEL,
+      scale: Math.max(1, Number(form.scale)), // Min 1
+      denoise: Math.min(1, Math.max(0, Number(form.denoise))) // Clamp 0-1
+    };
     
     rf.setNodes(nds => nds.map(n => 
       n.id === id 
@@ -184,21 +190,30 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
           
           <div className="grid grid-cols-2 gap-3 mt-1">
             <div>
-              <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Scale</label>
+              <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Scale (min 1)</label>
               <input 
-                type="number" step="0.5" 
+                type="number" step="0.5" min="1"
                 className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-red-400 font-mono outline-none focus:border-red-500" 
                 value={form.scale} 
                 onChange={e => setForm((s: Params) => ({ ...s, scale: Number(e.target.value) }))} 
+                // ✅ Fix Min 1
+                onBlur={(e) => setForm(s => ({ ...s, scale: Math.max(1, Number(e.target.value)) }))}
               />
             </div>
             <div>
-              <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Denoise</label>
+              <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Denoise (0-1)</label>
               <input 
-                type="number" step="0.1" 
+                type="number" step="0.1" min="0" max="1"
                 className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-red-400 font-mono outline-none focus:border-red-500" 
                 value={form.denoise} 
-                onChange={e => setForm((s: Params) => ({ ...s, denoise: Number(e.target.value) }))} 
+                onChange={e => setForm((s: Params) => ({ ...s, denoise: Number(e.target.value) }))}
+                // ✅ Fix Range 0-1
+                onBlur={(e) => {
+                    let v = Number(e.target.value);
+                    if (v < 0) v = 0;
+                    if (v > 1) v = 1;
+                    setForm(s => ({ ...s, denoise: v }));
+                }}
               />
             </div>
           </div>

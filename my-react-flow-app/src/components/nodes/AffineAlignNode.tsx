@@ -228,30 +228,46 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">RANSAC Thresh</label>
             <input
-              type="number" step="0.1"
+              type="number" step="0.1" min={0.1}
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-purple-400 font-mono outline-none focus:border-purple-500"
               value={form.ransac_thresh}
               onChange={(e) => setForm((s) => ({ ...s, ransac_thresh: Number(e.target.value) }))}
+              // ✅ Fix 0.1
+              onBlur={(e) => {
+                  let val = Number(e.target.value);
+                  if (val < 0.1) setForm(s => ({ ...s, ransac_thresh: 0.1 }));
+              }}
             />
           </div>
 
           <div>
-            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Confidence</label>
+            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Confidence (0.0 - 1.0)</label>
             <input
-              type="number" step="0.01" max={1}
+              type="number" step="0.01" min={0} max={1}
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-purple-400 font-mono outline-none focus:border-purple-500"
               value={form.confidence}
               onChange={(e) => setForm((s) => ({ ...s, confidence: Number(e.target.value) }))}
+              // ✅ Fix 0.1 - 1.0
+              onBlur={(e) => {
+                  let val = Number(e.target.value);
+                  if (val < 0.01) val = 0.01;
+                  if (val > 1.0) val = 1.0;
+                  setForm(s => ({ ...s, confidence: val }));
+              }}
             />
           </div>
 
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Refine Iters</label>
             <input
-              type="number"
+              type="number" min={0}
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-purple-400 font-mono outline-none focus:border-purple-500"
               value={form.refine_iters}
               onChange={(e) => setForm((s) => ({ ...s, refine_iters: Number(e.target.value) }))}
+              // ✅ Fix >= 0
+              onBlur={(e) => {
+                  if (Number(e.target.value) < 0) setForm(s => ({ ...s, refine_iters: 0 }));
+              }}
             />
           </div>
 

@@ -201,11 +201,32 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
         <div className="grid grid-cols-2 gap-4 text-xs text-gray-300 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Lowe's Ratio</label>
-            <input type="number" step="0.01" min={0} max={1} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={form.lowe_ratio} onChange={(e) => setForm(s => ({ ...s, lowe_ratio: Number(e.target.value) }))} />
+            <input 
+              type="number" step="0.01" min={0.1} max={1} 
+              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" 
+              value={form.lowe_ratio} 
+              onChange={(e) => setForm(s => ({ ...s, lowe_ratio: Number(e.target.value) }))}
+              onBlur={(e) => {
+                  let val = Number(e.target.value);
+                  if (val < 0.1) val = 0.1;
+                  if (val > 1.0) val = 1.0;
+                  setForm(s => ({ ...s, lowe_ratio: val }));
+              }} 
+            />
           </div>
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">RANSAC (px)</label>
-            <input type="number" step="0.1" min={0} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={form.ransac_thresh} onChange={(e) => setForm(s => ({ ...s, ransac_thresh: Number(e.target.value) }))} />
+            <input 
+              type="number" step="0.1" min={0.1} 
+              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" 
+              value={form.ransac_thresh} 
+              onChange={(e) => setForm(s => ({ ...s, ransac_thresh: Number(e.target.value) }))}
+              onBlur={(e) => {
+                  let val = Number(e.target.value);
+                  if (val < 0.1) val = 0.1;
+                  setForm(s => ({ ...s, ransac_thresh: val }));
+              }} 
+            />
           </div>
           <div className="col-span-2">
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Draw Mode</label>
@@ -224,14 +245,34 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
               </label>
               
               {form.index_params !== 'AUTO' && (form.index_params as any).algorithm && String((form.index_params as any).algorithm).toUpperCase().includes('KD') && ( 
-                 <label className="col-span-2"><span className="block mb-1 text-[10px] text-gray-400">Trees</span> <input type="number" min={1} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.index_params as any).trees ?? 5} onChange={(e) => setForm(s => ({ ...s, index_params: { ...(s.index_params as any), algorithm: 'KDTREE', trees: Number(e.target.value) } }))} /> </label> 
+                 <label className="col-span-2">
+                   <span className="block mb-1 text-[10px] text-gray-400">Trees</span> 
+                   <input type="number" min={1} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.index_params as any).trees ?? 5} onChange={(e) => setForm(s => ({ ...s, index_params: { ...(s.index_params as any), algorithm: 'KDTREE', trees: Number(e.target.value) } }))} 
+                   onBlur={(e) => { if (Number(e.target.value) < 1) setForm(s => ({ ...s, index_params: { ...(s.index_params as any), trees: 1 } })); }}
+                   /> 
+                 </label> 
               )}
               
               {form.index_params !== 'AUTO' && String((form.index_params as any).algorithm).toUpperCase() === 'LSH' && ( 
                 <> 
-                  <label><span className="block mb-1 text-[10px] text-gray-400">Tables</span> <input type="number" min={1} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.index_params as any).table_number ?? 6} onChange={(e) => setForm(s => ({ ...s, index_params: { ...(s.index_params as any), algorithm: 'LSH', table_number: Number(e.target.value) } }))} /> </label> 
-                  <label><span className="block mb-1 text-[10px] text-gray-400">Key Size</span> <input type="number" min={1} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.index_params as any).key_size ?? 12} onChange={(e) => setForm(s => ({ ...s, index_params: { ...(s.index_params as any), algorithm: 'LSH', key_size: Number(e.target.value) } }))} /> </label> 
-                  <label className="col-span-2"><span className="block mb-1 text-[10px] text-gray-400">Multi Probe</span> <input type="number" min={0} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.index_params as any).multi_probe_level ?? 1} onChange={(e) => setForm(s => ({ ...s, index_params: { ...(s.index_params as any), algorithm: 'LSH', multi_probe_level: Number(e.target.value) } }))} /> </label> 
+                  <label>
+                    <span className="block mb-1 text-[10px] text-gray-400">Tables</span> 
+                    <input type="number" min={1} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.index_params as any).table_number ?? 6} onChange={(e) => setForm(s => ({ ...s, index_params: { ...(s.index_params as any), algorithm: 'LSH', table_number: Number(e.target.value) } }))} 
+                    onBlur={(e) => { if (Number(e.target.value) < 1) setForm(s => ({ ...s, index_params: { ...(s.index_params as any), table_number: 1 } })); }}
+                    /> 
+                  </label> 
+                  <label>
+                    <span className="block mb-1 text-[10px] text-gray-400">Key Size</span> 
+                    <input type="number" min={1} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.index_params as any).key_size ?? 12} onChange={(e) => setForm(s => ({ ...s, index_params: { ...(s.index_params as any), algorithm: 'LSH', key_size: Number(e.target.value) } }))} 
+                    onBlur={(e) => { if (Number(e.target.value) < 1) setForm(s => ({ ...s, index_params: { ...(s.index_params as any), key_size: 1 } })); }}
+                    /> 
+                  </label> 
+                  <label className="col-span-2">
+                    <span className="block mb-1 text-[10px] text-gray-400">Multi Probe</span> 
+                    <input type="number" min={0} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.index_params as any).multi_probe_level ?? 1} onChange={(e) => setForm(s => ({ ...s, index_params: { ...(s.index_params as any), algorithm: 'LSH', multi_probe_level: Number(e.target.value) } }))} 
+                    onBlur={(e) => { if (Number(e.target.value) < 0) setForm(s => ({ ...s, index_params: { ...(s.index_params as any), multi_probe_level: 0 } })); }}
+                    /> 
+                  </label> 
                 </> 
               )}
             </div>
@@ -248,7 +289,9 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
               {form.search_params !== 'AUTO' && ( 
                 <label> 
                   <span className="block mb-1 text-[10px] text-gray-400">Checks</span>
-                  <input type="number" min={1} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.search_params as any).checks ?? 50} onChange={(e) => setForm(s => ({ ...s, search_params: { checks: Number(e.target.value) } }))} /> 
+                  <input type="number" min={1} className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={(form.search_params as any).checks ?? 50} onChange={(e) => setForm(s => ({ ...s, search_params: { checks: Number(e.target.value) } }))} 
+                  onBlur={(e) => { if (Number(e.target.value) < 1) setForm(s => ({ ...s, search_params: { checks: 1 } })); }}
+                  /> 
                 </label> 
               )}
             </div>

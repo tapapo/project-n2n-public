@@ -42,14 +42,17 @@ const ZeroDCENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => 
   }, [params, open]);
 
   const onSave = useCallback(() => {
+    const validIter = Math.min(16, Math.max(1, Number(form.iterations)));
+    const cleanParams = { ...form, iterations: validIter };
+
     rf.setNodes((nds) => nds.map((n) => 
       n.id === id 
         ? { 
             ...n, 
             data: { 
               ...n.data, 
-              params: { ...form }, 
-              payload: { ...(n.data?.payload || {}), params: { ...form } } 
+              params: cleanParams, 
+              payload: { ...(n.data?.payload || {}), params: cleanParams } 
             } 
           } 
         : n

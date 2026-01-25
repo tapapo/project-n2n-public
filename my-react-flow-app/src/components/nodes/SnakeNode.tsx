@@ -1,6 +1,6 @@
 // File: src/components/nodes/SnakeNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges, useNodes } from 'reactflow'; 
+import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; // ❌ เอา useNodes ออกเพื่อลดการทำงานซ้ำซ้อน
 import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
@@ -54,8 +54,17 @@ const toFloat = (v: any, fallback: number) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-interface NumProps { label: string; value: Numish; onChange: (v: Numish) => void; step?: number; min?: number; max?: number; }
-const Num = ({ label, value, onChange, step = 1, min, max }: NumProps) => (
+interface NumProps { 
+    label: string; 
+    value: Numish; 
+    onChange: (v: Numish) => void; 
+    step?: number; 
+    min?: number; 
+    max?: number; 
+    onBlur?: (val: number) => void; 
+}
+
+const Num = ({ label, value, onChange, step = 1, min, max, onBlur }: NumProps) => (
   <label className="block">
     <span className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">{label}</span>
     <input
@@ -67,6 +76,7 @@ const Num = ({ label, value, onChange, step = 1, min, max }: NumProps) => (
       value={value ?? ''}
       onChange={(e) => { const raw = e.target.value; if (raw === '') onChange(''); else onChange(raw); }}
       onMouseDown={stopAll} onClick={stopAll} onDoubleClick={stopAll} onKeyDown={stopKeys}
+      onBlur={(e) => { if (onBlur) onBlur(Number(e.target.value)); }}
     />
   </label>
 );
@@ -97,7 +107,7 @@ const DEFAULT_PARAMS: Params = {
 const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
-  const nodes = useNodes<CustomNodeData>(); 
+  // const nodes = useNodes<CustomNodeData>(); // ❌ เอาออก: เพื่อประสิทธิภาพ
   
   const [open, setOpen] = useState(false);
   const [showAdv, setShowAdv] = useState(false);
@@ -112,6 +122,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   
   const [isEditing, setIsEditing] = useState(true);
 
+  // Status effect
   useEffect(() => {
     if (isSuccess) {
       setIsEditing(false);
@@ -120,16 +131,24 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     }
   }, [isSuccess, isFault, data?.status]);
 
+  const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
+
+  // ✅ คำนวณ upstreamImage แบบประหยัด (ใช้ getNode)
   const upstreamImage = useMemo(() => {
+    if (!isConnected) return null;
     const incoming = edges.find(e => e.target === id);
     if (!incoming) return null;
-    const parent = nodes.find(n => n.id === incoming.source);
+    const parent = rf.getNode(incoming.source); // ใช้ rf.getNode แทน useNodes
     return getNodeImageUrl(parent);
-  }, [edges, nodes, id]);
+  }, [edges, id, rf, isConnected]);
 
   const prevInputRef = useRef(upstreamImage);
+  
+  // 🔥🔥 FIX IS HERE 🔥🔥
   useEffect(() => {
-    if (upstreamImage !== prevInputRef.current) {
+    // เงื่อนไข: ถ้าภาพเปลี่ยน AND ยังเชื่อมต่ออยู่ -> ถึงจะ Reset
+    // ถ้าไม่เชื่อมต่อ (isConnected = false) -> ปล่อยให้ FlowCanvas.onEdgesDelete จัดการ
+    if (isConnected && upstreamImage !== prevInputRef.current) {
       rf.setNodes((nds) => nds.map((n) => {
         if (n.id === id) {
           const { result_image_url, preview_url, overlay_url, mask_url, contour_points, iterations, json, ...cleanPayload } = n.data.payload || {};
@@ -140,12 +159,10 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
         }
         return n;
       }));
-      prevInputRef.current = upstreamImage;
       setIsEditing(true);
     }
-  }, [upstreamImage, id, rf]);
-
-  const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
+    prevInputRef.current = upstreamImage;
+  }, [upstreamImage, id, rf, isConnected]); // เพิ่ม isConnected เป็น dependency
 
   const savedParams = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
@@ -179,10 +196,15 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const onSave = useCallback(() => {
     const cleanParams: Params = {
       ...form,
-      alpha: toFloat(form.alpha, 0.2), beta: toFloat(form.beta, 0.2), gamma: toFloat(form.gamma, 0.1),
-      w_line: toFloat(form.w_line, 0.0), w_edge: toFloat(form.w_edge, 1.0),
-      max_iterations: toInt(form.max_iterations, 250), gaussian_blur_ksize: toInt(form.gaussian_blur_ksize, 0),
-      convergence: toFloat(form.convergence, 0.001), init_points: toInt(form.init_points, 400),
+      alpha: Math.max(0, toFloat(form.alpha, 0.2)),
+      beta: Math.max(0, toFloat(form.beta, 0.2)),
+      gamma: Math.max(0.01, toFloat(form.gamma, 0.1)),
+      w_line: toFloat(form.w_line, 0.0), 
+      w_edge: toFloat(form.w_edge, 1.0),
+      max_iterations: Math.max(1, toInt(form.max_iterations, 250)),
+      gaussian_blur_ksize: Math.max(0, toInt(form.gaussian_blur_ksize, 0)),
+      convergence: Math.max(0, toFloat(form.convergence, 0.001)),
+      init_points: Math.max(3, toInt(form.init_points, 400)),
       init_cx: form.init_cx, init_cy: form.init_cy, init_radius: form.init_radius,
       from_point_x: form.from_point_x, from_point_y: form.from_point_y,
       bbox_x1: form.bbox_x1, bbox_y1: form.bbox_y1, bbox_x2: form.bbox_x2, bbox_y2: form.bbox_y2,
@@ -210,7 +232,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
           statusText += ` • Done (${iterText} iters)`;
       }
   }
-
 
   let borderColor = 'border-pink-500';
   if (selected) borderColor = 'border-pink-400 ring-2 ring-pink-500';
@@ -411,13 +432,46 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             <div className="space-y-2">
                 <div className="font-semibold text-pink-300 uppercase text-[10px] tracking-wider mb-2">Core Parameters</div>
                 <div className="grid grid-cols-2 gap-2">
-                    <Num label="alpha" value={form.alpha} step={0.01} onChange={(v) => setForm((s) => ({ ...s, alpha: v }))} />
-                    <Num label="beta" value={form.beta} step={0.1} onChange={(v) => setForm((s) => ({ ...s, beta: v }))} />
-                    <Num label="gamma" value={form.gamma} step={0.01} onChange={(v) => setForm((s) => ({ ...s, gamma: v }))} />
+                    <Num 
+                        label="alpha (elasticity)" 
+                        value={form.alpha} step={0.01} min={0}
+                        onChange={(v) => setForm((s) => ({ ...s, alpha: v }))} 
+                        // ✅ ห้ามติดลบ
+                        onBlur={(v) => setForm((s) => ({ ...s, alpha: Math.max(0, v) }))}
+                    />
+                    <Num 
+                        label="beta (stiffness)" 
+                        value={form.beta} step={0.1} min={0}
+                        onChange={(v) => setForm((s) => ({ ...s, beta: v }))} 
+                        // ✅ ห้ามติดลบ
+                        onBlur={(v) => setForm((s) => ({ ...s, beta: Math.max(0, v) }))}
+                    />
+                    <Num 
+                        label="gamma (step size)" 
+                        value={form.gamma} step={0.01} min={0.01}
+                        onChange={(v) => setForm((s) => ({ ...s, gamma: v }))} 
+                        // ✅ ห้าม 0
+                        onBlur={(v) => setForm((s) => ({ ...s, gamma: Math.max(0.01, v) }))}
+                    />
                     <Num label="w_edge" value={form.w_edge} step={0.05} onChange={(v) => setForm((s) => ({ ...s, w_edge: v }))} />
                     <Num label="w_line" value={form.w_line} step={0.05} onChange={(v) => setForm((s) => ({ ...s, w_line: v }))} />
-                    <Num label="max_iterations" value={form.max_iterations} min={1} step={1} onChange={(v) => setForm((s) => ({ ...s, max_iterations: v }))} />
-                    <Num label="gaussian_blur_ksize" value={form.gaussian_blur_ksize} min={0} step={1} onChange={(v) => setForm((s) => ({ ...s, gaussian_blur_ksize: v }))} />
+                    
+                    <Num 
+                        label="max_iterations" 
+                        value={form.max_iterations} 
+                        min={1} step={1} 
+                        onChange={(v) => setForm((s) => ({ ...s, max_iterations: v }))}
+                        // ✅ ห้าม < 1
+                        onBlur={(v) => setForm((s) => ({ ...s, max_iterations: Math.max(1, Math.floor(v)) }))} 
+                    />
+                    <Num 
+                        label="gaussian_blur_ksize" 
+                        value={form.gaussian_blur_ksize} 
+                        min={0} step={1} 
+                        onChange={(v) => setForm((s) => ({ ...s, gaussian_blur_ksize: v }))}
+                        // ✅ ห้าม < 0
+                        onBlur={(v) => setForm((s) => ({ ...s, gaussian_blur_ksize: Math.max(0, Math.floor(v)) }))}
+                    />
                 </div>
             </div>
             
@@ -425,7 +479,16 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                 <button className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-[10px] uppercase font-bold tracking-wider" onClick={(e) => { stopAll(e); setShowAdv((s) => !s); }}>{showAdv ? '▾ Advanced (hide)' : '▸ Advanced (show)'}</button>
                 {showAdv && (
                     <div className="space-y-4 pt-2">
-                        <div className="grid grid-cols-3 gap-2"><Num label="convergence" value={form.convergence} min={0} step={0.0001} onChange={(v) => setForm((s) => ({ ...s, convergence: v }))} /></div>
+                        <div className="grid grid-cols-3 gap-2">
+                            <Num 
+                                label="convergence" 
+                                value={form.convergence} 
+                                min={0} step={0.0001} 
+                                onChange={(v) => setForm((s) => ({ ...s, convergence: v }))}
+                                // ✅ Fix < 0
+                                onBlur={(v) => setForm((s) => ({ ...s, convergence: Math.max(0, v) }))}
+                            />
+                        </div>
                         <div className="space-y-2">
                             <div className="font-semibold text-pink-300 uppercase text-[10px] tracking-wider mb-2">Init</div>
                             <Select label="Init mode" value={form.init_mode} onChange={(v) => { 
@@ -434,7 +497,14 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                                 updateNodeData({ ...form, init_mode: newMode });
                                 setIsEditing(true); 
                             }} options={[{ label: 'circle', value: 'circle' }, { label: 'point', value: 'point' }, { label: 'bbox', value: 'bbox' }]} />
-                            <Num label="init_points" value={form.init_points} min={8} step={1} onChange={(v) => setForm((s) => ({ ...s, init_points: v }))} />
+                            <Num 
+                                label="init_points" 
+                                value={form.init_points} 
+                                min={8} step={1} 
+                                onChange={(v) => setForm((s) => ({ ...s, init_points: v }))}
+                                // ✅ Fix < 3
+                                onBlur={(v) => setForm((s) => ({ ...s, init_points: Math.max(3, Math.floor(v)) }))}
+                            />
                             {form.init_mode === 'circle' && <div className="grid grid-cols-3 gap-2"><Num label="init_cx" value={form.init_cx} onChange={(v) => setForm((s) => ({ ...s, init_cx: v }))} /><Num label="init_cy" value={form.init_cy} onChange={(v) => setForm((s) => ({ ...s, init_cy: v }))} /><Num label="init_radius" value={form.init_radius} onChange={(v) => setForm((s) => ({ ...s, init_radius: v }))} /></div>}
                             {form.init_mode === 'point' && <div className="grid grid-cols-3 gap-2"><Num label="from_point_x" value={form.from_point_x} onChange={(v) => setForm((s) => ({ ...s, from_point_x: v }))} /><Num label="from_point_y" value={form.from_point_y} onChange={(v) => setForm((s) => ({ ...s, from_point_y: v }))} /><Num label="init_radius" value={form.init_radius} onChange={(v) => setForm((s) => ({ ...s, init_radius: v }))} /></div>}
                             {form.init_mode === 'bbox' && <div className="grid grid-cols-4 gap-2"><Num label="bbox_x1" value={form.bbox_x1} onChange={(v) => setForm((s) => ({ ...s, bbox_x1: v }))} /><Num label="bbox_y1" value={form.bbox_y1} onChange={(v) => setForm((s) => ({ ...s, bbox_y1: v }))} /><Num label="bbox_x2" value={form.bbox_x2} onChange={(v) => setForm((s) => ({ ...s, bbox_x2: v }))} /><Num label="bbox_y2" value={form.bbox_y2} onChange={(v) => setForm((s) => ({ ...s, bbox_y2: v }))} /></div>}

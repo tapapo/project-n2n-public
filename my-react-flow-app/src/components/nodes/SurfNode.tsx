@@ -56,10 +56,11 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   }, [data?.payload]);
 
   const saveParams = useCallback(() => {
+    // ✅ Validation ตอน Save
     const validParams = {
-        hessianThreshold: Number(form.hessianThreshold),
-        nOctaves: Number(form.nOctaves),
-        nOctaveLayers: Number(form.nOctaveLayers),
+        hessianThreshold: Math.max(1, Number(form.hessianThreshold)), // ห้าม < 1
+        nOctaves: Math.max(1, Number(form.nOctaves)), // ห้าม < 1
+        nOctaveLayers: Math.max(1, Number(form.nOctaveLayers)), // ห้าม < 1
         extended: form.extended,
         upright: form.upright
     };
@@ -71,10 +72,7 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
           data: { 
             ...n.data, 
             params: validParams, 
-            payload: { 
-              ...(n.data?.payload || {}), 
-              params: validParams 
-            } 
+            payload: { ...(n.data?.payload || {}), params: validParams } 
           } 
         } : n
       )
@@ -106,60 +104,30 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <div className="bg-gray-700 text-green-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>SURF</div>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={() => !isRunning && data?.onRunNode?.(id)} 
-            disabled={isRunning} 
-            className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white ${
-              isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700'
-            }`}
-          >
+          <button onClick={() => !isRunning && data?.onRunNode?.(id)} disabled={isRunning} className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white ${isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-green-600 hover:bg-green-700'}`}>
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
 
           <span className="relative inline-flex items-center group">
-            <button 
-              aria-label="Open SURF settings"
-              onClick={() => setOpen(true)} 
-              className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition hover:bg-gray-100 focus:outline-none"
-            >
+            <button onClick={() => setOpen(true)} className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition hover:bg-gray-100 focus:outline-none">
               <SettingsSlidersIcon className="h-3.5 w-3.5" />
             </button>
-            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
-              Settings
-              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-            </span>
+            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">Settings<span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" /></span>
           </span>
         </div>
       </div>
 
       <div className="p-4 space-y-3">
-        {displaySize && (
-          <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
-            Dimensions: {displaySize}
-          </div>
-        )}
-        
+        {displaySize && <div className="text-[10px] text-gray-400 font-semibold tracking-tight">Dimensions: {displaySize}</div>}
         {displayUrl && <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />}
         <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1">
-          <span className="text-red-400">start</span>
-          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-cyan-400">running</span>
-          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-green-400">success</span>
-          <div className={statusDot(isSuccess, 'bg-green-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          <div className={statusDot(isFault, 'bg-yellow-500')} />
-        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(isSuccess, 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
       <Modal open={open} title="SURF Settings" onClose={() => setOpen(false)}>
@@ -167,28 +135,34 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
           <div className="col-span-2">
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Hessian Threshold</label>
             <input 
-              type="number" 
+              type="number" min="1"
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.hessianThreshold} 
-              onChange={(e) => setForm((s: Params) => ({ ...s, hessianThreshold: Number(e.target.value) }))} 
+              onChange={(e) => setForm((s: Params) => ({ ...s, hessianThreshold: Number(e.target.value) }))}
+              // ✅ Fix 0 -> 1
+              onBlur={(e) => { if(Number(e.target.value) < 1) setForm(s=>({...s, hessianThreshold: 1})) }}
             />
           </div>
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Octaves</label>
             <input 
-              type="number" 
+              type="number" min="1"
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.nOctaves} 
               onChange={(e) => setForm((s: Params) => ({ ...s, nOctaves: Number(e.target.value) }))} 
+              // ✅ Fix 0 -> 1
+              onBlur={(e) => { if(Number(e.target.value) < 1) setForm(s=>({...s, nOctaves: 1})) }}
             />
           </div>
           <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Layers</label>
             <input 
-              type="number" 
+              type="number" min="1"
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.nOctaveLayers} 
               onChange={(e) => setForm((s: Params) => ({ ...s, nOctaveLayers: Number(e.target.value) }))} 
+              // ✅ Fix 0 -> 1
+              onBlur={(e) => { if(Number(e.target.value) < 1) setForm(s=>({...s, nOctaveLayers: 1})) }}
             />
           </div>
           <div className="col-span-2 space-y-2 pt-2 text-[10px] font-bold text-gray-300">
