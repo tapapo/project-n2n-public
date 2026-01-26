@@ -68,8 +68,11 @@ def run(
     if img is None:
         raise ValueError(f"Cannot read image: {image_path}")
 
+    img_mtime = os.path.getmtime(image_path)
+
     config_map = {
         "img": os.path.basename(image_path),
+        "mtime": img_mtime, 
         "nfeatures": int(params.get("nfeatures", 0)),
         "nOctaveLayers": int(params.get("nOctaveLayers", 3)),
         "contrastThreshold": float(params.get("contrastThreshold", 0.04)),

@@ -1,3 +1,4 @@
+# server/routers/alignment.py
 import os
 import cv2
 from typing import Optional

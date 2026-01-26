@@ -1,4 +1,4 @@
-#server/algos/matching/bfmatcher_adapter.py
+# server/algos/matching/bfmatcher_adapter.py
 import os, json, cv2, sys, uuid
 import hashlib 
 import numpy as np
@@ -22,18 +22,12 @@ def _norm_from_str(s: Optional[str]) -> Optional[int]:
         return cv2.NORM_HAMMING2
     return None
 
-
 def _norm_to_str(code: int) -> str:
-    if code == cv2.NORM_L2:
-        return "L2"
-    if code == cv2.NORM_L1:
-        return "L1"
-    if code == cv2.NORM_HAMMING:
-        return "HAMMING"
-    if code == cv2.NORM_HAMMING2:
-        return "HAMMING2"
+    if code == cv2.NORM_L2: return "L2"
+    if code == cv2.NORM_L1: return "L1"
+    if code == cv2.NORM_HAMMING: return "HAMMING"
+    if code == cv2.NORM_HAMMING2: return "HAMMING2"
     return str(code)
-
 
 def _read_json(path: str) -> Dict[str, Any]:
     if not os.path.exists(path):
@@ -44,132 +38,78 @@ def _read_json(path: str) -> Dict[str, Any]:
 def _resolve_image_path(path: str) -> str:
     if not path: return path
     if os.path.exists(path): return path
-    
     filename = os.path.basename(path)
     search_dirs = [
         os.path.join(PROJECT_ROOT, "outputs", "samples"),
         os.path.join(PROJECT_ROOT, "outputs", "uploads"),
         os.path.join(PROJECT_ROOT, "outputs"),
     ]
-
     for d in search_dirs:
         candidate = os.path.join(d, filename)
-        if os.path.exists(candidate):
-            return candidate
-            
+        if os.path.exists(candidate): return candidate
     rel_path = os.path.join(PROJECT_ROOT, path.lstrip("/"))
     if os.path.exists(rel_path): return rel_path
-    
     return path
 
 def load_descriptor_data(json_path: str):
     data = _read_json(json_path)
-
     if "matching_tool" in data:
         raise ValueError(f"Invalid input: Input is a '{data['matching_tool']}' result. BFMatcher requires Feature files (SIFT/SURF/ORB).")
-    
     if "tool" not in data and "keypoints" not in data:
          raise ValueError("Invalid input: JSON missing 'tool' and 'keypoints'.")
-
     tool_name = str(data.get("tool", "UNKNOWN")).upper()
     keypoints_data = data.get("keypoints", [])
     image_dict = data.get("image", {}) or {}
-
     keypoints: List[cv2.KeyPoint] = []
     descriptors_list: List[Any] = []
-
     for kp in keypoints_data:
-        keypoints.append(
-            cv2.KeyPoint(
-                x=float(kp["x"]),
-                y=float(kp["y"]),
-                size=float(kp.get("size", 1.0)),
-                angle=float(kp.get("angle", -1)),
-                response=float(kp.get("response", 0)),
-                octave=int(kp.get("octave", 0)),
-                class_id=int(kp.get("class_id", -1)),
-            )
-        )
-        if kp.get("descriptor") is not None:
-            descriptors_list.append(kp["descriptor"])
-
+        keypoints.append(cv2.KeyPoint(x=float(kp["x"]), y=float(kp["y"]), size=float(kp.get("size", 1.0)), angle=float(kp.get("angle", -1)), response=float(kp.get("response", 0)), octave=int(kp.get("octave", 0)), class_id=int(kp.get("class_id", -1))))
+        if kp.get("descriptor") is not None: descriptors_list.append(kp["descriptor"])
     extra: Dict[str, Any] = {}
-
     if tool_name in ("SIFT", "SURF"):
         descriptors = np.array(descriptors_list, dtype=np.float32)
         desc_dim = int(data.get("descriptor_dim", 128))
-        if descriptors.size == 0:
-            descriptors = np.empty((0, desc_dim), dtype=np.float32)
+        if descriptors.size == 0: descriptors = np.empty((0, desc_dim), dtype=np.float32)
         default_norm = cv2.NORM_L2
-
     elif tool_name == "ORB":
         descriptors = np.array(descriptors_list, dtype=np.uint8)
-        if descriptors.size == 0:
-            descriptors = np.empty((0, 32), dtype=np.uint8)
-
+        if descriptors.size == 0: descriptors = np.empty((0, 32), dtype=np.uint8)
         wta_k = None
-        try:
-            wta_k = int(data.get("orb_parameters_used", {}).get("WTA_K"))
-        except Exception:
-            wta_k = None
-
-        if wta_k in (3, 4):
-            default_norm = cv2.NORM_HAMMING2
-        else:
-            default_norm = cv2.NORM_HAMMING
+        try: wta_k = int(data.get("orb_parameters_used", {}).get("WTA_K"))
+        except Exception: wta_k = None
+        if wta_k in (3, 4): default_norm = cv2.NORM_HAMMING2
+        else: default_norm = cv2.NORM_HAMMING
         extra["WTA_K"] = wta_k
-
     else:
         if descriptors_list:
              descriptors = np.array(descriptors_list)
              default_norm = cv2.NORM_L2
-        else:
-             raise ValueError(f"Unsupported descriptor tool: {tool_name}")
-
+        else: raise ValueError(f"Unsupported descriptor tool: {tool_name}")
     img_path = image_dict.get("original_path")
-    if not img_path and image_dict.get("file_name"):
-        img_path = image_dict.get("file_name")
-    
-    if img_path:
-        img_path = _resolve_image_path(img_path)
-        
+    if not img_path and image_dict.get("file_name"): img_path = image_dict.get("file_name")
+    if img_path: img_path = _resolve_image_path(img_path)
     return keypoints, descriptors, tool_name, img_path, default_norm, extra
 
 
 def _validate_norm(tool: str, norm_override: Optional[str], resolved_norm: int):
-    """
-    ตรวจสอบความเข้ากันได้ของ Tool และ Norm (Strict Mode)
-    """
     tool = tool.upper()
     norm_str = str(norm_override).upper() if norm_override else "AUTO"
-
     if tool in ("SIFT", "SURF"):
         if "HAMMING" in norm_str or resolved_norm in (cv2.NORM_HAMMING, cv2.NORM_HAMMING2):
-             raise ValueError(
-                 f"Configuration Error: You selected '{norm_str}' (Binary Distance) for '{tool}' (Float Features). "
-                 f"Please select 'L2' or 'L1'."
-             )
-
+             raise ValueError(f"Configuration Error: You selected '{norm_str}' (Binary Distance) for '{tool}' (Float Features). Please select 'L2' or 'L1'.")
     if tool == "ORB":
         if "L" in norm_str or resolved_norm in (cv2.NORM_L1, cv2.NORM_L2):
-             raise ValueError(
-                 f"Configuration Error: You selected '{norm_str}' (Euclidean Distance) for '{tool}' (Binary Features). "
-                 f"ORB works best with 'HAMMING' or 'HAMMING2'."
-             )
-
+             raise ValueError(f"Configuration Error: You selected '{norm_str}' (Euclidean Distance) for '{tool}' (Binary Features). ORB works best with 'HAMMING' or 'HAMMING2'.")
 
 def _image_size(img_path: Optional[str]) -> Tuple[Optional[int], Optional[int], Optional[int]]:
     if not img_path: return None, None, None
     real_path = _resolve_image_path(img_path)
-    if not os.path.exists(real_path):
-        return None, None, None
+    if not os.path.exists(real_path): return None, None, None
     img = cv2.imread(real_path, cv2.IMREAD_UNCHANGED)
-    if img is None:
-        return None, None, None
+    if img is None: return None, None, None
     h, w = img.shape[:2]
     c = 1 if img.ndim == 2 else img.shape[2]
     return w, h, c
-
 
 def run(
     json_a: str,
@@ -274,9 +214,14 @@ def run(
             os.makedirs(path, exist_ok=True)
     _ensure_dir(out_dir)
     
+    t1 = os.path.getmtime(json_a) if os.path.exists(json_a) else 0
+    t2 = os.path.getmtime(json_b) if os.path.exists(json_b) else 0
+
     config_map = {
         "json1": os.path.basename(json_a),
         "json2": os.path.basename(json_b),
+        "t1": t1, 
+        "t2": t2, 
         "norm": desired_norm,
         "cross": use_cross_check,
         "lowe": effective_lowe_ratio,

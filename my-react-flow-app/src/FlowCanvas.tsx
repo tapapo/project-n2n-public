@@ -53,10 +53,29 @@ function cleanErrorMessage(rawMsg: string): string {
   return rawMsg.replace(/^HTTP \d+ [a-zA-Z ]+ - /, '').replace(/^Error: /, '').trim();
 }
 
+function getDownstreamNodes(sourceId: string, edges: Edge[]): Set<string> {
+  const downstreamIds = new Set<string>();
+  const queue = [sourceId];
+
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    const outgoers = edges
+      .filter((e) => e.source === currentId)
+      .map((e) => e.target);
+    
+    outgoers.forEach((targetId) => {
+      if (!downstreamIds.has(targetId)) {
+        downstreamIds.add(targetId);
+        queue.push(targetId);
+      }
+    });
+  }
+  return downstreamIds;
+}
+
 const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
   ({ isRunning, onPipelineDone, onFlowChange, currentTabName }, ref) => {
   
-  // ลบ getNode ออกจากตรงนี้ครับ เพราะไม่ได้ใช้แล้ว
   const { screenToFlowPosition, fitView, getViewport, setViewport, getNodes, getEdges } = useReactFlow(); 
 
   const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
@@ -128,7 +147,28 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       } : e));
   }, [setEdges]);
 
-  // --- NODE RUNNER ---
+  const onEdgesDelete = useCallback((deletedEdges: Edge[]) => {
+    if (deletedEdges.length === 0) return;
+    const targetNodeIds = new Set(deletedEdges.map((e) => e.target));
+
+    setNodes((nds) => nds.map((node) => {
+        if (targetNodeIds.has(node.id)) {
+            const params = node.data.payload?.params;
+            return {
+                ...node,
+                data: {
+                    ...node.data,
+                    status: 'idle',
+                    description: 'Connection removed',
+                    payload: { params }
+                }
+            };
+        }
+        return node;
+    }));
+    addLog('Connection removed. Target node reset.', 'info');
+  }, [setNodes, addLog]);
+
   const runNodeById = useCallback(async (nodeId: string) => {
       const currentNodes = getNodes(); 
       const currentEdges = getEdges(); 
@@ -180,6 +220,28 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           case 'save-json': await runSaveJson(node as any, setNodes as any, freshNodes, freshEdges); break;
           default: console.warn(`Unknown type: ${node.type}`);
         }
+        
+        const downstreamIds = getDownstreamNodes(nodeId, freshEdges);
+        if (downstreamIds.size > 0) {
+            setNodes((nds) => nds.map((n) => {
+                if (downstreamIds.has(n.id)) {
+                    const params = n.data.payload?.params;
+                    return {
+                        ...n,
+                        data: {
+                            ...n.data,
+                            status: 'idle', 
+                            description: 'Waiting for upstream...',
+                            payload: {
+                                params: params, 
+                            }
+                        }
+                    };
+                }
+                return n;
+            }));
+        }
+
         addLog(`[${nodeName}] ✅ Completed`, 'success', nodeId);
       } catch (err: any) {
         addLog(`[${nodeName}] 💥 Error: ${cleanErrorMessage(err.message)}`, 'error', nodeId);
@@ -299,8 +361,6 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       addLog(`Added ${type}`, 'info', id);
     }, [screenToFlowPosition, setNodes, runNodeById, addLog]);
 
-  
-
   return (
     <div className="relative flex-1 h-full flex flex-col">
       <div className="absolute z-10 top-2 right-2 flex gap-2">
@@ -321,6 +381,7 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           onNodeDragStart={() => (isDraggingRef.current = true)}
           onNodeDragStop={() => (isDraggingRef.current = false)}
           isValidConnection={onValidateConnection}
+          onEdgesDelete={onEdgesDelete} 
         >
           <MiniMap 
             position="bottom-left" 

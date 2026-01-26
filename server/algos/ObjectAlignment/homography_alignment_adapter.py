@@ -1,4 +1,4 @@
-#server/algos/ObjectAlignment/AffineTransformEstimation.py
+# server/algos/ObjectAlignment/homography_alignment_adapter.py
 import cv2
 import numpy as np
 import json
@@ -100,8 +100,15 @@ def run(
     out_dir = os.path.join(out_root, "features", "homography_outputs")
     os.makedirs(out_dir, exist_ok=True)
 
+    t_match = os.path.getmtime(real_match_json) if os.path.exists(real_match_json) else 0
+    t_img1 = os.path.getmtime(path1) if os.path.exists(path1) else 0
+    t_img2 = os.path.getmtime(path2) if os.path.exists(path2) else 0
+
     config_map = {
         "match_json": os.path.basename(match_json_path),
+        "tm": t_match,
+        "ti1": t_img1,
+        "ti2": t_img2,
         "warp": warp_mode,
         "blend": blend
     }

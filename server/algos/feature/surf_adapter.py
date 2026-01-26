@@ -79,8 +79,14 @@ def run(
     extended = bool(params.get("extended", False))
     upright = bool(params.get("upright", False))
 
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image file not found: {image_path}")
+    
+    img_mtime = os.path.getmtime(image_path)
+
     config_map = {
         "img": os.path.basename(image_path),
+        "mtime": img_mtime,
         "hessian": hessian,
         "octaves": n_octaves,
         "layers": n_layers,
@@ -103,9 +109,6 @@ def run(
             return json_path, vis_path
         except:
             pass
-
-    if not os.path.exists(image_path):
-        raise FileNotFoundError(f"Image file not found: {image_path}")
 
     img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if img is None:

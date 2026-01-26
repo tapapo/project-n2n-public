@@ -19,18 +19,13 @@ def _read_json(path: str):
 
 def _resolve_file_path(path: str) -> str:
     if not path: return path
-    
     if os.path.exists(path): return path
-    
     if path.startswith("/static/"):
         clean_path = path.replace("/static/", "", 1).lstrip("/")
-        
         candidate_outputs = os.path.join(PROJECT_ROOT, "outputs", clean_path)
         if os.path.exists(candidate_outputs): return candidate_outputs
-            
         candidate_static = os.path.join(PROJECT_ROOT, "static", clean_path)
         if os.path.exists(candidate_static): return candidate_static
-
     filename = os.path.basename(path)
     search_dirs = [
         os.path.join(PROJECT_ROOT, "outputs", "samples", "json", "matching"),
@@ -40,11 +35,9 @@ def _resolve_file_path(path: str) -> str:
         os.path.join(PROJECT_ROOT, "outputs"),
         os.path.join(PROJECT_ROOT, "features", "affine_outputs"), 
     ]
-
     for d in search_dirs:
         candidate = os.path.join(d, filename)
         if os.path.exists(candidate): return candidate
-
     return path
 
 def run(
@@ -97,7 +90,6 @@ def run(
     for mp in matched_points:
         pt1 = mp["pt1"]
         pt2 = mp["pt2"]
-        
         if warp_mode == "image2_to_image1":
             src_pts.append(pt2); dst_pts.append(pt1)
             target_img = img1; source_img = img2
@@ -142,8 +134,15 @@ def run(
     out_dir = os.path.join(out_root, "features", "affine_outputs")
     _ensure_dir(out_dir)
     
+    t_match = os.path.getmtime(real_match_json) if os.path.exists(real_match_json) else 0
+    t_img1 = os.path.getmtime(path1) if os.path.exists(path1) else 0
+    t_img2 = os.path.getmtime(path2) if os.path.exists(path2) else 0
+
     config_map = {
         "match_json": os.path.basename(match_json_path),
+        "tm": t_match,
+        "ti1": t_img1,
+        "ti2": t_img2,
         "model": model,
         "warp": warp_mode,
         "blend": blend,

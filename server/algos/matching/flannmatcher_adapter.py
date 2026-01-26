@@ -214,9 +214,14 @@ def run(
     if not os.path.exists(out_dir):
         os.makedirs(out_dir, exist_ok=True)
 
+    t1 = os.path.getmtime(json_a) if os.path.exists(json_a) else 0
+    t2 = os.path.getmtime(json_b) if os.path.exists(json_b) else 0
+
     config_map = {
         "json1": os.path.basename(json_a),
         "json2": os.path.basename(json_b),
+        "t1": t1,
+        "t2": t2, 
         "index": index_params,
         "search": search_params,
         "lowe": eff_ratio,
