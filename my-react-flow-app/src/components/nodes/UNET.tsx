@@ -5,6 +5,7 @@ import Modal from "../common/Modal";
 import { abs, uploadImages } from "../../lib/api"; 
 import type { CustomNodeData } from "../../types";
 import { useNodeStatus } from '../../hooks/useNodeStatus';
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -20,6 +21,8 @@ const DEFAULT_PARAMS = {
   model_path: "" 
 };
 type Params = typeof DEFAULT_PARAMS;
+
+const ALLOWED_UNET_KEYS = ['threshold', 'model_path'];
 
 const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
@@ -45,6 +48,32 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
+
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const source = loadedParams.unet_parameters_used || loadedParams;
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_UNET_KEYS.forEach((k) => {
+        const val = source[k];
+        if (val !== undefined && val !== null) {
+            if (k === 'model_path') {
+                cleanParams.model_path = String(val);
+                count++;
+            } else if (k === 'threshold') {
+                cleanParams.threshold = Number(val);
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for U-Net.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
 
   const onSave = useCallback(() => {
     const finalParams = { threshold: form.threshold };
@@ -230,6 +259,11 @@ const UNetNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm(s => ({ ...s, threshold: Number(e.target.value) }))} 
             />
           </div>
+          
+          <div className="pt-2 border-t border-gray-700">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="UNet_Segmentation" />
+          </div>
+
         </div>
 
         <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">

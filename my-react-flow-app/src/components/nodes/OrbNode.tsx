@@ -5,6 +5,7 @@ import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api'; 
 import { useNodeStatus } from '../../hooks/useNodeStatus';
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -28,6 +29,18 @@ const DEFAULT_ORB = {
 };
 
 type Params = typeof DEFAULT_ORB;
+
+const ALLOWED_ORB_KEYS = [
+  'nfeatures', 
+  'scaleFactor', 
+  'nlevels', 
+  'edgeThreshold', 
+  'firstLevel', 
+  'WTA_K', 
+  'scoreType', 
+  'patchSize', 
+  'fastThreshold'
+];
 
 const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
@@ -59,12 +72,43 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     return null;
   }, [data?.payload]);
 
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+    
+    ALLOWED_ORB_KEYS.forEach((k) => {
+        const key = k as keyof Params;
+        const rawValue = loadedParams[key];
+
+        if (rawValue !== undefined && rawValue !== null) {
+            
+            if (key === 'scoreType') {
+                const val = String(rawValue);
+                if (val === 'FAST' || val === 'HARRIS') {
+                    cleanParams.scoreType = val as 'FAST' | 'HARRIS';
+                    count++;
+                }
+            } 
+            else {
+                (cleanParams as any)[key] = Number(rawValue);
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for ORB in this file.");
+        return;
+    }
+
+    setForm((prev) => ({ ...prev, ...cleanParams }));
+  }, []);
+
   const saveParams = useCallback(() => {
-    // ✅ Validation Logic ตอน Save
     const validParams = {
         ...form,
         nfeatures: Math.max(0, Number(form.nfeatures)),
-        scaleFactor: Math.max(1.01, Number(form.scaleFactor)), // ห้าม < 1
+        scaleFactor: Math.max(1.01, Number(form.scaleFactor)),
         nlevels: Math.max(1, Number(form.nlevels)),
         edgeThreshold: Math.max(1, Number(form.edgeThreshold)),
         patchSize: Math.max(2, Number(form.patchSize))
@@ -226,6 +270,11 @@ const OrbNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm((s: Params) => ({ ...s, firstLevel: Number(e.target.value) }))} 
             />
           </div>
+          
+          <div className="col-span-2 pt-2">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="ORB" />
+          </div>
+
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-6">

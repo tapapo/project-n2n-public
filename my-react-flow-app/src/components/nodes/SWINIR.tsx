@@ -5,6 +5,7 @@ import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -17,6 +18,8 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
 
 const DEFAULT_PARAMS = { scale: 4, model: 'swinir' };
 type Params = typeof DEFAULT_PARAMS;
+
+const ALLOWED_SWINIR_KEYS = ['scale'];
 
 const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
@@ -36,6 +39,27 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
+
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const source = loadedParams.swinir_parameters_used || loadedParams;
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_SWINIR_KEYS.forEach((k) => {
+        const val = source[k];
+        if (val !== undefined && val !== null) {
+            cleanParams.scale = Number(val);
+            count++;
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for SwinIR.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
 
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
@@ -163,6 +187,11 @@ const SwinIRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               onChange={(e) => setForm((s: Params) => ({ ...s, scale: Number(e.target.value) }))} 
             />
           </div>
+          
+          <div className="pt-2 border-t border-gray-700">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="SwinIR" />
+          </div>
+
         </div>
         <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">
           <button onClick={handleClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition">Cancel</button>

@@ -1,10 +1,10 @@
-// File: src/components/nodes/SiftNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api'; 
 import { useNodeStatus } from '../../hooks/useNodeStatus';
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -24,6 +24,14 @@ const DEFAULT_SIFT = {
 };
 type Params = typeof DEFAULT_SIFT;
 
+const ALLOWED_SIFT_KEYS = [
+  'nfeatures', 
+  'nOctaveLayers', 
+  'contrastThreshold', 
+  'edgeThreshold', 
+  'sigma'
+];
+
 const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges(); 
@@ -38,22 +46,41 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const [form, setForm] = useState<Params>(params);
   
-  useEffect(() => { if (!open) setForm(params); }, [params, open]);
+  useEffect(() => { 
+    if (!open) setForm(params); 
+  }, [params, open]);
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+    
+    ALLOWED_SIFT_KEYS.forEach((key) => {
+        if (loadedParams[key] !== undefined && loadedParams[key] !== null) {
+            cleanParams[key as keyof Params] = Number(loadedParams[key]); 
+            count++;
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for SIFT in this file.");
+        return;
+    }
+
+    setForm((prev) => ({
+      ...prev,
+      ...cleanParams 
+    }));
+  }, []);
+
   const onSave = useCallback(() => {
     const validParams = {
-        // nfeatures ยอมให้เป็น 0 ได้ (Unlimited) แต่ถ้าติดลบแก้เป็น 0
         nfeatures: Math.max(0, Number(form.nfeatures)), 
-        // ห้ามต่ำกว่า 1
         nOctaveLayers: Math.max(1, Number(form.nOctaveLayers)),
-        // ห้ามต่ำกว่า 0.01
         contrastThreshold: Math.max(0.01, Number(form.contrastThreshold)),
-        // ห้ามต่ำกว่า 1
         edgeThreshold: Math.max(1, Number(form.edgeThreshold)),
-        // ห้ามต่ำกว่า 0.1
         sigma: Math.max(0.1, Number(form.sigma))
     };
 
@@ -152,12 +179,7 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               value={form.nfeatures} 
               onChange={(e) => setForm((s: Params) => ({ ...s, nfeatures: Number(e.target.value) }))} 
             />
-            {/* ✅ แสดงคำอธิบายถ้าเป็น 0 */}
-            {form.nfeatures === 0 && (
-                <div className="text-[9px] text-amber-400 mt-1 italic">
-                    ⚠ 0 = Unlimited (Keep all keypoints)
-                </div>
-            )}
+            {form.nfeatures === 0 && <div className="text-[9px] text-amber-400 mt-1 italic">⚠ 0 = Unlimited</div>}
           </div>
 
           <div>
@@ -167,11 +189,7 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.nOctaveLayers} 
               onChange={(e) => setForm((s: Params) => ({ ...s, nOctaveLayers: Number(e.target.value) }))}
-              // ✅ Auto-fix on Blur
-              onBlur={(e) => {
-                  const val = Number(e.target.value);
-                  if (val < 1) setForm(s => ({ ...s, nOctaveLayers: 1 }));
-              }}
+              onBlur={(e) => { if (Number(e.target.value) < 1) setForm(s => ({ ...s, nOctaveLayers: 1 })); }}
             />
           </div>
 
@@ -182,11 +200,7 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.sigma} 
               onChange={(e) => setForm((s: Params) => ({ ...s, sigma: Number(e.target.value) }))} 
-              // ✅ Auto-fix on Blur
-              onBlur={(e) => {
-                  const val = Number(e.target.value);
-                  if (val < 0.1) setForm(s => ({ ...s, sigma: 0.1 }));
-              }}
+              onBlur={(e) => { if (Number(e.target.value) < 0.1) setForm(s => ({ ...s, sigma: 0.1 })); }}
             />
           </div>
 
@@ -197,10 +211,7 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.contrastThreshold} 
               onChange={(e) => setForm((s: Params) => ({ ...s, contrastThreshold: Number(e.target.value) }))} 
-              onBlur={(e) => {
-                  const val = Number(e.target.value);
-                  if (val < 0.01) setForm(s => ({ ...s, contrastThreshold: 0.01 }));
-              }}
+              onBlur={(e) => { if (Number(e.target.value) < 0.01) setForm(s => ({ ...s, contrastThreshold: 0.01 })); }}
             />
           </div>
 
@@ -211,12 +222,17 @@ const SiftNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.edgeThreshold} 
               onChange={(e) => setForm((s: Params) => ({ ...s, edgeThreshold: Number(e.target.value) }))} 
-              onBlur={(e) => {
-                  const val = Number(e.target.value);
-                  if (val < 1) setForm(s => ({ ...s, edgeThreshold: 1 }));
-              }}
+              onBlur={(e) => { if (Number(e.target.value) < 1) setForm(s => ({ ...s, edgeThreshold: 1 })); }}
             />
           </div>
+
+          <div className="col-span-2">
+            <ParameterLoader 
+                onLoad={handleParamsLoaded} 
+                checkTool="SIFT" 
+            />
+          </div>
+
         </div>
 
         <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">

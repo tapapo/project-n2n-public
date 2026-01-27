@@ -1,10 +1,8 @@
-// File: my-react-flow-app/src/lib/templates/restoration.ts
+// File: src/lib/templates/restoration.ts
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
 const SAMPLE_IMG = '/static/samples/placeholder_restoration.jpg';
-const RESULT_IMG = '/static/samples/json/restoration/result_placeholder.jpg';
-const RESULT_JSON = '/static/samples/json/restoration/result_placeholder.json';
 
 const INPUT_NODE: Node = {
   id: 'n1-restore',
@@ -12,12 +10,11 @@ const INPUT_NODE: Node = {
   position: { x: 250, y: 50 },
   data: {
     label: 'Input Image',
-    status: 'success',
-    description: "Sample Image",
+    status: 'success', 
+    description: "Sample Image Loaded",
     payload: {
       name: 'sample.jpg',
       url: SAMPLE_IMG,
-      result_image_url: SAMPLE_IMG,
       width: 256,
       height: 256
     }
@@ -27,13 +24,17 @@ const INPUT_NODE: Node = {
 export const RESTORATION_REALESRGAN_TEMPLATE: WorkflowTemplate = {
   name: 'Real-ESRGAN (Super Resolution & Restoration)',
   descriptor: {
-    en: 'Explain later (อธิบายสะไอเล่)',
-    th: 'อธิบายสะไอเล่ (ไทย)',
+    en: 'Restores and upscales low-quality images using deep learning (GANs).',
+    th: 'ฟื้นฟูและขยายขนาดภาพความละเอียดต่ำให้คมชัดด้วยเทคโนโลยี Deep Learning (GANs)',
   },
   description: 'IMAGE + REAL-ESRGAN',
   longDescription: {
-    en: `Explain later (Detailed description here)...`,
-    th: `อธิบายสะไอเล่ (คำอธิบายแบบละเอียด)...`
+    en: `Real-ESRGAN is a practical algorithm for general image restoration. It extends the powerful ESRGAN model to handle real-world degradations (blur, noise, compression artifacts).
+    
+It is highly effective for upscaling anime images or old photos by 4x while synthesizing realistic textures and sharpening details.`,
+    th: `Real-ESRGAN เป็นอัลกอริทึมยอดนิยมสำหรับการกู้คืนคุณภาพของภาพ โดยพัฒนาต่อจาก ESRGAN เพื่อให้รองรับความเสียหายของภาพในโลกจริงได้ดียิ่งขึ้น (เช่น ภาพเบลอ, Noise, หรือภาพแตกไฟล์ JPEG)
+    
+เหมาะอย่างยิ่งสำหรับการขยายภาพอนิเมะหรือภาพถ่ายเก่าๆ ให้ใหญ่ขึ้น 4 เท่า โดยยังคงรายละเอียดและความคมชัดไว้อย่างสมจริง`
   },
   color: 'red', 
   nodes: [
@@ -43,15 +44,14 @@ export const RESTORATION_REALESRGAN_TEMPLATE: WorkflowTemplate = {
       type: 'realesrgan',
       position: { x: 650, y: 100 },
       data: {
-        label: 'Real-ESRGAN',
-        status: 'success',
-        description: "Upscaled x4",
+        label: 'Real-ESRGAN Upscaler',
+        status: 'idle', 
+        description: "Ready to upscale (x4)...",
         payload: {
-          params: { model_name: 'RealESRGAN_x4plus', face_enhance: false },
-          result_image_url: RESULT_IMG,
-          output_image: RESULT_IMG,
-          json_url: RESULT_JSON,
-          json: { status: "success", scale: 4, output_image: RESULT_IMG }
+          params: { 
+            model_name: 'RealESRGAN_x4plus', 
+            face_enhance: false 
+          }
         }
       }
     } as Node,

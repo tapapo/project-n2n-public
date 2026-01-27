@@ -114,6 +114,11 @@ def run(image_path: str, out_root: str = ".", model_path: str = None, score_thr=
             "original_shape": list(img.size[::-1]),
             "mask_shape": list(mask_img.shape),
             "segmented_shape": list(overlay.shape)
+        },
+        # ✅✅ เพิ่มส่วนนี้ครับ ✅✅
+        "maskrcnn_parameters_used": {
+            "score_thr": score_thr,
+            "model_path": model_path
         }
     }
 

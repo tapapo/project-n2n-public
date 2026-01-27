@@ -125,6 +125,11 @@ def run(image_path: str, out_root: str = ".", model_path: str = None, threshold=
             "original_shape": list(img.size[::-1]),
             "mask_shape": list(mask_img.shape),
             "segmented_shape": list(segmented.shape)
+        },
+        # ✅✅ เพิ่มส่วนนี้ครับ ✅✅
+        "unet_parameters_used": {
+            "model_path": model_path,
+            "threshold": threshold
         }
     }
 

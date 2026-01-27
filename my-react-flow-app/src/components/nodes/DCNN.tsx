@@ -5,6 +5,7 @@ import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
+import { ParameterLoader } from '../ParameterLoader';
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -17,6 +18,8 @@ const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) 
 
 const DEFAULT_PARAMS = { sigma: 25 };
 type Params = typeof DEFAULT_PARAMS;
+
+const ALLOWED_DNCNN_KEYS = ['sigma'];
 
 const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
@@ -36,6 +39,27 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
+
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const source = loadedParams.dncnn_parameters_used || loadedParams;
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_DNCNN_KEYS.forEach((k) => {
+        const val = source[k];
+        if (val !== undefined && val !== null) {
+            cleanParams.sigma = Number(val);
+            count++;
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for DnCNN.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
 
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
@@ -168,6 +192,10 @@ const DnCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             <p className="text-[10px] text-gray-500 italic text-right">
               Higher sigma = Stronger denoising
             </p>
+          </div>
+          
+          <div className="pt-2 border-t border-gray-700">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="DnCNN" />
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-gray-700">

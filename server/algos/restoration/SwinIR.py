@@ -83,10 +83,17 @@ def run(image_path: str, out_root: str = ".", model_path: str = None, **params):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # ✅ 1. รับค่า Scale (สำคัญ!)
+    scale = params.get('scale', 4)
+
     model = SwinIR().to(device)
 
     if model_path:
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        # Load state dict (simplified logic)
+        try:
+            model.load_state_dict(torch.load(model_path, map_location=device))
+        except Exception as e:
+            print(f"Warning: Could not load model from {model_path}: {e}")
 
     model.eval()
 
@@ -117,9 +124,14 @@ def run(image_path: str, out_root: str = ".", model_path: str = None, **params):
         "image": {
             "original_path": image_path,
             "file_name": os.path.basename(image_path),
-            "original_shape": list(img.size[::-1]),
-            "enhanced_shape": list(out_img.shape),
+            "original_shape": list(img.size[::-1]), # [H, W]
+            "enhanced_shape": list(out_img.shape),  # [H, W, C]
             "dtype": str(out_img.dtype)
+        },
+        # ✅ 2. บันทึก Parameters ลง JSON เพื่อให้ Frontend อ่านได้
+        "swinir_parameters_used": {
+            "scale": scale,
+            "model_path": model_path
         }
     }
 
@@ -153,6 +165,10 @@ def run(image_path: str, out_root: str = ".", model_path: str = None, **params):
 if __name__ == "__main__":
     img_path = "your_image.jpg"
     out_dir = "./swinir_output"
-    json_file, vis_file = run(img_path, out_dir, model_path="swinir_pretrained.pth")
-    print("JSON:", json_file)
-    print("Image:", vis_file)
+    # Example usage
+    try:
+        json_file, vis_file = run(img_path, out_dir, model_path="swinir_pretrained.pth", scale=4)
+        print("JSON:", json_file)
+        print("Image:", vis_file)
+    except Exception as e:
+        print(f"Error: {e}")

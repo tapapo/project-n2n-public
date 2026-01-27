@@ -5,6 +5,7 @@ import Modal from "../common/Modal";
 import { abs } from "../../lib/api";
 import type { CustomNodeData } from "../../types";
 import { useNodeStatus } from '../../hooks/useNodeStatus';
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -20,6 +21,8 @@ const DEFAULT_PARAMS = {
 };
 type Params = typeof DEFAULT_PARAMS;
 
+const ALLOWED_MASKRCNN_KEYS = ['score_thr'];
+
 const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
@@ -34,6 +37,27 @@ const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =>
 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
+
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const source = loadedParams.maskrcnn_parameters_used || loadedParams;
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_MASKRCNN_KEYS.forEach((k) => {
+        const val = source[k];
+        if (val !== undefined && val !== null) {
+            cleanParams.score_thr = Number(val);
+            count++;
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for Mask R-CNN.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
 
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
@@ -179,6 +203,11 @@ const MaskRCNNNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =>
               onChange={(e) => setForm((s: Params) => ({ ...s, score_thr: Number(e.target.value) }))} 
             />
           </div>
+          
+          <div className="pt-2 border-t border-gray-700">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="MaskRCNN_Segmentation" />
+          </div>
+
         </div>
         <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">
           <button onClick={handleClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>

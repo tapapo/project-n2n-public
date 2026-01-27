@@ -1,10 +1,10 @@
-// File: src/components/nodes/SurfNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api'; 
 import { useNodeStatus } from '../../hooks/useNodeStatus';
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -24,6 +24,14 @@ const DEFAULT_SURF = {
 };
 
 type Params = typeof DEFAULT_SURF;
+
+const ALLOWED_SURF_KEYS = [
+  'hessianThreshold', 
+  'nOctaves', 
+  'nOctaveLayers', 
+  'extended', 
+  'upright'
+];
 
 const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
@@ -55,12 +63,34 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
     return null;
   }, [data?.payload]);
 
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+    
+    ALLOWED_SURF_KEYS.forEach((key) => {
+        if (loadedParams[key] !== undefined && loadedParams[key] !== null) {
+            if (key === 'extended' || key === 'upright') {
+                cleanParams[key as keyof Params] = Boolean(loadedParams[key]) as any;
+            } else {
+                cleanParams[key as keyof Params] = Number(loadedParams[key]) as any;
+            }
+            count++;
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for SURF in this file.");
+        return;
+    }
+
+    setForm((prev) => ({ ...prev, ...cleanParams }));
+  }, []);
+
   const saveParams = useCallback(() => {
-    // ✅ Validation ตอน Save
     const validParams = {
-        hessianThreshold: Math.max(1, Number(form.hessianThreshold)), // ห้าม < 1
-        nOctaves: Math.max(1, Number(form.nOctaves)), // ห้าม < 1
-        nOctaveLayers: Math.max(1, Number(form.nOctaveLayers)), // ห้าม < 1
+        hessianThreshold: Math.max(1, Number(form.hessianThreshold)),
+        nOctaves: Math.max(1, Number(form.nOctaves)),
+        nOctaveLayers: Math.max(1, Number(form.nOctaveLayers)),
         extended: form.extended,
         upright: form.upright
     };
@@ -139,7 +169,6 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.hessianThreshold} 
               onChange={(e) => setForm((s: Params) => ({ ...s, hessianThreshold: Number(e.target.value) }))}
-              // ✅ Fix 0 -> 1
               onBlur={(e) => { if(Number(e.target.value) < 1) setForm(s=>({...s, hessianThreshold: 1})) }}
             />
           </div>
@@ -149,8 +178,7 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               type="number" min="1"
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.nOctaves} 
-              onChange={(e) => setForm((s: Params) => ({ ...s, nOctaves: Number(e.target.value) }))} 
-              // ✅ Fix 0 -> 1
+              onChange={(e) => setForm((s: Params) => ({ ...s, nOctaveLayers: Number(e.target.value) }))} 
               onBlur={(e) => { if(Number(e.target.value) < 1) setForm(s=>({...s, nOctaves: 1})) }}
             />
           </div>
@@ -161,7 +189,6 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-green-400 font-mono outline-none focus:border-green-500" 
               value={form.nOctaveLayers} 
               onChange={(e) => setForm((s: Params) => ({ ...s, nOctaveLayers: Number(e.target.value) }))} 
-              // ✅ Fix 0 -> 1
               onBlur={(e) => { if(Number(e.target.value) < 1) setForm(s=>({...s, nOctaveLayers: 1})) }}
             />
           </div>
@@ -175,6 +202,11 @@ const SurfNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               Upright (No rotation)
             </label>
           </div>
+          
+          <div className="col-span-2 pt-2">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="SURF" />
+          </div>
+
         </div>
         
         <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">

@@ -1,17 +1,9 @@
-// File: src/lib/templates/matching.ts
+// src/lib/templates/matching.ts
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
 const IMG_1_URL = '/static/samples/1.png';
 const IMG_2_URL = '/static/samples/2.png';
-
-const SIFT_1_JSON = '/static/samples/json/feature/sift_1.json';
-const SIFT_1_VIS  = '/static/samples/json/feature/sift_1_vis.jpg';
-const SIFT_2_JSON = '/static/samples/json/feature/sift_2.json';
-const SIFT_2_VIS  = '/static/samples/json/feature/sift_2_vis.jpg';
-
-const FLANN_JSON = '/static/samples/json/matching/flann_sift.json';
-const FLANN_VIS  = '/static/samples/json/matching/flann_sift_vis.jpg';
 
 export const FEATURE_MATCHING_PIPELINE: WorkflowTemplate = {
   name: 'FLANN (Fast Library for Approximate Nearest Neighbors)',
@@ -43,7 +35,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
         payload: { 
           name: '1.png', 
           url: IMG_1_URL, 
-          result_image_url: IMG_1_URL, 
           width: 512, 
           height: 288 
         }
@@ -56,21 +47,16 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       position: { x: 450, y: 50 }, 
       data: { 
         label: 'SIFT (Img 1)', 
-        status: 'success', 
-        description: "Found 500 keypoints",
+        status: 'idle', 
+        description: "Ready to extract...",
         payload: {
-          params: { nfeatures: 500, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 12, sigma: 1.6 },
-          num_keypoints: 500,
-          
-          image_shape: [288, 512],
-
-          vis_url: SIFT_1_VIS,
-          result_image_url: SIFT_1_VIS,
-          
-          json_url: SIFT_1_JSON,
-          json_path: SIFT_1_JSON,
-          
-          json: { num_keypoints: 500, vis_url: SIFT_1_VIS, json_url: SIFT_1_JSON, image: { processed_shape: [288, 512] } }
+          params: { 
+            nfeatures: 500, 
+            nOctaveLayers: 3, 
+            contrastThreshold: 0.04, 
+            edgeThreshold: 12, 
+            sigma: 1.6 
+          }
         }
       } 
     } as Node,
@@ -86,7 +72,6 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
         payload: { 
           name: '2.png', 
           url: IMG_2_URL, 
-          result_image_url: IMG_2_URL, 
           width: 310, 
           height: 240 
         }
@@ -99,21 +84,16 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       position: { x: 450, y: 596.8 }, 
       data: { 
         label: 'SIFT (Img 2)', 
-        status: 'success', 
-        description: "Found 89 keypoints",
+        status: 'idle', 
+        description: "Ready to extract...",
         payload: {
-          params: { nfeatures: 0, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 10, sigma: 1.6 },
-          num_keypoints: 89,
-          
-          image_shape: [240, 310],
-
-          vis_url: SIFT_2_VIS,
-          result_image_url: SIFT_2_VIS,
-          
-          json_url: SIFT_2_JSON,
-          json_path: SIFT_2_JSON,
-          
-          json: { num_keypoints: 89, vis_url: SIFT_2_VIS, json_url: SIFT_2_JSON, image: { processed_shape: [240, 310] } }
+          params: { 
+            nfeatures: 0, 
+            nOctaveLayers: 3, 
+            contrastThreshold: 0.04, 
+            edgeThreshold: 10, 
+            sigma: 1.6 
+          }
         }
       } 
     } as Node,
@@ -124,29 +104,15 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       position: { x: 850, y: 319.3 }, 
       data: { 
         label: 'FLANN Matcher', 
-        status: 'success', 
-        description: "28 inliers / 30 good matches",
+        status: 'idle', 
+        description: "Ready to match...",
         payload: {
-          params: { lowe_ratio: 0.4, ransac_thresh: 5.0, draw_mode: "good", index_params: "AUTO", search_params: "AUTO" },
-          
-          result_image_url: FLANN_VIS,
-          vis_url: FLANN_VIS,
-          
-          json_url: FLANN_JSON,
-          json_path: FLANN_JSON,
-          
-          json: {
-            matching_statistics: { num_inliers: 28, num_good_matches: 30, summary: "28 inliers / 30 good matches" },
-            vis_url: FLANN_VIS,
-            json_url: FLANN_JSON,
-            input_features_details: {
-              image1: { num_keypoints: 500, image_shape: [288, 512] },
-              image2: { num_keypoints: 89, image_shape: [240, 310] }
-            },
-            inputs: {
-              image1: { width: 512, height: 288 },
-              image2: { width: 310, height: 240 }
-            }
+          params: { 
+            lowe_ratio: 0.4, 
+            ransac_thresh: 5.0, 
+            draw_mode: "good", 
+            index_params: "AUTO", 
+            search_params: "AUTO" 
           }
         }
       } 

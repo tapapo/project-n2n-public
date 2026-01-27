@@ -1,10 +1,10 @@
-// File: src/components/nodes/CLAHENode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -25,6 +25,8 @@ const DEFAULT_PARAMS = {
 
 type Params = typeof DEFAULT_PARAMS;
 
+const ALLOWED_CLAHE_KEYS = ['clipLimit', 'tileGridSize', 'tileGridSizeX', 'tileGridSizeY'];
+
 const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges(); 
@@ -42,6 +44,42 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   useEffect(() => {
     if (!open) setForm(params);
   }, [params, open]);
+
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const source = loadedParams.clahe_parameters_used || loadedParams;
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_CLAHE_KEYS.forEach((k) => {
+        const val = source[k];
+        if (val !== undefined && val !== null) {
+            if (k === 'tileGridSize' && Array.isArray(val) && val.length === 2) {
+                cleanParams.tileGridSizeX = Number(val[0]);
+                cleanParams.tileGridSizeY = Number(val[1]);
+                count++;
+            } 
+            else if (k === 'clipLimit') {
+                cleanParams.clipLimit = Number(val);
+                count++;
+            }
+            else if (k === 'tileGridSizeX') {
+                cleanParams.tileGridSizeX = Number(val);
+                count++;
+            }
+            else if (k === 'tileGridSizeY') {
+                cleanParams.tileGridSizeY = Number(val);
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for CLAHE.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
 
   const onSave = useCallback(() => {
     const cleanParams = {
@@ -139,38 +177,16 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       </div>
 
       <div className="p-4 space-y-3">
-        {displaySize && (
-          <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
-            Dimensions: {displaySize}
-          </div>
-        )}
-
-        {displayUrl && (
-          <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
-        )}
-        
-        <p className="text-sm text-gray-300 break-words leading-relaxed">
-          {caption}
-        </p>
+        {displaySize && <div className="text-[10px] text-gray-400 font-semibold tracking-tight">Dimensions: {displaySize}</div>}
+        {displayUrl && <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />}
+        <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
-        <div className="flex justify-between items-center py-1">
-          <span className="text-red-400">start</span>
-          <div className={statusDot(data?.status === 'start', 'bg-red-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-cyan-400">running</span>
-          <div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-green-400">success</span>
-          <div className={statusDot(isSuccess, 'bg-green-500')} />
-        </div>
-        <div className="flex justify-between items-center py-1">
-          <span className="text-yellow-400">fault</span>
-          <div className={statusDot(isFault, 'bg-yellow-500')} />
-        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(isSuccess, 'bg-green-500')} /></div>
+        <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
       <Modal open={open} title="CLAHE Settings" onClose={() => setOpen(false)}>
@@ -216,6 +232,11 @@ const CLAHENode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
               />
             </div>
           </div>
+          
+          <div className="pt-2">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="CLAHE" />
+          </div>
+
           <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-2">
             <button onClick={() => setOpen(false)} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>
             <button onClick={onSave} className="px-4 py-1.5 rounded bg-indigo-600 text-white text-xs font-bold cursor-pointer hover:bg-indigo-500 transition">Save</button>

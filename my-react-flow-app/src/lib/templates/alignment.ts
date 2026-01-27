@@ -5,18 +5,6 @@ import type { Node } from 'reactflow';
 const IMG_1_URL = '/static/samples/1.png';
 const IMG_2_URL = '/static/samples/2.png';
 
-const SIFT_1_JSON = '/static/samples/json/feature/sift_1.json';
-const SIFT_1_VIS  = '/static/samples/json/feature/sift_1_vis.jpg';
-
-const SIFT_2_JSON = '/static/samples/json/feature/sift_2.json';
-const SIFT_2_VIS  = '/static/samples/json/feature/sift_2_vis.jpg';
-
-const FLANN_JSON = '/static/samples/json/matching/flann_sift.json';
-const FLANN_VIS  = '/static/samples/json/matching/flann_sift_vis.jpg';
-
-const HOMO_JSON = '/static/samples/json/alignment/homo_sift.json';
-const HOMO_IMG  = '/static/samples/json/alignment/homo_sift.jpg';
-
 export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
   name: 'Homography Estimation',
   descriptor: {
@@ -45,7 +33,12 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
         label: "Image Input (Reference)",
         status: "success",
         description: "Reference Image Loaded",
-        payload: { name: "1.png", url: IMG_1_URL, result_image_url: IMG_1_URL, width: 512, height: 288 }
+        payload: { 
+          name: "1.png", 
+          url: IMG_1_URL, 
+          width: 512, 
+          height: 288 
+        }
       }
     } as Node,
 
@@ -55,19 +48,16 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
       position: { x: 450, y: 50 },
       data: {
         label: "SIFT Feature (Ref)",
-        status: "success",
-        description: "Found 500 keypoints",
+        status: "idle",
+        description: "Ready to extract...",
         payload: {
-          params: { nfeatures: 500, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 12, sigma: 1.6 },
-          num_keypoints: 500,
-          
-          image_shape: [288, 512],
-
-          vis_url: SIFT_1_VIS,
-          result_image_url: SIFT_1_VIS,
-          json_path: SIFT_1_JSON,
-          json_url: SIFT_1_JSON,
-          json: { num_keypoints: 500, vis_url: SIFT_1_VIS, json_url: SIFT_1_JSON, image: { processed_shape: [288, 512] } }
+          params: { 
+            nfeatures: 500, 
+            nOctaveLayers: 3, 
+            contrastThreshold: 0.04, 
+            edgeThreshold: 12, 
+            sigma: 1.6 
+          }
         }
       }
     },
@@ -80,7 +70,12 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
         label: "Image Input (Target)",
         status: "success",
         description: "Target Image Loaded",
-        payload: { name: "2.png", url: IMG_2_URL, result_image_url: IMG_2_URL, width: 310, height: 240 }
+        payload: { 
+          name: "2.png", 
+          url: IMG_2_URL, 
+          width: 310, 
+          height: 240 
+        }
       }
     },
 
@@ -90,19 +85,16 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
       position: { x: 450, y: 596.8 },
       data: {
         label: "SIFT Feature (Target)",
-        status: "success",
-        description: "Found 89 keypoints",
+        status: "idle", 
+        description: "Ready to extract...",
         payload: {
-          params: { nfeatures: 0, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 10, sigma: 1.6 },
-          num_keypoints: 89,
-          
-          image_shape: [240, 310],
-
-          vis_url: SIFT_2_VIS,
-          result_image_url: SIFT_2_VIS,
-          json_path: SIFT_2_JSON,
-          json_url: SIFT_2_JSON,
-          json: { num_keypoints: 89, vis_url: SIFT_2_VIS, json_url: SIFT_2_JSON, image: { processed_shape: [240, 310] } }
+          params: { 
+            nfeatures: 0, 
+            nOctaveLayers: 3, 
+            contrastThreshold: 0.04, 
+            edgeThreshold: 10, 
+            sigma: 1.6 
+          }
         }
       }
     },
@@ -113,20 +105,15 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
       position: { x: 850, y: 320 },
       data: {
         label: "FLANN Matcher",
-        status: "success",
-        description: "28 inliers / 30 good matches",
+        status: "idle", 
+        description: "Ready to match...",
         payload: {
-          params: { lowe_ratio: 0.4, ransac_thresh: 5, draw_mode: "good", index_params: "AUTO", search_params: "AUTO" },
-          result_image_url: FLANN_VIS,
-          vis_url: FLANN_VIS,
-          json_path: FLANN_JSON,
-          json_url: FLANN_JSON,
-          json: {
-            matching_statistics: { num_inliers: 28, num_good_matches: 30, summary: "28 inliers / 30 good matches" },
-            vis_url: FLANN_VIS,
-            json_url: FLANN_JSON,
-            input_features_details: { image1: { num_keypoints: 500, image_shape: [288, 512] }, image2: { num_keypoints: 89, image_shape: [240, 310] } },
-            inputs: { image1: { width: 512, height: 288 }, image2: { width: 310, height: 240 } }
+          params: { 
+            lowe_ratio: 0.4, 
+            ransac_thresh: 5, 
+            draw_mode: "good", 
+            index_params: "AUTO", 
+            search_params: "AUTO" 
           }
         }
       }
@@ -138,18 +125,13 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
       position: { x: 1250, y: 327 },
       data: {
         label: "Homography Warp",
-        status: "success",
-        description: "Homography aligned (28 inliers)",
+        status: "idle", 
+        description: "Ready to warp...",
         payload: {
-          params: { warp_mode: "image2_to_image1", blend: true },
-          
-          aligned_shape: [288, 512], 
-
-          aligned_url: HOMO_IMG,
-          result_image_url: HOMO_IMG,
-          json_path: HOMO_JSON,
-          json_url: HOMO_JSON,
-          json: { num_inliers: 28, output: { aligned_url: HOMO_IMG, aligned_image: HOMO_IMG, aligned_shape: [288, 512] } }
+          params: { 
+            warp_mode: "image2_to_image1", 
+            blend: true 
+          }
         }
       }
     },

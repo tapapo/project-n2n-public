@@ -5,6 +5,7 @@ import Modal from "../common/Modal"
 import { abs } from "../../lib/api"
 import type { CustomNodeData } from "../../types"
 import { useNodeStatus } from '../../hooks/useNodeStatus';
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -23,6 +24,8 @@ const DEFAULT_PARAMS = {
   model: FIXED_MODEL
 };
 type Params = typeof DEFAULT_PARAMS;
+
+const ALLOWED_REALESRGAN_KEYS = ['scale', 'denoise', 'denoise_strength'];
 
 const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
@@ -45,13 +48,38 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
   const handleOpen = useCallback(() => { setForm(params); setOpen(true); }, [params]);
   const handleClose = useCallback(() => { setForm(params); setOpen(false); }, [params]);
 
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const source = loadedParams.parameters_used || loadedParams;
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_REALESRGAN_KEYS.forEach((k) => {
+        const val = source[k];
+        if (val !== undefined && val !== null) {
+            if (k === 'denoise_strength' || k === 'denoise') {
+                cleanParams.denoise = Number(val);
+                count++;
+            } else if (k === 'scale') {
+                cleanParams.scale = Number(val);
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for Real-ESRGAN.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
+
   const onSave = useCallback(() => {
-    // ✅ Validation ก่อน Save
     const finalParams = { 
       ...form, 
       model: FIXED_MODEL,
-      scale: Math.max(1, Number(form.scale)), // Min 1
-      denoise: Math.min(1, Math.max(0, Number(form.denoise))) // Clamp 0-1
+      scale: Math.max(1, Number(form.scale)), 
+      denoise: Math.min(1, Math.max(0, Number(form.denoise))) 
     };
     
     rf.setNodes(nds => nds.map(n => 
@@ -196,7 +224,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
                 className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-red-400 font-mono outline-none focus:border-red-500" 
                 value={form.scale} 
                 onChange={e => setForm((s: Params) => ({ ...s, scale: Number(e.target.value) }))} 
-                // ✅ Fix Min 1
                 onBlur={(e) => setForm(s => ({ ...s, scale: Math.max(1, Number(e.target.value)) }))}
               />
             </div>
@@ -207,7 +234,6 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
                 className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-red-400 font-mono outline-none focus:border-red-500" 
                 value={form.denoise} 
                 onChange={e => setForm((s: Params) => ({ ...s, denoise: Number(e.target.value) }))}
-                // ✅ Fix Range 0-1
                 onBlur={(e) => {
                     let v = Number(e.target.value);
                     if (v < 0) v = 0;
@@ -217,6 +243,11 @@ const RealESRGANNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) 
               />
             </div>
           </div>
+          
+          <div className="pt-2 border-t border-gray-700">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="Real-ESRGAN" />
+          </div>
+
         </div>
         <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">
           <button onClick={handleClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>

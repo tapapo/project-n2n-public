@@ -1,10 +1,10 @@
-// File: src/components/nodes/BFMatcherNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -23,6 +23,14 @@ const DEFAULT_PARAMS = {
   draw_mode: 'good' as 'good' | 'inliers',
 };
 type BFParams = typeof DEFAULT_PARAMS;
+
+const ALLOWED_BF_KEYS = [
+  'norm_type',
+  'cross_check',
+  'lowe_ratio',
+  'ransac_thresh',
+  'draw_mode'
+];
 
 const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
@@ -45,6 +53,49 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
 
   const onClose = () => { setForm(params); setOpen(false); };
   
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    
+    if (loadedParams.index_params !== undefined || loadedParams.search_params !== undefined) {
+        alert("❌ Invalid File!\n\nThis looks like a 'FLANN Matcher' configuration.\nYou cannot use it with BFMatcher.");
+        return;
+    }
+
+    const cleanParams: Partial<BFParams> = {};
+    let count = 0;
+
+    ALLOWED_BF_KEYS.forEach((k) => {
+        const key = k as keyof BFParams;
+        const val = loadedParams[key];
+
+        if (val !== undefined) { 
+            if (key === 'norm_type') {
+                if (['AUTO', 'L2', 'L1', 'HAMMING', 'HAMMING2'].includes(val)) {
+                    cleanParams.norm_type = val;
+                    count++;
+                }
+            } else if (key === 'draw_mode') {
+                if (['good', 'inliers'].includes(val)) {
+                    cleanParams.draw_mode = val;
+                    count++;
+                }
+            } else if (key === 'cross_check') {
+                cleanParams.cross_check = val === null ? undefined : Boolean(val);
+                count++;
+            } else {
+                (cleanParams as any)[key] = Number(val);
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for BFMatcher.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
+
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
       n.id === id ? { 
@@ -245,6 +296,11 @@ const BFMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) =
               <option value="inliers">Inliers only</option>
             </select>
           </div>
+
+          <div className="col-span-2 pt-2">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="BFMATCHER" />
+          </div>
+
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">

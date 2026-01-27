@@ -1,10 +1,10 @@
-// File: src/components/nodes/MSRCRNode.tsx
 import { memo, useEffect, useMemo, useState, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -25,6 +25,8 @@ const DEFAULT_PARAMS = {
 
 type Params = typeof DEFAULT_PARAMS;
 
+const ALLOWED_MSRCR_KEYS = ['sigma_list', 'G', 'b', 'alpha', 'beta'];
+
 const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
@@ -39,6 +41,32 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const [form, setForm] = useState<Params>(params);
   useEffect(() => { if (!open) setForm(params); }, [params, open]);
+
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const source = loadedParams.msrcr_parameters_used || loadedParams;
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_MSRCR_KEYS.forEach((k) => {
+        const val = source[k];
+        if (val !== undefined && val !== null) {
+            if (k === 'sigma_list' && Array.isArray(val)) {
+                cleanParams.sigma_list = val;
+                count++;
+            } else {
+                (cleanParams as any)[k] = Number(val);
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for MSRCR.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
 
   const onSave = useCallback(() => {
     const payloadParams = {
@@ -80,12 +108,7 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const displaySize = useMemo(() => {
     const imgMeta = json_data?.image || {};
     const shape = imgMeta.enhanced_shape || imgMeta.original_shape || data?.payload?.image_shape;
-    
-    if (Array.isArray(shape) && shape.length >= 2) {
-      const h = shape[0];
-      const w = shape[1];
-      return `${w} x ${h}`;
-    }
+    if (Array.isArray(shape) && shape.length >= 2) return `${shape[1]} x ${shape[0]}`;
     return null; 
   }, [json_data, data?.payload]); 
 
@@ -113,53 +136,28 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       <div className="bg-gray-700 text-indigo-400 rounded-t-xl px-2 py-2 flex items-center justify-between font-bold">
         <div>MSRCR</div>
         <div className="flex items-center gap-2">
-          <button 
-            onClick={handleRun}
-            disabled={isRunning} 
-            className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white cursor-pointer ${
-              isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-indigo-600 hover:bg-indigo-700'
-            }`}
-          >
+          <button onClick={handleRun} disabled={isRunning} className={`px-2 py-1 rounded text-xs font-semibold transition-colors duration-200 text-white cursor-pointer ${isRunning ? 'bg-yellow-600 cursor-wait opacity-80' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
             {isRunning ? 'Running...' : '▶ Run'}
           </button>
-
           <span className="relative inline-flex items-center group">
-            <button 
-              onClick={() => setOpen(true)} 
-              className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition hover:bg-gray-100 focus-visible:outline-none"
-            >
+            <button onClick={() => setOpen(true)} className="h-5 w-5 rounded-full bg-white flex items-center justify-center shadow ring-2 ring-gray-500/60 transition hover:bg-gray-100 focus-visible:outline-none">
               <SettingsSlidersIcon />
             </button>
-            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">
-              Settings
-              <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" />
-            </span>
+            <span role="tooltip" className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg ring-1 ring-black/20 transition-opacity duration-150 group-hover:opacity-100 z-50 font-normal">Settings<span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900" /></span>
           </span>
         </div>
       </div>
 
       <div className="p-4 space-y-3">
-        {displaySize && (
-          <div className="text-[10px] text-gray-400 font-semibold tracking-tight">
-            Dimensions: {displaySize}
-          </div>
-        )}
-
-        {displayUrl && (
-          <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />
-        )}
-        
-        <p className="text-sm text-gray-300 break-words leading-relaxed">
-          {caption}
-        </p>
+        {displaySize && <div className="text-[10px] text-gray-400 font-semibold tracking-tight">Dimensions: {displaySize}</div>}
+        {displayUrl && <img src={displayUrl} className="w-full rounded-lg border border-gray-700 shadow-md object-contain max-h-56" draggable={false} />}
+        <p className="text-sm text-gray-300 break-words leading-relaxed">{caption}</p>
       </div>
 
       <div className="border-t-2 border-gray-700 p-2 text-sm font-medium">
         <div className="flex justify-between items-center py-1"><span className="text-red-400">start</span><div className={statusDot(data?.status === 'start', 'bg-red-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-cyan-400">running</span><div className={statusDot(data?.status === 'running', 'bg-cyan-400 animate-pulse')} /></div>
-        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span>
-           <div className={statusDot(isSuccess, 'bg-green-500')} />
-        </div>
+        <div className="flex justify-between items-center py-1"><span className="text-green-400">success</span><div className={statusDot(isSuccess, 'bg-green-500')} /></div>
         <div className="flex justify-between items-center py-1"><span className="text-yellow-400">fault</span><div className={statusDot(isFault, 'bg-yellow-500')} /></div>
       </div>
 
@@ -174,62 +172,38 @@ const MSRCRNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                 value={form.sigma_list.join(', ')} 
                 onChange={(e) => setForm(s => ({ ...s, sigma_list: e.target.value.split(',').map(v => Number(v.trim()) || 0) }))} 
                 onBlur={() => {
-                    const cleanList = form.sigma_list
-                        .map(n => Math.max(1, Number(n))) 
-                        .filter(n => !isNaN(n));
-                    if (cleanList.length === 0) {
-                        setForm(s => ({ ...s, sigma_list: [15, 80, 250] }));
-                    } else {
-                        setForm(s => ({ ...s, sigma_list: cleanList }));
-                    }
+                    const cleanList = form.sigma_list.map(n => Math.max(1, Number(n))).filter(n => !isNaN(n));
+                    setForm(s => ({ ...s, sigma_list: cleanList.length ? cleanList : [15, 80, 250] }));
                 }}
               />
             </div>
 
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Gain (G)</label>
-              <input 
-                type="number" step="0.1" min="0.1"
-                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
-                value={form.G} 
-                onChange={(e) => setForm(s => ({ ...s, G: Number(e.target.value) }))}
-                onBlur={(e) => setForm(s => ({...s, G: Math.max(0.1, Number(e.target.value))}))}
-              />
+              <input type="number" step="0.1" min="0.1" className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" value={form.G} onChange={(e) => setForm(s => ({ ...s, G: Number(e.target.value) }))} onBlur={(e) => setForm(s => ({...s, G: Math.max(0.1, Number(e.target.value))}))} />
             </div>
 
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Offset (b)</label>
-              <input 
-                type="number" 
-                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
-                value={form.b} 
-                onChange={(e) => setForm(s => ({ ...s, b: Number(e.target.value) }))}
-              />
+              <input type="number" className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" value={form.b} onChange={(e) => setForm(s => ({ ...s, b: Number(e.target.value) }))} />
             </div>
 
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Alpha</label>
-              <input 
-                type="number" min="1"
-                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
-                value={form.alpha} 
-                onChange={(e) => setForm(s => ({ ...s, alpha: Number(e.target.value) }))}
-                onBlur={(e) => setForm(s => ({...s, alpha: Math.max(1.0, Number(e.target.value))}))}
-              />
+              <input type="number" min="1" className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" value={form.alpha} onChange={(e) => setForm(s => ({ ...s, alpha: Number(e.target.value) }))} onBlur={(e) => setForm(s => ({...s, alpha: Math.max(1.0, Number(e.target.value))}))} />
             </div>
 
             <div>
               <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Beta</label>
-              <input 
-                type="number" min="1"
-                className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" 
-                value={form.beta} 
-                onChange={(e) => setForm(s => ({ ...s, beta: Number(e.target.value) }))}
-                onBlur={(e) => setForm(s => ({...s, beta: Math.max(1.0, Number(e.target.value))}))}
-              />
+              <input type="number" min="1" className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-indigo-400 font-mono outline-none focus:border-indigo-500" value={form.beta} onChange={(e) => setForm(s => ({ ...s, beta: Number(e.target.value) }))} onBlur={(e) => setForm(s => ({...s, beta: Math.max(1.0, Number(e.target.value))}))} />
             </div>
 
           </div>
+          
+          <div className="pt-2">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="MSRCR" />
+          </div>
+
           <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-2">
             <button onClick={() => setOpen(false)} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>
             <button onClick={onSave} className="px-4 py-1.5 rounded bg-indigo-600 text-white text-xs font-bold cursor-pointer hover:bg-indigo-500 transition">Save</button>

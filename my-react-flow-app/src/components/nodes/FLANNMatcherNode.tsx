@@ -1,10 +1,10 @@
-// File: src/components/nodes/FLANNMatcherNode.tsx
 import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow';
 import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
+import { ParameterLoader } from '../ParameterLoader';
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -32,6 +32,14 @@ const DEFAULT_PARAMS: FLANNParams = {
   search_params: 'AUTO',
 };
 
+const ALLOWED_FLANN_KEYS = [
+  'lowe_ratio',
+  'ransac_thresh',
+  'draw_mode',
+  'index_params',
+  'search_params'
+];
+
 const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges(); 
@@ -53,6 +61,57 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
 
   const onClose = () => { setForm(params); setOpen(false); };
   
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    
+    if (loadedParams.norm_type !== undefined || loadedParams.cross_check !== undefined) {
+        alert("❌ Invalid File!\n\nThis looks like a 'BFMatcher' configuration.\nYou cannot use it with FLANN.");
+        return;
+    }
+
+    const cleanParams: Partial<FLANNParams> = {};
+    let count = 0;
+
+    ALLOWED_FLANN_KEYS.forEach((k) => {
+        const key = k as keyof FLANNParams;
+        const val = loadedParams[key];
+
+        if (val !== undefined && val !== null) {
+            if (key === 'index_params') {
+                if (val === 'AUTO') {
+                    cleanParams.index_params = 'AUTO';
+                    count++;
+                } else if (typeof val === 'object') {
+                    cleanParams.index_params = val;
+                    count++;
+                }
+            } else if (key === 'search_params') {
+                if (val === 'AUTO') {
+                    cleanParams.search_params = 'AUTO';
+                    count++;
+                } else if (typeof val === 'object') {
+                    cleanParams.search_params = val;
+                    count++;
+                }
+            } else if (key === 'draw_mode') {
+                if (['good', 'inliers'].includes(val)) {
+                    cleanParams.draw_mode = val;
+                    count++;
+                }
+            } else {
+                (cleanParams as any)[key] = Number(val);
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for FLANN Matcher.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
+
   const onSave = useCallback(() => {
     rf.setNodes(nds => nds.map(n => 
       n.id === id ? { 
@@ -234,6 +293,7 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
               <option value="good">Good matches</option><option value="inliers">Inliers only</option>
             </select>
           </div>
+          
           <div className="col-span-2 border-t border-gray-700 pt-3 mt-1">
             <div className="mb-2 text-gray-300 font-bold uppercase text-[10px] tracking-wider">Index params</div>
             <div className="grid grid-cols-2 gap-3">
@@ -296,6 +356,11 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
               )}
             </div>
           </div>
+          
+          <div className="col-span-2 pt-2">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="FLANN" />
+          </div>
+
         </div>
         <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">
           <button onClick={onClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>

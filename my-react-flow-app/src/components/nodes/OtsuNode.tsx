@@ -1,10 +1,10 @@
-// File: src/components/nodes/OtsuNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
 import { useNodeStatus } from '../../hooks/useNodeStatus';
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -56,6 +56,37 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
   
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const source = loadedParams.parameters || loadedParams;
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    if (source.blur !== undefined) { 
+        cleanParams.gaussian_blur = Boolean(source.blur); count++; 
+    } else if (source.gaussian_blur !== undefined) {
+        cleanParams.gaussian_blur = Boolean(source.gaussian_blur); count++;
+    }
+
+    if (source.k !== undefined) { 
+        cleanParams.blur_ksize = Number(source.k); count++; 
+    } else if (source.blur_ksize !== undefined) {
+        cleanParams.blur_ksize = Number(source.blur_ksize); count++;
+    }
+
+    if (source.inv !== undefined) { 
+        cleanParams.invert = Boolean(source.inv); count++; 
+    } else if (source.invert !== undefined) {
+        cleanParams.invert = Boolean(source.invert); count++;
+    }
+
+    if (count === 0) {
+        alert("No compatible parameters found for Otsu.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
+
   const onSave = useCallback(() => {
     let k = Math.floor(form.blur_ksize);
     if (k < 1) k = 1;
@@ -211,6 +242,10 @@ const OtsuNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
             <input type="checkbox" checked={form.invert} onKeyDown={stopPropagation} onChange={(e) => setForm((s: Params) => ({ ...s, invert: e.target.checked }))} className="accent-pink-500" />
             Invert output
           </label>
+          
+          <div className="pt-2">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="OtsuThreshold" />
+          </div>
 
           <div className="flex justify-end gap-2 pt-5 border-t border-gray-700 mt-4">
             <button onClick={onClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>

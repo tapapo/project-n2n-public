@@ -1,10 +1,8 @@
-// File: my-react-flow-app/src/lib/templates/segmentation.ts
+// File: src/lib/templates/segmentation.ts
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
 const SAMPLE_IMG = '/static/samples/placeholder_segmentation.jpg';
-const RESULT_IMG = '/static/samples/json/segmentation/result_placeholder.png';
-const RESULT_JSON = '/static/samples/json/segmentation/result_placeholder.json';
 
 const INPUT_NODE: Node = {
   id: 'n1-seg',
@@ -13,11 +11,10 @@ const INPUT_NODE: Node = {
   data: {
     label: 'Input Image',
     status: 'success',
-    description: "Sample Image",
+    description: "Sample Image Loaded",
     payload: {
       name: 'sample.jpg',
       url: SAMPLE_IMG,
-      result_image_url: SAMPLE_IMG,
       width: 800,
       height: 600
     }
@@ -27,13 +24,17 @@ const INPUT_NODE: Node = {
 export const SEGMENTATION_DEEPLAB_TEMPLATE: WorkflowTemplate = {
   name: 'DeepLab V3+ (Semantic Segmentation)',
   descriptor: {
-    en: 'Explain later (อธิบายสะไอเล่)',
-    th: 'อธิบายสะไอเล่ (ไทย)',
+    en: 'Deep learning model for pixel-level object classification and segmentation.',
+    th: 'โมเดล Deep Learning สำหรับจำแนกประเภทวัตถุในระดับพิกเซล (Semantic Segmentation)',
   },
   description: 'IMAGE + DEEPLAB',
   longDescription: {
-    en: `Explain later (Detailed description here)...`,
-    th: `อธิบายสะไอเล่ (คำอธิบายแบบละเอียด)...`
+    en: `DeepLab V3+ is a state-of-the-art semantic segmentation model developed by Google. It employs "atrous convolution" to effectively capture multi-scale context without losing resolution, and an encoder-decoder structure to refine object boundaries.
+    
+It is widely used for tasks like autonomous driving, medical imaging, and background removal, assigning a specific class label to every pixel in the image.`,
+    th: `DeepLab V3+ เป็นโมเดล Semantic Segmentation ชั้นนำจาก Google ที่โดดเด่นด้วยการใช้เทคนิค "Atrous Convolution" เพื่อวิเคราะห์บริบทของภาพในหลายระดับสเกล และโครงสร้าง Encoder-Decoder ที่ช่วยให้ขอบของวัตถุมีความคมชัดแม่นยำ
+    
+นิยมใช้ในงานรถยนต์ไร้คนขับ การวิเคราะห์ภาพทางการแพทย์ หรือการลบพื้นหลัง โดยโมเดลจะทำการระบุประเภทวัตถุ (Class Label) ให้กับทุกๆ พิกเซลในภาพ`
   },
   color: 'yellow',
   nodes: [
@@ -44,14 +45,14 @@ export const SEGMENTATION_DEEPLAB_TEMPLATE: WorkflowTemplate = {
       position: { x: 650, y: 100 },
       data: {
         label: 'DeepLab v3+',
-        status: 'success',
-        description: "Segmented",
+        status: 'idle', 
+        description: "Ready to segment...",
         payload: {
-          params: { backbone: 'resnet50', dataset: 'coco', output_stride: 16 },
-          result_image_url: RESULT_IMG,
-          output_image: RESULT_IMG,
-          json_url: RESULT_JSON,
-          json: { status: "success", classes_found: ["person", "car"], output_image: RESULT_IMG }
+          params: { 
+            backbone: 'resnet50', 
+            dataset: 'coco', 
+            output_stride: 16 
+          }
         }
       }
     } as Node,

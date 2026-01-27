@@ -2,13 +2,9 @@
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
-
 const ORI_URL = '/static/samples/ori.png';
 const NOISE_URL = '/static/samples/noise.jpg';
 const MOON_URL = '/static/samples/Moonsample.jpg';
-const PSNR_JSON = '/static/samples/json/quality/psnr_score.json';
-const BRISQUE_JSON = '/static/samples/json/quality/brisque_score.json';
-
 
 export const PSNR_ASSESSMENT_TEMPLATE: WorkflowTemplate = {
   name: 'PSNR (Peak Signal-to-Noise Ratio)',
@@ -33,33 +29,47 @@ This works similarly to SSIM (Structural Similarity), but PSNR focuses purely on
       position: { x: 50, y: -200 },
       data: {
         label: 'Original (Ref)',
-        status: 'success',
+        status: 'success', 
         description: 'Reference clean image',
-        payload: { name: 'ori.png', url: ORI_URL, result_image_url: ORI_URL, width: 172, height: 172 },
+        payload: { 
+          name: 'ori.png', 
+          url: ORI_URL, 
+          width: 172, 
+          height: 172 
+        },
       },
     } as Node,
+
     {
       id: 'psnr-n2-noise',
       type: 'image-input',
       position: { x: 50, y: 380 },
       data: {
         label: 'Processed / Noisy',
-        status: 'success',
+        status: 'success', 
         description: 'Noisy / Denoised version',
-        payload: { name: 'noise.jpg', url: NOISE_URL, result_image_url: NOISE_URL, width: 172, height: 172 },
+        payload: { 
+          name: 'noise.jpg', 
+          url: NOISE_URL, 
+          width: 172, 
+          height: 172 
+        },
       },
     } as Node,
+
     {
       id: 'psnr-n3-metric',
       type: 'psnr',
       position: { x: 430, y: 230 },
       data: {
         label: 'PSNR Metric',
-        status: 'success',
-        description: 'PSNR = 16.72 dB',
-        payload: { quality_score: 16.72, json_url: PSNR_JSON, json_path: PSNR_JSON, json: { quality_score: 16.72 } },
+        status: 'idle', 
+        description: 'Ready to calculate...',
+        payload: {
+        },
       },
     } as Node,
+
     {
       id: 'psnr-n4-save-json',
       type: 'save-json',
@@ -101,22 +111,30 @@ It can detect distortions like blur or noise by checking if the image statistics
       position: { x: 50, y: 134.5 },
       data: {
         label: 'Input Image (Moon)',
-        status: 'success',
+        status: 'success', 
         description: 'Example for BRISQUE metric',
-        payload: { name: 'Moonsample.jpg', url: MOON_URL, result_image_url: MOON_URL, width: 600, height: 570 },
+        payload: { 
+          name: 'Moonsample.jpg', 
+          url: MOON_URL, 
+          width: 600, 
+          height: 570 
+        },
       },
     } as Node,
+
     {
       id: 'brisque-n2-metric',
       type: 'brisque',
       position: { x: 430, y: 279 },
       data: {
         label: 'BRISQUE Metric',
-        status: 'success',
-        description: 'BRISQUE = 33.60',
-        payload: { quality_score: 33.6, json_url: BRISQUE_JSON, json_path: BRISQUE_JSON, json: { score: 33.6 } },
+        status: 'idle', 
+        description: 'Ready to calculate...',
+        payload: {
+        },
       },
     } as Node,
+
     {
       id: 'brisque-n3-save-json',
       type: 'save-json',

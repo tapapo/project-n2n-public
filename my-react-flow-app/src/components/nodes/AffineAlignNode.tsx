@@ -5,6 +5,7 @@ import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus';
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -33,6 +34,15 @@ const DEFAULT_PARAMS: Params = {
   refine_iters: 10,
 };
 
+const ALLOWED_AFFINE_KEYS = [
+  'model', 
+  'warp_mode', 
+  'blend', 
+  'ransac_thresh', 
+  'confidence', 
+  'refine_iters'
+];
+
 const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const [open, setOpen] = useState(false);
@@ -53,7 +63,44 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
 
-  const onSave = () => {
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_AFFINE_KEYS.forEach((k) => {
+        const key = k as keyof Params;
+        const val = loadedParams[key];
+
+        if (val !== undefined && val !== null) {
+            if (key === 'model') {
+                if (['affine', 'partial'].includes(val)) {
+                    cleanParams.model = val;
+                    count++;
+                }
+            } else if (key === 'warp_mode') {
+                if (['image2_to_image1', 'image1_to_image2'].includes(val)) {
+                    cleanParams.warp_mode = val;
+                    count++;
+                }
+            } else if (key === 'blend') {
+                cleanParams.blend = Boolean(val);
+                count++;
+            } else {
+                (cleanParams as any)[key] = Number(val);
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for Affine Alignment.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
+
+  const onSave = useCallback(() => {
     rf.setNodes((nds) =>
       nds.map((n) =>
         n.id === id
@@ -69,13 +116,12 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
       )
     );
     setOpen(false);
-  };
+  }, [rf, id, form]);
 
   const onRun = useCallback(() => {
     if (!isRunning) data?.onRunNode?.(id);
   }, [data, id, isRunning]);
 
- 
   const resp = data?.payload?.json as any | undefined;
   const payloadUrl = data?.payload?.aligned_url || data?.payload?.result_image_url;
   const jsonPath = resp?.output?.aligned_url || resp?.output?.aligned_image;
@@ -89,7 +135,7 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
     
     let shape = jsonData?.output?.aligned_shape;
     if (!shape) shape = jsonData?.output?.shape;
-    if (!shape) shape = data?.payload?.aligned_shape;
+    if (!shape) data?.payload?.aligned_shape;
 
     if (Array.isArray(shape) && shape.length >= 2) {
       return `${shape[1]}×${shape[0]}px`;
@@ -232,7 +278,6 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-purple-400 font-mono outline-none focus:border-purple-500"
               value={form.ransac_thresh}
               onChange={(e) => setForm((s) => ({ ...s, ransac_thresh: Number(e.target.value) }))}
-              // ✅ Fix 0.1
               onBlur={(e) => {
                   let val = Number(e.target.value);
                   if (val < 0.1) setForm(s => ({ ...s, ransac_thresh: 0.1 }));
@@ -241,13 +286,12 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
           </div>
 
           <div>
-            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Confidence (0.0 - 1.0)</label>
+            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Confidence (0.1 - 1.0)</label>
             <input
               type="number" step="0.01" min={0} max={1}
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-purple-400 font-mono outline-none focus:border-purple-500"
               value={form.confidence}
               onChange={(e) => setForm((s) => ({ ...s, confidence: Number(e.target.value) }))}
-              // ✅ Fix 0.1 - 1.0
               onBlur={(e) => {
                   let val = Number(e.target.value);
                   if (val < 0.01) val = 0.01;
@@ -264,11 +308,14 @@ const AffineAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>)
               className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-purple-400 font-mono outline-none focus:border-purple-500"
               value={form.refine_iters}
               onChange={(e) => setForm((s) => ({ ...s, refine_iters: Number(e.target.value) }))}
-              // ✅ Fix >= 0
               onBlur={(e) => {
                   if (Number(e.target.value) < 0) setForm(s => ({ ...s, refine_iters: 0 }));
               }}
             />
+          </div>
+          
+          <div className="pt-2">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="AffineAlignment" />
           </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">

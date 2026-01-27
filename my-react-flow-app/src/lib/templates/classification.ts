@@ -4,32 +4,22 @@ import type { Node } from 'reactflow';
 
 const MOON_URL = '/static/samples/Moonsample.jpg';
 
-const OTSU_JSON = '/static/samples/json/classification/otsu_moon.json';
-const OTSU_BIN  = '/static/samples/json/classification/otsu_moon_bin.png';
-
-const SNAKE_JSON = '/static/samples/json/classification/snake_moon.json';
-const SNAKE_VIS  = '/static/samples/json/classification/snake_moon_vis.png';
-const SNAKE_MASK = '/static/samples/json/classification/snake_moon_mask.png';
-
 const INPUT_NODE: Node = {
   id: 'n1-moon',
   type: 'image-input',
   position: { x: 250, y: 75.5 },
   data: {
     label: 'Image Input (Moon)',
-    status: 'success',
+    status: 'success', 
     description: "Moon Image Loaded",
     payload: {
       name: 'Moonsample.jpg',
       url: MOON_URL,
-      result_image_url: MOON_URL,
       width: 600,
       height: 570
     }
   }
 };
-
-
 
 export const OTSU_CLASSIFICATION_TEMPLATE: WorkflowTemplate = {
   name: 'Otsu Thresholding',
@@ -48,22 +38,25 @@ It is the most standard way to segment objects without manually guessing the thr
   },
   color: 'pink',
   nodes: [
-    INPUT_NODE,
+    INPUT_NODE, 
     {
       id: 'n2-otsu',
       type: 'otsu',
       position: { x: 680, y: 100 },
       data: {
         label: 'Otsu Threshold',
-        status: 'success',
-        description: "Threshold = 49",
+        status: 'idle',
+        description: "Ready to calculate...",
         payload: {
-          params: { gaussian_blur: true, blur_ksize: 5, invert: false, morph_open: false, morph_close: false, morph_kernel: 3, show_histogram: true },
-          result_image_url: OTSU_BIN,
-          preview_url: OTSU_BIN,
-          json_url: OTSU_JSON,
-          json_path: OTSU_JSON,
-          json: { threshold_value: 49, binary_url: OTSU_BIN, json_url: OTSU_JSON }
+          params: { 
+            gaussian_blur: true, 
+            blur_ksize: 5, 
+            invert: false, 
+            morph_open: false, 
+            morph_close: false, 
+            morph_kernel: 3, 
+            show_histogram: true 
+          }
         }
       }
     } as Node,
@@ -86,8 +79,6 @@ It is the most standard way to segment objects without manually guessing the thr
     { id: 'e3', source: 'n2-otsu', target: 'n4-save-otsu-json', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
   ]
 };
-
-
 
 export const SNAKE_CLASSIFICATION_TEMPLATE: WorkflowTemplate = {
   name: 'Active Contour (Snake)',
@@ -113,17 +104,22 @@ This is useful for segmenting objects with irregular shapes where simple thresho
       position: { x: 680, y: 99 },
       data: {
         label: 'Snake Contour',
-        status: 'success',
-        description: "Done (250 iters)",
+        status: 'idle',
+        description: "Ready to iterate...",
         payload: {
-          params: { alpha: 0.015, beta: 10, gamma: 0.1, w_line: 0, w_edge: 1, max_iterations: 250, gaussian_blur_ksize: 0, convergence: 0.001, init_mode: 'circle', init_radius: "250", init_points: 400, real_width: 600, real_height: 570 },
-          result_image_url: SNAKE_VIS,
-          preview_url: SNAKE_VIS,
-          overlay_url: SNAKE_VIS,
-          mask_url: SNAKE_MASK,
-          json_url: SNAKE_JSON,
-          json_path: SNAKE_JSON,
-          json: { iterations: 250, output: { overlay_url: SNAKE_VIS, mask_url: SNAKE_MASK }, json_url: SNAKE_JSON }
+          params: { 
+            alpha: 0.015, 
+            beta: 10, 
+            gamma: 0.1, 
+            w_line: 0, 
+            w_edge: 1, 
+            max_iterations: 250, 
+            gaussian_blur_ksize: 0, 
+            convergence: 0.001, 
+            init_mode: 'circle', 
+            init_radius: "250", 
+            init_points: 400 
+          }
         }
       }
     } as Node,

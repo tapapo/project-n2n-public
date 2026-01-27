@@ -1,10 +1,8 @@
-// File: my-react-flow-app/src/lib/templates/enhancement.ts
+// File: src/lib/templates/enhancement.ts
 import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
 const SAMPLE_IMG = '/static/samples/placeholder_enhancement.jpg';
-const RESULT_IMG = '/static/samples/json/enhancement/result_placeholder.jpg';
-const RESULT_JSON = '/static/samples/json/enhancement/result_placeholder.json';
 
 const INPUT_NODE: Node = {
   id: 'n1-enhance',
@@ -12,12 +10,11 @@ const INPUT_NODE: Node = {
   position: { x: 250, y: 50 },
   data: {
     label: 'Input Image',
-    status: 'success',
-    description: "Sample Image",
+    status: 'success', 
+    description: "Sample Image Loaded",
     payload: {
       name: 'sample.jpg',
       url: SAMPLE_IMG,
-      result_image_url: SAMPLE_IMG,
       width: 512,
       height: 512
     }
@@ -27,13 +24,17 @@ const INPUT_NODE: Node = {
 export const ENHANCEMENT_CLAHE_TEMPLATE: WorkflowTemplate = {
   name: 'CLAHE (Contrast Limited Adaptive Histogram Equalization)',
   descriptor: {
-    en: 'Explain later (อธิบายสะไอเล่)',
-    th: 'อธิบายสะไอเล่ (ไทย)',
+    en: 'Enhances local contrast and edge definition using adaptive histogram equalization.',
+    th: 'การเพิ่มความคมชัดของภาพโดยการปรับกราฟ Histogram แบบเฉพาะจุด (Local) ช่วยดึงรายละเอียดในเงามืด',
   },
   description: 'IMAGE + CLAHE',
   longDescription: {
-    en: `Explain later (Detailed description here)...`,
-    th: `อธิบายสะไอเล่ (คำอธิบายแบบละเอียด)...`
+    en: `CLAHE is a variant of Adaptive Histogram Equalization (AHE) that takes care of over-amplification of contrast. It operates on small regions in the image, called tiles, rather than the entire image.
+    
+It is particularly useful for improving the contrast of medical images, underwater images, or images captured in low-light conditions.`,
+    th: `CLAHE เป็นเทคนิคที่พัฒนาต่อจาก AHE เพื่อแก้ปัญหาการเร่งความคมชัด (Contrast) ที่มากเกินไปจนเกิด Noise โดยจะแบ่งภาพออกเป็นส่วนย่อยๆ (Tiles) แล้วปรับ Histogram ในแต่ละส่วนแยกกัน
+    
+เหมาะสำหรับภาพถ่ายทางการแพทย์ ภาพใต้น้ำ หรือภาพถ่ายในที่แสงน้อยที่ต้องการดึงรายละเอียดในเงามืดออกมาโดยไม่ทำให้ภาพแตก`
   },
   color: 'indigo', 
   nodes: [
@@ -43,15 +44,14 @@ export const ENHANCEMENT_CLAHE_TEMPLATE: WorkflowTemplate = {
       type: 'clahe',
       position: { x: 650, y: 100 },
       data: {
-        label: 'CLAHE',
-        status: 'success',
-        description: "Done",
+        label: 'CLAHE Enhancement',
+        status: 'idle', 
+        description: "Ready to enhance...",
         payload: {
-          params: { clip_limit: 2.0, tile_grid_size: 8 },
-          result_image_url: RESULT_IMG,
-          preview_url: RESULT_IMG,
-          json_url: RESULT_JSON,
-          json: { status: "success", output_image: RESULT_IMG }
+          params: { 
+            clip_limit: 2.0, 
+            tile_grid_size: 8 
+          }
         }
       }
     } as Node,

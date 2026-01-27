@@ -12,6 +12,7 @@
   "dependencies": {
     "@types/axios": "^0.9.36",
     "axios": "^1.13.2",
+    "lucide-react": "^0.563.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "reactflow": "^11.11.4"

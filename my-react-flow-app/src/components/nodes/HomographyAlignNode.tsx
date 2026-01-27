@@ -5,6 +5,7 @@ import type { CustomNodeData } from '../../types';
 import Modal from '../common/Modal';
 import { abs } from '../../lib/api';
 import { useNodeStatus } from '../../hooks/useNodeStatus';
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -20,6 +21,11 @@ const DEFAULT_PARAMS = {
   blend: false,
 };
 type Params = typeof DEFAULT_PARAMS;
+
+const ALLOWED_HOMO_KEYS = [
+  'warp_mode',
+  'blend'
+];
 
 const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
@@ -41,7 +47,36 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
 
   const onClose = () => { setForm(savedParams); setOpen(false); };
 
-  const onSave = () => {
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_HOMO_KEYS.forEach((k) => {
+        const key = k as keyof Params;
+        const val = loadedParams[key];
+
+        if (val !== undefined && val !== null) {
+            if (key === 'warp_mode') {
+                if (['image2_to_image1', 'image1_to_image2'].includes(val)) {
+                    cleanParams.warp_mode = val;
+                    count++;
+                }
+            } else if (key === 'blend') {
+                cleanParams.blend = Boolean(val);
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for Homography.");
+        return;
+    }
+
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
+
+  const onSave = useCallback(() => {
     rf.setNodes(nds =>
       nds.map(n =>
         n.id === id
@@ -57,7 +92,7 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
       )
     );
     setOpen(false);
-  };
+  }, [rf, id, form]);
 
   const onRun = useCallback(() => {
     if (isRunning) return;
@@ -85,7 +120,7 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
     const jsonData = data?.payload?.json_data || data?.payload?.output || data?.payload?.json;
     let shape = jsonData?.output?.aligned_shape;
     if (!shape) shape = jsonData?.output?.shape;
-    if (!shape) shape = data?.payload?.aligned_shape;
+    if (!shape) data?.payload?.aligned_shape;
 
     if (Array.isArray(shape) && shape.length >= 2) {
       return `${shape[1]}×${shape[0]}px`;
@@ -224,6 +259,10 @@ const HomographyAlignNode = memo(({ id, data, selected }: NodeProps<CustomNodeDa
             />
             Blend overlay
           </label>
+          
+          <div className="pt-2">
+            <ParameterLoader onLoad={handleParamsLoaded} checkTool="HomographyAlignment" />
+          </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-gray-700 mt-4">
             <button onClick={onClose} className="px-4 py-1.5 rounded bg-gray-700 text-xs cursor-pointer hover:bg-gray-600 transition text-white">Cancel</button>

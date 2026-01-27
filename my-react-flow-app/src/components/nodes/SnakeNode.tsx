@@ -1,11 +1,11 @@
-// File: src/components/nodes/SnakeNode.tsx
 import { memo, useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; // ❌ เอา useNodes ออกเพื่อลดการทำงานซ้ำซ้อน
+import { Handle, Position, type NodeProps, useReactFlow, useEdges } from 'reactflow'; 
 import type { CustomNodeData } from '../../types';
 import { abs } from '../../lib/api'; 
 import Modal from '../common/Modal';
 import { getNodeImageUrl } from '../../lib/runners/utils';
 import { useNodeStatus } from '../../hooks/useNodeStatus'; 
+import { ParameterLoader } from '../ParameterLoader'; 
 
 const SettingsSlidersIcon = ({ className = 'h-4 w-4' }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="black" aria-hidden="true">
@@ -104,10 +104,17 @@ const DEFAULT_PARAMS: Params = {
   bbox_x1: null, bbox_y1: null, bbox_x2: null, bbox_y2: null
 };
 
+const ALLOWED_SNAKE_KEYS = [
+  'alpha', 'beta', 'gamma', 'w_line', 'w_edge', 
+  'max_iterations', 'gaussian_blur_ksize', 'convergence', 
+  'init_mode', 'init_points', 'init_cx', 'init_cy', 'init_radius', 
+  'from_point_x', 'from_point_y', 
+  'bbox' 
+];
+
 const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   const rf = useReactFlow();
   const edges = useEdges();
-  // const nodes = useNodes<CustomNodeData>(); // ❌ เอาออก: เพื่อประสิทธิภาพ
   
   const [open, setOpen] = useState(false);
   const [showAdv, setShowAdv] = useState(false);
@@ -122,7 +129,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
   
   const [isEditing, setIsEditing] = useState(true);
 
-  // Status effect
   useEffect(() => {
     if (isSuccess) {
       setIsEditing(false);
@@ -133,21 +139,17 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
 
   const isConnected = useMemo(() => edges.some(e => e.target === id), [edges, id]);
 
-  // ✅ คำนวณ upstreamImage แบบประหยัด (ใช้ getNode)
   const upstreamImage = useMemo(() => {
     if (!isConnected) return null;
     const incoming = edges.find(e => e.target === id);
     if (!incoming) return null;
-    const parent = rf.getNode(incoming.source); // ใช้ rf.getNode แทน useNodes
+    const parent = rf.getNode(incoming.source); 
     return getNodeImageUrl(parent);
   }, [edges, id, rf, isConnected]);
 
   const prevInputRef = useRef(upstreamImage);
   
-  // 🔥🔥 FIX IS HERE 🔥🔥
   useEffect(() => {
-    // เงื่อนไข: ถ้าภาพเปลี่ยน AND ยังเชื่อมต่ออยู่ -> ถึงจะ Reset
-    // ถ้าไม่เชื่อมต่อ (isConnected = false) -> ปล่อยให้ FlowCanvas.onEdgesDelete จัดการ
     if (isConnected && upstreamImage !== prevInputRef.current) {
       rf.setNodes((nds) => nds.map((n) => {
         if (n.id === id) {
@@ -162,7 +164,7 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       setIsEditing(true);
     }
     prevInputRef.current = upstreamImage;
-  }, [upstreamImage, id, rf, isConnected]); // เพิ่ม isConnected เป็น dependency
+  }, [upstreamImage, id, rf, isConnected]);
 
   const savedParams = useMemo(() => {
     const p = (data?.params || data?.payload?.params || {}) as Partial<Params>;
@@ -192,6 +194,38 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
       } : n
     ));
   }, [rf, id]);
+
+  const handleParamsLoaded = useCallback((loadedParams: any) => {
+    const source = loadedParams.parameters || loadedParams;
+    const cleanParams: Partial<Params> = {};
+    let count = 0;
+
+    ALLOWED_SNAKE_KEYS.forEach((k) => {
+        if (source[k] !== undefined && source[k] !== null) {
+            if (k === 'bbox' && Array.isArray(source[k]) && source[k].length === 4) {
+                cleanParams.bbox_x1 = source[k][0];
+                cleanParams.bbox_y1 = source[k][1];
+                cleanParams.bbox_x2 = source[k][2];
+                cleanParams.bbox_y2 = source[k][3];
+                count++;
+            } else if (k === 'init_mode') {
+                cleanParams.init_mode = normalize(source[k]);
+                count++;
+            } else {
+                (cleanParams as any)[k] = source[k];
+                count++;
+            }
+        }
+    });
+
+    if (count === 0) {
+        alert("No compatible parameters found for Snake.");
+        return;
+    }
+
+    setIsEditing(true);
+    setForm(prev => ({ ...prev, ...cleanParams }));
+  }, []);
 
   const onSave = useCallback(() => {
     const cleanParams: Params = {
@@ -436,21 +470,18 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                         label="alpha (elasticity)" 
                         value={form.alpha} step={0.01} min={0}
                         onChange={(v) => setForm((s) => ({ ...s, alpha: v }))} 
-                        // ✅ ห้ามติดลบ
                         onBlur={(v) => setForm((s) => ({ ...s, alpha: Math.max(0, v) }))}
                     />
                     <Num 
                         label="beta (stiffness)" 
                         value={form.beta} step={0.1} min={0}
                         onChange={(v) => setForm((s) => ({ ...s, beta: v }))} 
-                        // ✅ ห้ามติดลบ
                         onBlur={(v) => setForm((s) => ({ ...s, beta: Math.max(0, v) }))}
                     />
                     <Num 
                         label="gamma (step size)" 
                         value={form.gamma} step={0.01} min={0.01}
                         onChange={(v) => setForm((s) => ({ ...s, gamma: v }))} 
-                        // ✅ ห้าม 0
                         onBlur={(v) => setForm((s) => ({ ...s, gamma: Math.max(0.01, v) }))}
                     />
                     <Num label="w_edge" value={form.w_edge} step={0.05} onChange={(v) => setForm((s) => ({ ...s, w_edge: v }))} />
@@ -461,7 +492,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                         value={form.max_iterations} 
                         min={1} step={1} 
                         onChange={(v) => setForm((s) => ({ ...s, max_iterations: v }))}
-                        // ✅ ห้าม < 1
                         onBlur={(v) => setForm((s) => ({ ...s, max_iterations: Math.max(1, Math.floor(v)) }))} 
                     />
                     <Num 
@@ -469,7 +499,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                         value={form.gaussian_blur_ksize} 
                         min={0} step={1} 
                         onChange={(v) => setForm((s) => ({ ...s, gaussian_blur_ksize: v }))}
-                        // ✅ ห้าม < 0
                         onBlur={(v) => setForm((s) => ({ ...s, gaussian_blur_ksize: Math.max(0, Math.floor(v)) }))}
                     />
                 </div>
@@ -485,7 +514,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                                 value={form.convergence} 
                                 min={0} step={0.0001} 
                                 onChange={(v) => setForm((s) => ({ ...s, convergence: v }))}
-                                // ✅ Fix < 0
                                 onBlur={(v) => setForm((s) => ({ ...s, convergence: Math.max(0, v) }))}
                             />
                         </div>
@@ -502,7 +530,6 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                                 value={form.init_points} 
                                 min={8} step={1} 
                                 onChange={(v) => setForm((s) => ({ ...s, init_points: v }))}
-                                // ✅ Fix < 3
                                 onBlur={(v) => setForm((s) => ({ ...s, init_points: Math.max(3, Math.floor(v)) }))}
                             />
                             {form.init_mode === 'circle' && <div className="grid grid-cols-3 gap-2"><Num label="init_cx" value={form.init_cx} onChange={(v) => setForm((s) => ({ ...s, init_cx: v }))} /><Num label="init_cy" value={form.init_cy} onChange={(v) => setForm((s) => ({ ...s, init_cy: v }))} /><Num label="init_radius" value={form.init_radius} onChange={(v) => setForm((s) => ({ ...s, init_radius: v }))} /></div>}
@@ -511,6 +538,10 @@ const SnakeNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>) => {
                         </div>
                     </div>
                 )}
+            </div>
+            
+            <div className="pt-2">
+                <ParameterLoader onLoad={handleParamsLoaded} checkTool="SnakeActiveContour" />
             </div>
 
             <div className="flex justify-between items-center pt-5 border-t border-gray-700 mt-4">

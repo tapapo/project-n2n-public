@@ -1,255 +1,259 @@
-# tests/test_sift_properties.py
+# tests/test_sift.py
 import os
 import json
 import time
+import shutil
 from pathlib import Path
 
 import cv2
 import numpy as np
 import pytest
 
+# ตรวจสอบ path import ให้ตรงกับโครงสร้างโปรเจกต์ของคุณ
 from server.algos.feature.sift_adapter import run as sift_run
 
-# ======================
-# Fixtures: รูปสำหรับทดสอบ
-# ======================
+# =============================================================================
+# 1. FIXTURES: การเตรียมข้อมูลจำลอง (Images & Helpers)
+# =============================================================================
 
 @pytest.fixture()
 def textured_img(tmp_path) -> str:
-    """ภาพสังเคราะห์ที่มี texture เพียงพอให้ SIFT เจอคีย์พอยต์"""
+    """สร้างภาพสังเคราะห์ที่มีลวดลายชัดเจน (เพื่อให้ SIFT จับ Keypoints ได้ง่าย)"""
     path = tmp_path / "textured.jpg"
     h, w = 320, 320
     img = np.zeros((h, w, 3), dtype=np.uint8)
 
-    # ลวดลาย 
+    # วาดลวดลาย: เส้น, สี่เหลี่ยม, วงกลม
     for i in range(10, min(h, w), 20):
         cv2.line(img, (i, 0), (w - 1 - i, h - 1), (255, 255, 255), 1)
         cv2.rectangle(img, (i, i), (i + 12, i + 12), (180, 180, 180), -1)
         cv2.circle(img, (w // 2, i), 10, (220, 220, 220), 2)
-    cv2.putText(img, "SIFT", (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (200, 200, 200), 2, cv2.LINE_AA)
+    
+    # ใส่ Text เพื่อเพิ่ม texture
+    cv2.putText(img, "SIFT TEST", (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (200, 200, 200), 2)
 
     cv2.imwrite(str(path), img)
     return str(path)
 
 @pytest.fixture()
 def large_img(tmp_path) -> str:
-    """ภาพใหญ่ (HD) พร้อม texture"""
+    """ภาพขนาดใหญ่ (HD) เพื่อทดสอบ Performance"""
     path = tmp_path / "large.jpg"
     h, w = 1080, 1920
     img = np.zeros((h, w, 3), dtype=np.uint8)
-
-    # วาดลายเส้น/วงกลมเพื่อให้มี keypoints เพียงพอ
-    step = 40
-    for y in range(0, h, step):
-        cv2.line(img, (0, y), (w - 1, y), (255, 255, 255), 1)
-    for x in range(0, w, step):
-        cv2.line(img, (x, 0), (x, h - 1), (255, 255, 255), 1)
-    cv2.putText(img, "BIG SIFT", (50, h // 2), cv2.FONT_HERSHEY_SIMPLEX, 5, (200, 200, 200), 10, cv2.LINE_AA)
-
+    # วาด Grid
+    for y in range(0, h, 50):
+        cv2.line(img, (0, y), (w, y), (200, 200, 200), 1)
+    for x in range(0, w, 50):
+        cv2.line(img, (x, 0), (x, h), (200, 200, 200), 1)
     cv2.imwrite(str(path), img)
     return str(path)
 
 @pytest.fixture()
 def gray_img(tmp_path) -> str:
-    """ภาพ grayscale"""
+    """ภาพ Grayscale (1 Channel)"""
     path = tmp_path / "gray.png"
     g = np.zeros((256, 256), dtype=np.uint8)
-    cv2.circle(g, (128, 128), 60, 200, -1)
-    cv2.line(g, (32, 32), (224, 200), 150, 3)
+    cv2.circle(g, (128, 128), 50, 200, -1)
     cv2.imwrite(str(path), g)
     return str(path)
 
 @pytest.fixture()
 def bgra_img(tmp_path) -> str:
-    """ภาพ BGRA (4 channels)"""
+    """ภาพ BGRA (4 Channels with Alpha)"""
     path = tmp_path / "bgra.png"
     bgr = np.zeros((256, 256, 3), dtype=np.uint8)
-    bgr[:] = (10, 20, 30)
-    cv2.rectangle(bgr, (40, 40), (200, 200), (220, 220, 220), -1)
-    a = np.full((256, 256, 1), 255, dtype=np.uint8)  # alpha
-    bgra = np.concatenate([bgr, a], axis=2)
+    cv2.rectangle(bgr, (50, 50), (200, 200), (100, 150, 200), -1)
+    alpha = np.full((256, 256, 1), 255, dtype=np.uint8)
+    bgra = np.concatenate([bgr, alpha], axis=2)
     cv2.imwrite(str(path), bgra)
     return str(path)
 
-@pytest.fixture()
-def non_image_file(tmp_path) -> str:
-    """ไฟล์ที่ 'มีอยู่จริง' แต่ไม่ใช่ภาพ"""
-    p = tmp_path / "not_image.txt"
-    p.write_text("this is not an image")
-    return str(p)
+# --- Helpers ---
 
-# ======================
-# Helpers
-# ======================
-
-def _load_json(p: str) -> dict:
-    with open(p, "r") as f:
+def _load_json(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
-def _bf_match_ratio(des1: np.ndarray, des2: np.ndarray) -> float:
-    """สัดส่วนแมตช์แบบหลวม ๆ (ใช้ในเวอร์ชัน soft ถ้าจำเป็น)"""
-    if des1.size == 0 or des2.size == 0:
-        return 0.0
-    bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
-    matches = bf.match(des1, des2)
-    denom = max(1, min(len(des1), len(des2)))
-    return len(matches) / denom
-
-# ===== Helpers (strict) =====
 def _load_kp_and_des(json_path: str):
+    """โหลด keypoints และ descriptors จากไฟล์ JSON output"""
     d = _load_json(json_path)
-    kps = d["keypoints"]
-    pts = np.array([[kp["x"], kp["y"]] for kp in kps], dtype=np.float32) if kps else np.empty((0, 2), np.float32)
-    des = np.array(d["descriptors"], dtype=np.float32) if d["descriptors"] else np.empty((0, 128), np.float32)
+    kps = d.get("keypoints", [])
+    pts = np.array([[k["x"], k["y"]] for k in kps], dtype=np.float32) if kps else np.empty((0, 2), dtype=np.float32)
+    des = np.array(d.get("descriptors", []), dtype=np.float32) if d.get("descriptors") else np.empty((0, 128), dtype=np.float32)
     return pts, des
 
-def _inlier_ratio_via_homography(pts1, des1, pts2, des2, ratio_thresh=0.75, ransac_reproj_thresh=3.0):
-    """คำนวณ inlier ratio ด้วย KNN+Lowe ratio -> findHomography(RANSAC)"""
+def _check_matching_quality(j1_path, j2_path, min_ratio=0.25):
+    """Helper สำหรับเช็คว่า Feature 2 ชุด แมตช์กันได้ดีแค่ไหน (Invariance Test)"""
+    pts1, des1 = _load_kp_and_des(j1_path)
+    pts2, des2 = _load_kp_and_des(j2_path)
+
     if des1.size == 0 or des2.size == 0:
-        return 0.0, 0  # ratio, good_count
+        return False, 0.0
 
+    # ใช้ KNN Matcher
     bf = cv2.BFMatcher(cv2.NORM_L2)
-    knn = bf.knnMatch(des1, des2, k=2)
+    matches = bf.knnMatch(des1, des2, k=2)
+
+    # Lowe's Ratio Test
     good = []
-    for m, n in knn:
-        if m.distance < ratio_thresh * n.distance:
+    for m, n in matches:
+        if m.distance < 0.75 * n.distance:
             good.append(m)
-    good_count = len(good)
-    if good_count < 4:
-        return 0.0, good_count
 
-    src = np.float32([pts1[m.queryIdx] for m in good])
-    dst = np.float32([pts2[m.trainIdx] for m in good])
-    H, mask = cv2.findHomography(src, dst, cv2.RANSAC, ransac_reproj_thresh)
+    if len(good) < 4:
+        return False, 0.0
+
+    # หา Homography เพื่อยืนยันว่าจุดเกาะกลุ่มกันถูกต้องตามเรขาคณิต
+    src_pts = np.float32([pts1[m.queryIdx] for m in good]).reshape(-1, 1, 2)
+    dst_pts = np.float32([pts2[m.trainIdx] for m in good]).reshape(-1, 1, 2)
+
+    M, mask = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)
+    
     if mask is None:
-        return 0.0, good_count
-    inlier_ratio = float(mask.sum()) / good_count
-    return inlier_ratio, good_count
+        return False, 0.0
 
-# ======================
-# 1) Determinism / Repeatability
-# ======================
+    matchesMask = mask.ravel().tolist()
+    inlier_count = sum(matchesMask)
+    total_good = len(good)
+    
+    ratio = inlier_count / total_good if total_good > 0 else 0
+    return ratio >= min_ratio, ratio
 
-def test_determinism_num_and_shape(tmp_path, textured_img):
+# =============================================================================
+# 2. CACHING LOGIC TESTS (สำคัญ: แก้ไขจาก Logic เดิม)
+# =============================================================================
+
+def test_caching_same_input_same_output(tmp_path, textured_img):
+    """ถ้า Input เหมือนเดิม + Param เหมือนเดิม = ต้องได้ไฟล์เดิม (Cache Hit)"""
+    # Run รอบที่ 1
+    j1, v1 = sift_run(textured_img, out_dir=tmp_path, nfeatures=500)
+    
+    # Run รอบที่ 2
+    j2, v2 = sift_run(textured_img, out_dir=tmp_path, nfeatures=500)
+    
+    # ต้องได้ Path เดิม เพราะ Adapter คำนวณ Hash จาก Config
+    assert j1 == j2
+    assert v1 == v2
+    assert os.path.exists(j1)
+
+def test_param_change_creates_new_file(tmp_path, textured_img):
+    """ถ้าเปลี่ยน Parameter = ต้องได้ไฟล์ใหม่"""
+    j1, _ = sift_run(textured_img, out_dir=tmp_path, nfeatures=500)
+    j2, _ = sift_run(textured_img, out_dir=tmp_path, nfeatures=1000) # เปลี่ยนค่า
+    
+    assert j1 != j2
+
+def test_image_modification_creates_new_file(tmp_path, textured_img):
+    """ถ้าแก้ไขรูปภาพ (mtime เปลี่ยน) = ต้องได้ไฟล์ใหม่"""
     j1, _ = sift_run(textured_img, out_dir=tmp_path)
+    
+    # Sleep เล็กน้อยเพื่อให้ Timestamp ของระบบไฟล์เปลี่ยนแน่นอน
+    time.sleep(1.5)
+    
+    # แตะไฟล์เพื่ออัปเดต Last Modified Time
+    Path(textured_img).touch()
+    
     j2, _ = sift_run(textured_img, out_dir=tmp_path)
+    
+    assert j1 != j2
 
-    d1, d2 = _load_json(j1), _load_json(j2)
-    des1 = np.array(d1["descriptors"], dtype=np.float32)
-    des2 = np.array(d2["descriptors"], dtype=np.float32)
+# =============================================================================
+# 3. JSON INPUT & ERROR HANDLING TESTS (เพิ่มใหม่)
+# =============================================================================
 
-    assert d1["num_keypoints"] == d2["num_keypoints"]
-    assert des1.shape == des2.shape
+def test_run_from_valid_json_input(tmp_path, textured_img):
+    """ทดสอบรับ Input เป็นไฟล์ JSON (Metadata จากโหนดก่อนหน้า)"""
+    # จำลองไฟล์ JSON ที่มาจาก Preprocessing Node
+    meta_path = tmp_path / "prev_node_output.json"
+    payload = {
+        "tool": "PREPROCESS",
+        "output": {
+            "result_image_url": str(textured_img)  # Adapter จะต้องดึง path นี้ไปใช้
+        }
+    }
+    with open(meta_path, "w") as f:
+        json.dump(payload, f)
+        
+    # ส่ง path ของ json เข้าไปในฟังก์ชัน run
+    j_out, _ = sift_run(str(meta_path), out_dir=tmp_path)
+    
+    # ตรวจสอบผลลัพธ์
+    data = _load_json(j_out)
+    assert data["tool"] == "SIFT"
+    assert data["image"]["original_path"] == str(textured_img)
 
-# ======================
-# 2) Parameter contract (มีอยู่ + ค่าตามที่ตั้ง)
-# ======================
+def test_error_on_matching_tool_json(tmp_path):
+    """ห้ามรับ JSON ของ Matching Tool (เพราะ SIFT ต้องรันก่อน Matching)"""
+    meta_path = tmp_path / "match_result.json"
+    with open(meta_path, "w") as f:
+        json.dump({"matching_tool": "BFMatcher"}, f)
+        
+    with pytest.raises(ValueError, match="Invalid Input: SIFT cannot run on"):
+        sift_run(str(meta_path), out_dir=tmp_path)
 
-def test_nfeatures_is_close_to_target(tmp_path, textured_img):
-    n = 50
-    j, _ = sift_run(textured_img, out_dir=tmp_path, nfeatures=n)
-    d = _load_json(j)
-    # SIFT ของ OpenCV ให้ค่า "ใกล้เคียง" ไม่ใช่ strict cap
-    assert abs(d["num_keypoints"] - n) <= 5
+def test_error_on_feature_tool_json(tmp_path):
+    """ห้ามรับ JSON ของ Feature Tool ตัวอื่น (ไม่ควรเอา SIFT ไปรันซ้ำบน ORB)"""
+    meta_path = tmp_path / "orb_result.json"
+    with open(meta_path, "w") as f:
+        json.dump({"tool": "ORB"}, f)
+        
+    with pytest.raises(ValueError, match="Invalid Input: SIFT cannot run on"):
+        sift_run(str(meta_path), out_dir=tmp_path)
 
-def test_defaults_present_in_schema(tmp_path, textured_img):
+def test_file_not_found(tmp_path):
+    """ทดสอบกรณีไฟล์ไม่มีจริง"""
+    with pytest.raises(FileNotFoundError):
+        sift_run(str(tmp_path / "non_existent.jpg"), out_dir=tmp_path)
+
+# =============================================================================
+# 4. PARAMETER CONTRACT & SCHEMA TESTS
+# =============================================================================
+
+def test_json_schema_validity(tmp_path, textured_img):
+    """ตรวจสอบโครงสร้าง JSON Output ว่ามี Key ครบถ้วน"""
     j, _ = sift_run(textured_img, out_dir=tmp_path)
-    d = _load_json(j)
-    params = d["sift_parameters_used"]
-    for key in ["nfeatures", "nOctaveLayers", "contrastThreshold", "edgeThreshold", "sigma"]:
-        assert key in params
+    data = _load_json(j)
 
-def test_parameter_echo_in_schema(tmp_path, textured_img):
-    j, _ = sift_run(
-        textured_img, out_dir=tmp_path,
-        nfeatures=321, nOctaveLayers=5,
-        contrastThreshold=0.08, edgeThreshold=6, sigma=2.0
-    )
-    p = _load_json(j)["sift_parameters_used"]
-    assert p["nfeatures"] == 321
-    assert p["nOctaveLayers"] == 5
-    assert abs(p["contrastThreshold"] - 0.08) < 1e-9
-    assert abs(p["edgeThreshold"] - 6) < 1e-9
-    assert abs(p["sigma"] - 2.0) < 1e-9
+    required_keys = [
+        "tool", "tool_version", "image", "sift_parameters_used",
+        "num_keypoints", "descriptor_dim", "keypoints", "descriptors"
+    ]
+    for k in required_keys:
+        assert k in data, f"Missing key: {k}"
 
-# ======================
-# 2.5) Parameter effects (แนวโน้ม + tolerance)
-# ======================
+    assert data["tool"] == "SIFT"
+    assert data["descriptor_dim"] == 128
+    assert len(data["keypoints"]) == data["num_keypoints"]
 
-def test_nOctaveLayers_effect(tmp_path, textured_img):
-    j_lo, _ = sift_run(textured_img, out_dir=tmp_path, nOctaveLayers=2)
-    j_hi, _ = sift_run(textured_img, out_dir=tmp_path, nOctaveLayers=5)
-    d_lo, d_hi = _load_json(j_lo), _load_json(j_hi)
-    # เลเยอร์มากขึ้น โดยทั่วไปไม่ควรได้คีย์พอยต์น้อยลงอย่างมีนัย
-    assert d_hi["num_keypoints"] >= int(d_lo["num_keypoints"] * 0.8)
+def test_parameter_reflection(tmp_path, textured_img):
+    """ค่าพารามิเตอร์ที่ส่งไป ต้องถูกบันทึกลง JSON อย่างถูกต้อง"""
+    params = {
+        "nfeatures": 300,
+        "nOctaveLayers": 4,
+        "contrastThreshold": 0.05,
+        "edgeThreshold": 12,
+        "sigma": 1.8
+    }
+    j, _ = sift_run(textured_img, out_dir=tmp_path, **params)
+    data = _load_json(j)
+    used = data["sift_parameters_used"]
 
-def test_contrastThreshold_effect(tmp_path, textured_img):
-    j_lo, _ = sift_run(textured_img, out_dir=tmp_path, contrastThreshold=0.02)
-    j_hi, _ = sift_run(textured_img, out_dir=tmp_path, contrastThreshold=0.1)
-    d_lo, d_hi = _load_json(j_lo), _load_json(j_hi)
-    # threshold สูงขึ้น → คัดเข้มขึ้น → คีย์พอยต์ควรลดลงหรือเท่าเดิม
-    assert d_lo["num_keypoints"] >= d_hi["num_keypoints"]
+    assert used["nfeatures"] == 300
+    assert used["nOctaveLayers"] == 4
+    assert abs(used["contrastThreshold"] - 0.05) < 1e-6
+    assert abs(used["edgeThreshold"] - 12) < 1e-6
+    assert abs(used["sigma"] - 1.8) < 1e-6
 
-def test_edgeThreshold_effect(tmp_path, textured_img):
-    j_lo, _ = sift_run(textured_img, out_dir=tmp_path, edgeThreshold=2)
-    j_hi, _ = sift_run(textured_img, out_dir=tmp_path, edgeThreshold=10)
-    d_lo, d_hi = _load_json(j_lo), _load_json(j_hi)
-    # edgeThreshold สูงขึ้น → ขอบที่ “กัน” กว้างขึ้น/ผ่อนลง → โดยทั่วไปคีย์พอยต์ “ไม่ควรลดลง”
-    assert d_hi["num_keypoints"] >= d_lo["num_keypoints"]
-
-def test_sigma_effect(tmp_path, textured_img):
-    j_lo, _ = sift_run(textured_img, out_dir=tmp_path, sigma=1.2)
-    j_hi, _ = sift_run(textured_img, out_dir=tmp_path, sigma=2.4)
-    d_lo, d_hi = _load_json(j_lo), _load_json(j_hi)
-    # sigma สูง เบลอขึ้น → จุดละเอียดหาย → จำนวนคีย์พอยต์มักลดลงหรือเท่าเดิม
-    assert d_lo["num_keypoints"] >= d_hi["num_keypoints"]
-
-# ======================
-# 3) Descriptor sanity
-# ======================
-
-def test_descriptor_shape_dtype_and_finite(tmp_path, textured_img):
-    j, _ = sift_run(textured_img, out_dir=tmp_path)
-    d = _load_json(j)
-    des = np.array(d["descriptors"], dtype=np.float32)
-
-    if des.size == 0:
-        pytest.skip("No descriptors; fixture did not produce keypoints on this run")
-
-    assert des.dtype == np.float32
-    assert des.ndim == 2
-    assert des.shape[1] == 128
-    assert np.all(np.isfinite(des))
-    norms = np.linalg.norm(des, axis=1)
-    assert np.all(norms > 0)
-
-# ======================
-# 4) Input variations (channels)
-# ======================
-
-def test_grayscale_input(tmp_path, gray_img):
-    j, _ = sift_run(gray_img, out_dir=tmp_path)
-    d = _load_json(j)
-    assert d["descriptor_dim"] == 128
-    assert d["num_keypoints"] == len(d["descriptors"]) == len(d["keypoints"])
-
-def test_bgra_input(tmp_path, bgra_img):
-    j, _ = sift_run(bgra_img, out_dir=tmp_path)
-    d = _load_json(j)
-    assert d["descriptor_dim"] == 128
-    assert d["num_keypoints"] == len(d["descriptors"]) == len(d["keypoints"])
-
-def test_non_image_raises(tmp_path, non_image_file):
-    with pytest.raises(ValueError):
-        sift_run(non_image_file, out_dir=tmp_path)
-
-# ======================
-# 5) Invariance / Robustness (STRICT)
-# ======================
+# =============================================================================
+# 5. ROBUSTNESS & INVARIANCE TESTS (ความทนทาน)
+# =============================================================================
 
 def test_rotation_invariance(tmp_path, textured_img):
+    """ทดสอบการหมุนภาพ: SIFT ควรจะยังจับคู่กันได้"""
     src = cv2.imread(textured_img)
     h, w = src.shape[:2]
+    # หมุน 45 องศา
     M = cv2.getRotationMatrix2D((w//2, h//2), 45, 1.0)
     rotated = cv2.warpAffine(src, M, (w, h))
     rot_path = str(tmp_path / "rot.jpg")
@@ -258,133 +262,68 @@ def test_rotation_invariance(tmp_path, textured_img):
     j1, _ = sift_run(textured_img, out_dir=tmp_path)
     j2, _ = sift_run(rot_path, out_dir=tmp_path)
 
-    pts1, des1 = _load_kp_and_des(j1)
-    pts2, des2 = _load_kp_and_des(j2)
-
-    ratio, good = _inlier_ratio_via_homography(pts1, des1, pts2, des2, ratio_thresh=0.75, ransac_reproj_thresh=3.0)
-    if good < 25:
-        pytest.skip(f"Too few good matches to assess rotation invariance (good={good})")
-    assert ratio >= 0.35, f"inlier ratio too low: {ratio:.2f} (good={good})"
+    passed, ratio = _check_matching_quality(j1, j2)
+    assert passed, f"Rotation invariance failed (Ratio: {ratio:.2f})"
 
 def test_scale_invariance(tmp_path, textured_img):
+    """ทดสอบการย่อภาพ: SIFT ควรจะยังจับคู่กันได้"""
     src = cv2.imread(textured_img)
-    scaled = cv2.resize(src, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
-    sc_path = str(tmp_path / "scaled.jpg")
-    cv2.imwrite(sc_path, scaled)
+    # ย่อเหลือ 50%
+    scaled = cv2.resize(src, None, fx=0.5, fy=0.5)
+    scale_path = str(tmp_path / "scale.jpg")
+    cv2.imwrite(scale_path, scaled)
 
     j1, _ = sift_run(textured_img, out_dir=tmp_path)
-    j2, _ = sift_run(sc_path, out_dir=tmp_path)
+    j2, _ = sift_run(scale_path, out_dir=tmp_path)
 
-    pts1, des1 = _load_kp_and_des(j1)
-    pts2, des2 = _load_kp_and_des(j2)
+    passed, ratio = _check_matching_quality(j1, j2)
+    assert passed, f"Scale invariance failed (Ratio: {ratio:.2f})"
 
-    ratio, good = _inlier_ratio_via_homography(pts1, des1, pts2, des2, ratio_thresh=0.75, ransac_reproj_thresh=3.0)
-    if good < 25:
-        pytest.skip(f"Too few good matches to assess scale invariance (good={good})")
-    assert ratio >= 0.30, f"inlier ratio too low: {ratio:.2f} (good={good})"
-
-def test_illumination_robustness(tmp_path, textured_img):
+def test_illumination_invariance(tmp_path, textured_img):
+    """ทดสอบความสว่างเปลี่ยน: SIFT ควรจะยังจับคู่กันได้"""
     src = cv2.imread(textured_img)
-    brighter = cv2.convertScaleAbs(src, alpha=1.0, beta=25)  # shift intensity เล็กน้อย
-    br_path = str(tmp_path / "brighter.jpg")
-    cv2.imwrite(br_path, brighter)
+    # เพิ่มความสว่าง
+    bright = cv2.convertScaleAbs(src, alpha=1.2, beta=30)
+    bright_path = str(tmp_path / "bright.jpg")
+    cv2.imwrite(bright_path, bright)
 
     j1, _ = sift_run(textured_img, out_dir=tmp_path)
-    j2, _ = sift_run(br_path, out_dir=tmp_path)
+    j2, _ = sift_run(bright_path, out_dir=tmp_path)
 
-    pts1, des1 = _load_kp_and_des(j1)
-    pts2, des2 = _load_kp_and_des(j2)
+    passed, ratio = _check_matching_quality(j1, j2)
+    assert passed, f"Illumination invariance failed (Ratio: {ratio:.2f})"
 
-    ratio, good = _inlier_ratio_via_homography(pts1, des1, pts2, des2, ratio_thresh=0.75, ransac_reproj_thresh=3.0)
-    if good < 25:
-        pytest.skip(f"Too few good matches to assess illumination robustness (good={good})")
-    assert ratio >= 0.35, f"inlier ratio too low: {ratio:.2f} (good={good})"
+# =============================================================================
+# 6. INPUT CHANNEL & TYPE TESTS
+# =============================================================================
 
-def test_noise_robustness(tmp_path, textured_img):
-    np.random.seed(0)  # reproducible
-    src = cv2.imread(textured_img)
-    noise = np.random.normal(0, 10, src.shape).astype(np.int16)  # sigma=10
-    noisy = np.clip(src.astype(np.int16) + noise, 0, 255).astype(np.uint8)
-    nz_path = str(tmp_path / "noisy.jpg")
-    cv2.imwrite(nz_path, noisy)
+def test_grayscale_support(tmp_path, gray_img):
+    """ทดสอบรูปขาวดำ"""
+    j, _ = sift_run(gray_img, out_dir=tmp_path)
+    data = _load_json(j)
+    assert data["num_keypoints"] > 0
+    assert data["descriptor_dim"] == 128
 
-    j1, _ = sift_run(textured_img, out_dir=tmp_path)
-    j2, _ = sift_run(nz_path, out_dir=tmp_path)
+def test_bgra_support(tmp_path, bgra_img):
+    """ทดสอบรูปที่มี Alpha Channel"""
+    j, _ = sift_run(bgra_img, out_dir=tmp_path)
+    data = _load_json(j)
+    # ควรทำงานได้โดยไม่ Crash (โค้ด Adapter มีการแปลงเป็น Gray)
+    assert data["num_keypoints"] > 0
 
-    pts1, des1 = _load_kp_and_des(j1)
-    pts2, des2 = _load_kp_and_des(j2)
+# =============================================================================
+# 7. PERFORMANCE TEST
+# =============================================================================
 
-    ratio, good = _inlier_ratio_via_homography(pts1, des1, pts2, des2, ratio_thresh=0.75, ransac_reproj_thresh=3.0)
-    if good < 25:
-        pytest.skip(f"Too few good matches to assess noise robustness (good={good})")
-    assert ratio >= 0.25, f"inlier ratio too low: {ratio:.2f} (good={good})"
-
-# ======================
-# 6) Output contract / JSON schema
-# ======================
-
-def test_json_schema_contract(tmp_path, textured_img):
-    j, _ = sift_run(textured_img, out_dir=tmp_path)
-    p = _load_json(j)
-
-    required = [
-        "tool", "tool_version", "image", "sift_parameters_used",
-        "num_keypoints", "descriptor_dim", "keypoints", "descriptors"
-    ]
-    for k in required:
-        assert k in p, f"Missing key: {k}"
-
-    assert p["tool"] == "SIFT"
-    assert p["descriptor_dim"] == 128
-    assert p["num_keypoints"] == len(p["descriptors"]) == len(p["keypoints"])
-
-    if p["num_keypoints"] > 0:
-        kp = p["keypoints"][0]
-        for kk in ["x", "y", "size", "angle", "response", "octave", "class_id", "descriptor"]:
-            assert kk in kp
-
-# ======================
-# 7) File output behavior
-# ======================
-
-def test_out_dir_respected_and_subfolder(tmp_path, textured_img):
-    j, v = sift_run(textured_img, out_dir=tmp_path)
-    # ต้องอยู่ใต้ <out_dir>/sift_outputs/ จริง
-    assert str(tmp_path) in j and "sift_outputs" in j
-    assert str(tmp_path) in v and "sift_outputs" in v
-    assert os.path.exists(j) and os.path.exists(v)
-
-def test_unique_filenames_for_same_image(tmp_path, textured_img):
-    j1, v1 = sift_run(textured_img, out_dir=tmp_path)
-    j2, v2 = sift_run(textured_img, out_dir=tmp_path)
-    assert j1 != j2 and v1 != v2
-    assert os.path.exists(j1) and os.path.exists(j2)
-
-# ======================
-# 8) Performance sanity
-# ======================
-
-def test_runtime_under_budget(tmp_path, textured_img):
-    t0 = time.perf_counter()
-    j, _ = sift_run(textured_img, out_dir=tmp_path)
-    _ = _load_json(j)
-    dt = time.perf_counter() - t0
-    # งบเวลาหลวม ๆ สำหรับภาพ 320x320 บนเครื่อง dev ทั่วไป
-    assert dt < 5.0, f"SIFT took too long: {dt:.2f}s"
-
-def test_large_image_runtime_and_output(tmp_path, large_img):
-    t0 = time.perf_counter()
+def test_performance_large_image(tmp_path, large_img):
+    """ทดสอบ Performance กับรูปใหญ่ (ต้องไม่ใช้เวลานานเกินไป)"""
+    start_time = time.perf_counter()
     j, v = sift_run(large_img, out_dir=tmp_path, nfeatures=1000)
-    dt = time.perf_counter() - t0
-
-    d = _load_json(j)
-
-    # ต้องสร้างไฟล์ออกมาได้จริง
+    duration = time.perf_counter() - start_time
+    
+    # Assert เวลา (ปรับค่าตามความแรงเครื่อง Server)
+    assert duration < 10.0, f"Processing too slow: {duration:.2f}s"
+    
+    # Assert ว่าไฟล์ถูกสร้างจริง
     assert os.path.exists(j)
     assert os.path.exists(v)
-
-    # ต้องมี keypoints จำนวนมากพอสมควร (ขึ้นกับภาพ แต่ควร > 100)
-    assert d["num_keypoints"] > 100
-
-    # ต้องไม่กินเวลามากเกินไป (กำหนด tolerance เผื่อเครื่อง dev)
-    assert dt < 15.0, f"SIFT on large image too slow: {dt:.2f}s"

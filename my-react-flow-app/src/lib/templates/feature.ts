@@ -3,8 +3,6 @@ import type { WorkflowTemplate } from '../workflowTemplates';
 import type { Node } from 'reactflow';
 
 const IMG1_URL = '/static/samples/1.png';
-const SIFT_VIS = '/static/samples/json/feature/sift_1_vis.jpg';
-const SIFT_JSON = '/static/samples/json/feature/sift_1.json';
 
 export const FEATURE_EXTRACTION_SINGLE: WorkflowTemplate = {
   name: 'SIFT (Scale-Invariant Feature Transform)',
@@ -34,7 +32,6 @@ Similar algorithms in this category include SURF (faster version) and ORB (effic
         payload: {
           name: '1.png',
           url: IMG1_URL,
-          result_image_url: IMG1_URL,
           width: 512,
           height: 288
         }
@@ -47,20 +44,16 @@ Similar algorithms in this category include SURF (faster version) and ORB (effic
       position: { x: 450, y: 50 },
       data: {
         label: 'SIFT Extractor',
-        status: 'success',
-        description: '500 keypoints detected.',
+        status: 'idle', 
+        description: 'Ready to extract features...',
         payload: {
-          params: { nfeatures: 500, nOctaveLayers: 3, contrastThreshold: 0.04, edgeThreshold: 12, sigma: 1.6 },
-          num_keypoints: 500,
-          
-          image_shape: [288, 512],
-
-          vis_url: SIFT_VIS,
-          result_image_url: SIFT_VIS,
-          preview_url: SIFT_VIS,
-          json_url: SIFT_JSON,
-          json_path: SIFT_JSON,
-          json: { num_keypoints: 500, vis_url: SIFT_VIS }
+          params: { 
+            nfeatures: 500, 
+            nOctaveLayers: 3, 
+            contrastThreshold: 0.04, 
+            edgeThreshold: 12, 
+            sigma: 1.6 
+          }
         }
       }
     } as Node,
