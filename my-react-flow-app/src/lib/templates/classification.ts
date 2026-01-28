@@ -42,7 +42,7 @@ It is the most standard way to segment objects without manually guessing the thr
     {
       id: 'n2-otsu',
       type: 'otsu',
-      position: { x: 680, y: 100 },
+      position: { x: 680, y: 231.4 },
       data: {
         label: 'Otsu Threshold',
         status: 'idle',
@@ -60,23 +60,11 @@ It is the most standard way to segment objects without manually guessing the thr
         }
       }
     } as Node,
-    {
-      id: 'n3-save-otsu',
-      type: 'save-image',
-      position: { x: 1100, y: 200 }, 
-      data: { label: 'Save Binary Mask', status: 'idle' }
-    } as Node,
-    {
-      id: 'n4-save-otsu-json',
-      type: 'save-json',
-      position: { x: 1100, y: 370 }, 
-      data: { label: 'Save Threshold Info', status: 'idle' }
-    } as Node
+    
   ],
   edges: [
     { id: 'e1', source: 'n1-moon', target: 'n2-otsu', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
-    { id: 'e2', source: 'n2-otsu', target: 'n3-save-otsu', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
-    { id: 'e3', source: 'n2-otsu', target: 'n4-save-otsu-json', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
+
   ]
 };
 
@@ -123,22 +111,10 @@ This is useful for segmenting objects with irregular shapes where simple thresho
         }
       }
     } as Node,
-    {
-      id: 'n3-save-snake',
-      type: 'save-image',
-      position: { x: 1100, y: 200 },
-      data: { label: 'Save Snake Overlay', status: 'idle' }
-    } as Node,
-    {
-      id: 'n4-save-snake-json',
-      type: 'save-json',
-      position: { x: 1100, y: 370 },
-      data: { label: 'Save Contour Points', status: 'idle' }
-    } as Node
+    
   ],
   edges: [
     { id: 'e1', source: 'n1-moon', target: 'n2-snake', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
-    { id: 'e2', source: 'n2-snake', target: 'n3-save-snake', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
-    { id: 'e3', source: 'n2-snake', target: 'n4-save-snake-json', type: 'smoothstep', style: { stroke: "#64748b", strokeWidth: 2 }},
+
   ]
 };

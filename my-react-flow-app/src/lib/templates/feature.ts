@@ -41,7 +41,7 @@ Similar algorithms in this category include SURF (faster version) and ORB (effic
     {
       id: 'n2-sift',
       type: 'sift',
-      position: { x: 450, y: 50 },
+      position: { x: 450, y: 140.83 },
       data: {
         label: 'SIFT Extractor',
         status: 'idle', 
@@ -58,18 +58,9 @@ Similar algorithms in this category include SURF (faster version) and ORB (effic
       }
     } as Node,
 
-    {
-      id: 'n3-save',
-      type: 'save-json',
-      position: { x: 850, y: 199.3 },
-      data: {
-        label: 'Save Keypoints',
-        status: 'idle'
-      }
-    } as Node
+    
   ],
   edges: [
     { id: 'e1', source: 'n1-img1', target: 'n2-sift', type: 'smoothstep', style: { strokeWidth: 2, stroke: '#64748b' } },
-    { id: 'e2', source: 'n2-sift', target: 'n3-save', type: 'smoothstep', style: { strokeWidth: 2, stroke: '#64748b' } }
   ]
 };

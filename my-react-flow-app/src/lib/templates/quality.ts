@@ -60,7 +60,7 @@ This works similarly to SSIM (Structural Similarity), but PSNR focuses purely on
     {
       id: 'psnr-n3-metric',
       type: 'psnr',
-      position: { x: 430, y: 230 },
+      position: { x: 430, y: 250 },
       data: {
         label: 'PSNR Metric',
         status: 'idle', 
@@ -70,20 +70,10 @@ This works similarly to SSIM (Structural Similarity), but PSNR focuses purely on
       },
     } as Node,
 
-    {
-      id: 'psnr-n4-save-json',
-      type: 'save-json',
-      position: { x: 820, y: 297.95 },
-      data: {
-        label: 'Save PSNR JSON',
-        status: 'idle',
-      },
-    } as Node,
   ],
   edges: [
     { id: 'psnr-e1', source: 'psnr-n1-ori', target: 'psnr-n3-metric', targetHandle: 'input1', type: 'smoothstep', style: { strokeWidth: 2, stroke: '#64748b' } },
     { id: 'psnr-e2', source: 'psnr-n2-noise', target: 'psnr-n3-metric', targetHandle: 'input2', type: 'smoothstep', style: { strokeWidth: 2, stroke: '#64748b' } },
-    { id: 'psnr-e3', source: 'psnr-n3-metric', target: 'psnr-n4-save-json', type: 'smoothstep', style: { strokeWidth: 2, stroke: '#64748b' } },
   ],
 };
 
@@ -125,7 +115,7 @@ It can detect distortions like blur or noise by checking if the image statistics
     {
       id: 'brisque-n2-metric',
       type: 'brisque',
-      position: { x: 430, y: 279 },
+      position: { x: 430, y: 290.5 },
       data: {
         label: 'BRISQUE Metric',
         status: 'idle', 
@@ -135,18 +125,9 @@ It can detect distortions like blur or noise by checking if the image statistics
       },
     } as Node,
 
-    {
-      id: 'brisque-n3-save-json',
-      type: 'save-json',
-      position: { x: 820, y: 346.95 },
-      data: {
-        label: 'Save BRISQUE JSON',
-        status: 'idle',
-      },
-    } as Node,
+    
   ],
   edges: [
     { id: 'brisque-e1', source: 'brisque-n1-img', target: 'brisque-n2-metric', type: 'smoothstep', style: { strokeWidth: 2, stroke: '#64748b' } },
-    { id: 'brisque-e2', source: 'brisque-n2-metric', target: 'brisque-n3-save-json', type: 'smoothstep', style: { strokeWidth: 2, stroke: '#64748b' } },
   ],
 };

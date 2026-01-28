@@ -44,7 +44,7 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
     { 
       id: 'n3-sift-1', 
       type: 'sift', 
-      position: { x: 450, y: 50 }, 
+      position: { x: 450, y: 140.83 }, 
       data: { 
         label: 'SIFT (Img 1)', 
         status: 'idle', 
@@ -81,7 +81,7 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
     { 
       id: 'n4-sift-2', 
       type: 'sift', 
-      position: { x: 450, y: 596.8 }, 
+      position: { x: 450, y: 713.9 }, 
       data: { 
         label: 'SIFT (Img 2)', 
         status: 'idle', 
@@ -101,7 +101,7 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
     { 
       id: 'n5-flann', 
       type: 'flannmatcher', 
-      position: { x: 850, y: 319.3 }, 
+      position: { x: 850, y: 420 }, 
       data: { 
         label: 'FLANN Matcher', 
         status: 'idle', 
@@ -118,15 +118,7 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
       } 
     } as Node,
 
-    { 
-      id: 'n6-save', 
-      type: 'save-json', 
-      position: { x: 1250, y: 472.3 }, 
-      data: { 
-        label: 'Save Matches', 
-        status: 'idle',
-      } 
-    } as Node,
+    
   ],
 
   edges: [
@@ -134,6 +126,5 @@ It provides an approximate result, trading a tiny bit of accuracy for significan
     { id: 'e2', source: 'n2-img2', target: 'n4-sift-2', type: 'smoothstep', style: { strokeWidth: 2, stroke: "#64748b" } },
     { id: 'e3', source: 'n3-sift-1', target: 'n5-flann', targetHandle: 'file1', type: 'smoothstep', style: { strokeWidth: 2, stroke: "#64748b" } },
     { id: 'e4', source: 'n4-sift-2', target: 'n5-flann', targetHandle: 'file2', type: "smoothstep", style: { strokeWidth: 2, stroke: "#64748b" } },
-    { id: 'e5', source: 'n5-flann', target: 'n6-save', type: 'smoothstep', style: { strokeWidth: 2, stroke: "#64748b" } },
   ],
 };

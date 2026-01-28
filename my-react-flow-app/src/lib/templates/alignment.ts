@@ -45,7 +45,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n3-sift-ref",
       type: "sift",
-      position: { x: 450, y: 50 },
+      position: { x: 450, y: 140.83 },
       data: {
         label: "SIFT Feature (Ref)",
         status: "idle",
@@ -82,7 +82,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n4-sift-target",
       type: "sift",
-      position: { x: 450, y: 596.8 },
+      position: { x: 450, y: 713.9 },
       data: {
         label: "SIFT Feature (Target)",
         status: "idle", 
@@ -102,7 +102,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n5-flann",
       type: "flannmatcher",
-      position: { x: 850, y: 320 },
+      position: { x: 850, y: 420 },
       data: {
         label: "FLANN Matcher",
         status: "idle", 
@@ -122,7 +122,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     {
       id: "n6-homo",
       type: "homography-align",
-      position: { x: 1250, y: 327 },
+      position: { x: 1250, y: 421.3 },
       data: {
         label: "Homography Warp",
         status: "idle", 
@@ -136,18 +136,7 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
       }
     },
 
-    {
-      id: "n7-save-img",
-      type: "save-image",
-      position: { x: 1650, y: 390 },
-      data: { label: "Save Result", status: "idle" }
-    },
-    {
-      id: "n8-save-json",
-      type: "save-json",
-      position: { x: 1650, y: 550 },
-      data: { label: "Save JSON", status: "idle" }
-    }
+    
   ],
 
   edges: [
@@ -156,7 +145,6 @@ export const OBJECT_ALIGNMENT_HOMOGRAPHY: WorkflowTemplate = {
     { id: "e3", source: "n3-sift-ref", target: "n5-flann", targetHandle: "file1", type: "smoothstep", style: { strokeWidth: 2, stroke: "#64748b" } },
     { id: "e4", source: "n4-sift-target", target: "n5-flann", targetHandle: "file2", type: "smoothstep", style: { strokeWidth: 2, stroke: "#64748b" } },
     { id: "e5", source: "n5-flann", target: "n6-homo", type: "smoothstep", style: { strokeWidth: 2, stroke: "#64748b" } },
-    { id: "e6", source: "n6-homo", target: "n7-save-img", type: "smoothstep", style: { strokeWidth: 2, stroke: "#64748b" } },
-    { id: "e7", source: "n6-homo", target: "n8-save-json", type: "smoothstep", style: { strokeWidth: 2, stroke: "#64748b" } }
+
   ],
 };
