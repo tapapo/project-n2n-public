@@ -7,19 +7,13 @@ from typing import Tuple, Optional, Any, Dict, List
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 
 def _norm_from_str(s: Optional[str]) -> Optional[int]:
-    if s is None:
-        return None
+    if s is None: return None
     s2 = s.strip().upper()
-    if s2 in ("AUTO", "DEFAULT"):
-        return None
-    if s2 in ("L2", "NORM_L2"):
-        return cv2.NORM_L2
-    if s2 in ("L1", "NORM_L1"):
-        return cv2.NORM_L1
-    if s2 in ("HAMMING", "NORM_HAMMING"):
-        return cv2.NORM_HAMMING
-    if s2 in ("HAMMING2", "NORM_HAMMING2"):
-        return cv2.NORM_HAMMING2
+    if s2 in ("AUTO", "DEFAULT"): return None
+    if s2 in ("L2", "NORM_L2"): return cv2.NORM_L2
+    if s2 in ("L1", "NORM_L1"): return cv2.NORM_L1
+    if s2 in ("HAMMING", "NORM_HAMMING"): return cv2.NORM_HAMMING
+    if s2 in ("HAMMING2", "NORM_HAMMING2"): return cv2.NORM_HAMMING2
     return None
 
 def _norm_to_str(code: int) -> str:
@@ -89,7 +83,6 @@ def load_descriptor_data(json_path: str):
     if not img_path and image_dict.get("file_name"): img_path = image_dict.get("file_name")
     if img_path: img_path = _resolve_image_path(img_path)
     return keypoints, descriptors, tool_name, img_path, default_norm, extra
-
 
 def _validate_norm(tool: str, norm_override: Optional[str], resolved_norm: int):
     tool = tool.upper()
@@ -205,14 +198,21 @@ def run(
     else:
         homography_reason = "not_enough_good_matches"
 
+    good_matches_list = []
+    for m in good_matches:
+        good_matches_list.append({
+            "queryIdx": int(m.queryIdx),
+            "trainIdx": int(m.trainIdx),
+            "distance": float(m.distance),
+            "imgIdx": int(m.imgIdx)
+        })
+
     if out_root is None:
         out_root = os.path.join(PROJECT_ROOT, "outputs")
         
     out_dir = os.path.join(out_root, "features", "bfmatcher_outputs")
-    def _ensure_dir(path: str):
-        if not os.path.exists(path):
-            os.makedirs(path, exist_ok=True)
-    _ensure_dir(out_dir)
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
     
     t1 = os.path.getmtime(json_a) if os.path.exists(json_a) else 0
     t2 = os.path.getmtime(json_b) if os.path.exists(json_b) else 0
@@ -302,6 +302,9 @@ def run(
         },
         "inliers": inliers,
         "matched_points": matched_points, 
+        
+        "good_matches": good_matches_list, 
+
         "vis_url": vis_path_rel,
         "parameters_hash": config_map
     }

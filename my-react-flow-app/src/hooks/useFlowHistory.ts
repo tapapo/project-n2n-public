@@ -1,4 +1,3 @@
-// src/hooks/useFlowHistory.ts
 import { useCallback, useEffect, useRef } from 'react'; 
 import type { Node, Edge } from 'reactflow';
 import type { CustomNodeData, NodeStatus } from '../types';
@@ -19,7 +18,23 @@ export type UseFlowHistoryArgs = {
 };
 
 const getCleanData = (data: any) => {
-  const { status, onRunNode, ...rest } = data || {};
+  const { 
+    status, 
+    onRunNode, 
+    
+    payload,
+    json,
+    output,
+    json_data,
+    message,
+    error,
+    meta,
+    params_used,
+    result_text,
+    description, 
+    
+    ...rest 
+  } = data || {};
   return rest;
 };
 
@@ -108,17 +123,33 @@ export function useFlowHistory({
 
       setNodes((currentNodes) => {
         const currentMap = new Map(currentNodes.map((n) => [n.id, n]));
+        
         return snap.nodes.map((snapNode) => {
           const current = currentMap.get(snapNode.id);
           const snapData = (snapNode.data || {}) as CustomNodeData;
           
           const currentStatus = current ? (current.data?.status || 'idle') : 'idle';
+          
+          const curD = (current?.data || {}) as CustomNodeData;
 
           return {
             ...snapNode,
             data: {
-              ...snapData,
+              ...snapData, 
+              
               status: currentStatus, 
+              
+              payload: curD.payload !== undefined ? curD.payload : snapData.payload,
+              json: curD.json !== undefined ? curD.json : snapData.json,
+              output: curD.output !== undefined ? curD.output : snapData.output,
+              
+              message: curD.message !== undefined ? curD.message : snapData.message,
+              error: curD.error !== undefined ? curD.error : snapData.error,
+              meta: curD.meta !== undefined ? curD.meta : snapData.meta,
+              params_used: curD.params_used !== undefined ? curD.params_used : snapData.params_used,
+              result_text: curD.result_text !== undefined ? curD.result_text : snapData.result_text,
+              
+              description: curD.description !== undefined ? curD.description : snapData.description,
             },
           };
         });

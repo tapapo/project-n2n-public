@@ -1,4 +1,3 @@
-# server/algos/matching/flannmatcher_adapter.py
 import os, json, cv2, sys
 import hashlib 
 import numpy as np
@@ -166,6 +165,11 @@ def run(
 
 
     requested = (index_mode or "AUTO").upper()
+    
+    # --- [FIX 1] เพิ่ม Validation เช็คค่า index_mode ---
+    valid_modes = {"AUTO", "KD_TREE", "LSH"}
+    if requested not in valid_modes:
+        raise ValueError(f"Invalid index_mode: {requested}. Must be one of {valid_modes}")
 
     if tool1 in ("SIFT", "SURF"):
         if requested == "LSH":
@@ -333,6 +337,8 @@ def run(
             "lowes_ratio_threshold": float(eff_ratio),
             "ransac_thresh": float(ransac_thresh),
             "draw_mode": mode_in,
+            # --- [FIX 2] เพิ่ม key max_draw ลง output ---
+            "max_draw": max_draw if max_draw is not None else 50, 
         },
         "input_features_details": {
             "image1": {

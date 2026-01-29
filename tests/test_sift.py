@@ -9,12 +9,9 @@ import cv2
 import numpy as np
 import pytest
 
-# ตรวจสอบ path import ให้ตรงกับโครงสร้างโปรเจกต์ของคุณ
 from server.algos.feature.sift_adapter import run as sift_run
 
-# =============================================================================
 # 1. FIXTURES: การเตรียมข้อมูลจำลอง (Images & Helpers)
-# =============================================================================
 
 @pytest.fixture()
 def textured_img(tmp_path) -> str:
@@ -23,13 +20,11 @@ def textured_img(tmp_path) -> str:
     h, w = 320, 320
     img = np.zeros((h, w, 3), dtype=np.uint8)
 
-    # วาดลวดลาย: เส้น, สี่เหลี่ยม, วงกลม
     for i in range(10, min(h, w), 20):
         cv2.line(img, (i, 0), (w - 1 - i, h - 1), (255, 255, 255), 1)
         cv2.rectangle(img, (i, i), (i + 12, i + 12), (180, 180, 180), -1)
         cv2.circle(img, (w // 2, i), 10, (220, 220, 220), 2)
     
-    # ใส่ Text เพื่อเพิ่ม texture
     cv2.putText(img, "SIFT TEST", (20, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (200, 200, 200), 2)
 
     cv2.imwrite(str(path), img)
@@ -91,11 +86,9 @@ def _check_matching_quality(j1_path, j2_path, min_ratio=0.25):
     if des1.size == 0 or des2.size == 0:
         return False, 0.0
 
-    # ใช้ KNN Matcher
     bf = cv2.BFMatcher(cv2.NORM_L2)
     matches = bf.knnMatch(des1, des2, k=2)
 
-    # Lowe's Ratio Test
     good = []
     for m, n in matches:
         if m.distance < 0.75 * n.distance:
@@ -104,7 +97,6 @@ def _check_matching_quality(j1_path, j2_path, min_ratio=0.25):
     if len(good) < 4:
         return False, 0.0
 
-    # หา Homography เพื่อยืนยันว่าจุดเกาะกลุ่มกันถูกต้องตามเรขาคณิต
     src_pts = np.float32([pts1[m.queryIdx] for m in good]).reshape(-1, 1, 2)
     dst_pts = np.float32([pts2[m.trainIdx] for m in good]).reshape(-1, 1, 2)
 
@@ -120,19 +112,14 @@ def _check_matching_quality(j1_path, j2_path, min_ratio=0.25):
     ratio = inlier_count / total_good if total_good > 0 else 0
     return ratio >= min_ratio, ratio
 
-# =============================================================================
 # 2. CACHING LOGIC TESTS (สำคัญ: แก้ไขจาก Logic เดิม)
-# =============================================================================
 
 def test_caching_same_input_same_output(tmp_path, textured_img):
     """ถ้า Input เหมือนเดิม + Param เหมือนเดิม = ต้องได้ไฟล์เดิม (Cache Hit)"""
-    # Run รอบที่ 1
     j1, v1 = sift_run(textured_img, out_dir=tmp_path, nfeatures=500)
     
-    # Run รอบที่ 2
     j2, v2 = sift_run(textured_img, out_dir=tmp_path, nfeatures=500)
     
-    # ต้องได้ Path เดิม เพราะ Adapter คำนวณ Hash จาก Config
     assert j1 == j2
     assert v1 == v2
     assert os.path.exists(j1)
@@ -140,7 +127,7 @@ def test_caching_same_input_same_output(tmp_path, textured_img):
 def test_param_change_creates_new_file(tmp_path, textured_img):
     """ถ้าเปลี่ยน Parameter = ต้องได้ไฟล์ใหม่"""
     j1, _ = sift_run(textured_img, out_dir=tmp_path, nfeatures=500)
-    j2, _ = sift_run(textured_img, out_dir=tmp_path, nfeatures=1000) # เปลี่ยนค่า
+    j2, _ = sift_run(textured_img, out_dir=tmp_path, nfeatures=1000) 
     
     assert j1 != j2
 
@@ -148,37 +135,30 @@ def test_image_modification_creates_new_file(tmp_path, textured_img):
     """ถ้าแก้ไขรูปภาพ (mtime เปลี่ยน) = ต้องได้ไฟล์ใหม่"""
     j1, _ = sift_run(textured_img, out_dir=tmp_path)
     
-    # Sleep เล็กน้อยเพื่อให้ Timestamp ของระบบไฟล์เปลี่ยนแน่นอน
     time.sleep(1.5)
     
-    # แตะไฟล์เพื่ออัปเดต Last Modified Time
     Path(textured_img).touch()
     
     j2, _ = sift_run(textured_img, out_dir=tmp_path)
     
     assert j1 != j2
 
-# =============================================================================
 # 3. JSON INPUT & ERROR HANDLING TESTS (เพิ่มใหม่)
-# =============================================================================
 
 def test_run_from_valid_json_input(tmp_path, textured_img):
     """ทดสอบรับ Input เป็นไฟล์ JSON (Metadata จากโหนดก่อนหน้า)"""
-    # จำลองไฟล์ JSON ที่มาจาก Preprocessing Node
     meta_path = tmp_path / "prev_node_output.json"
     payload = {
         "tool": "PREPROCESS",
         "output": {
-            "result_image_url": str(textured_img)  # Adapter จะต้องดึง path นี้ไปใช้
+            "result_image_url": str(textured_img)  
         }
     }
     with open(meta_path, "w") as f:
         json.dump(payload, f)
         
-    # ส่ง path ของ json เข้าไปในฟังก์ชัน run
     j_out, _ = sift_run(str(meta_path), out_dir=tmp_path)
     
-    # ตรวจสอบผลลัพธ์
     data = _load_json(j_out)
     assert data["tool"] == "SIFT"
     assert data["image"]["original_path"] == str(textured_img)
@@ -206,9 +186,7 @@ def test_file_not_found(tmp_path):
     with pytest.raises(FileNotFoundError):
         sift_run(str(tmp_path / "non_existent.jpg"), out_dir=tmp_path)
 
-# =============================================================================
 # 4. PARAMETER CONTRACT & SCHEMA TESTS
-# =============================================================================
 
 def test_json_schema_validity(tmp_path, textured_img):
     """ตรวจสอบโครงสร้าง JSON Output ว่ามี Key ครบถ้วน"""
@@ -245,15 +223,12 @@ def test_parameter_reflection(tmp_path, textured_img):
     assert abs(used["edgeThreshold"] - 12) < 1e-6
     assert abs(used["sigma"] - 1.8) < 1e-6
 
-# =============================================================================
 # 5. ROBUSTNESS & INVARIANCE TESTS (ความทนทาน)
-# =============================================================================
 
 def test_rotation_invariance(tmp_path, textured_img):
     """ทดสอบการหมุนภาพ: SIFT ควรจะยังจับคู่กันได้"""
     src = cv2.imread(textured_img)
     h, w = src.shape[:2]
-    # หมุน 45 องศา
     M = cv2.getRotationMatrix2D((w//2, h//2), 45, 1.0)
     rotated = cv2.warpAffine(src, M, (w, h))
     rot_path = str(tmp_path / "rot.jpg")
@@ -268,7 +243,6 @@ def test_rotation_invariance(tmp_path, textured_img):
 def test_scale_invariance(tmp_path, textured_img):
     """ทดสอบการย่อภาพ: SIFT ควรจะยังจับคู่กันได้"""
     src = cv2.imread(textured_img)
-    # ย่อเหลือ 50%
     scaled = cv2.resize(src, None, fx=0.5, fy=0.5)
     scale_path = str(tmp_path / "scale.jpg")
     cv2.imwrite(scale_path, scaled)
@@ -282,7 +256,6 @@ def test_scale_invariance(tmp_path, textured_img):
 def test_illumination_invariance(tmp_path, textured_img):
     """ทดสอบความสว่างเปลี่ยน: SIFT ควรจะยังจับคู่กันได้"""
     src = cv2.imread(textured_img)
-    # เพิ่มความสว่าง
     bright = cv2.convertScaleAbs(src, alpha=1.2, beta=30)
     bright_path = str(tmp_path / "bright.jpg")
     cv2.imwrite(bright_path, bright)
@@ -293,9 +266,7 @@ def test_illumination_invariance(tmp_path, textured_img):
     passed, ratio = _check_matching_quality(j1, j2)
     assert passed, f"Illumination invariance failed (Ratio: {ratio:.2f})"
 
-# =============================================================================
 # 6. INPUT CHANNEL & TYPE TESTS
-# =============================================================================
 
 def test_grayscale_support(tmp_path, gray_img):
     """ทดสอบรูปขาวดำ"""
@@ -308,12 +279,9 @@ def test_bgra_support(tmp_path, bgra_img):
     """ทดสอบรูปที่มี Alpha Channel"""
     j, _ = sift_run(bgra_img, out_dir=tmp_path)
     data = _load_json(j)
-    # ควรทำงานได้โดยไม่ Crash (โค้ด Adapter มีการแปลงเป็น Gray)
     assert data["num_keypoints"] > 0
 
-# =============================================================================
 # 7. PERFORMANCE TEST
-# =============================================================================
 
 def test_performance_large_image(tmp_path, large_img):
     """ทดสอบ Performance กับรูปใหญ่ (ต้องไม่ใช้เวลานานเกินไป)"""
@@ -321,9 +289,7 @@ def test_performance_large_image(tmp_path, large_img):
     j, v = sift_run(large_img, out_dir=tmp_path, nfeatures=1000)
     duration = time.perf_counter() - start_time
     
-    # Assert เวลา (ปรับค่าตามความแรงเครื่อง Server)
     assert duration < 10.0, f"Processing too slow: {duration:.2f}s"
     
-    # Assert ว่าไฟล์ถูกสร้างจริง
     assert os.path.exists(j)
     assert os.path.exists(v)

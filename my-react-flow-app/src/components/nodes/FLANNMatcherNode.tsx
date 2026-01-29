@@ -19,7 +19,7 @@ type FLANNParams = {
   lowe_ratio: number;
   ransac_thresh: number;
   draw_mode: 'good' | 'inliers';
-  max_draw?: number | null;
+  max_draw?: number | null; 
   index_params: 'AUTO' | any;
   search_params: 'AUTO' | { checks?: number };
 };
@@ -28,6 +28,7 @@ const DEFAULT_PARAMS: FLANNParams = {
   lowe_ratio: 0.75,
   ransac_thresh: 5.0,
   draw_mode: 'good',
+  max_draw: 50, 
   index_params: 'AUTO',
   search_params: 'AUTO',
 };
@@ -36,6 +37,7 @@ const ALLOWED_FLANN_KEYS = [
   'lowe_ratio',
   'ransac_thresh',
   'draw_mode',
+  'max_draw',
   'index_params',
   'search_params'
 ];
@@ -287,13 +289,24 @@ const FLANNMatcherNode = memo(({ id, data, selected }: NodeProps<CustomNodeData>
               }} 
             />
           </div>
-          <div className="col-span-2">
+          <div>
             <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Draw Mode</label>
             <select className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" value={form.draw_mode} onChange={(e) => setForm(s => ({ ...s, draw_mode: e.target.value as FLANNParams['draw_mode'] }))}>
               <option value="good">Good matches</option><option value="inliers">Inliers only</option>
             </select>
           </div>
           
+          <div>
+            <label className="block mb-1 font-bold text-gray-400 uppercase text-[10px] tracking-wider">Max Draw</label>
+            <input 
+              type="number" min={0}
+              placeholder="0 = All"
+              className="nodrag w-full bg-gray-900 rounded border border-gray-700 p-2 text-orange-400 font-mono outline-none focus:border-orange-500" 
+              value={form.max_draw ?? ''} 
+              onChange={(e) => setForm(s => ({ ...s, max_draw: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            />
+          </div>
+
           <div className="col-span-2 border-t border-gray-700 pt-3 mt-1">
             <div className="mb-2 text-gray-300 font-bold uppercase text-[10px] tracking-wider">Index params</div>
             <div className="grid grid-cols-2 gap-3">

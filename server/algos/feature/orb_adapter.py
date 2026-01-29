@@ -140,7 +140,7 @@ def run(
             "edgeThreshold": orb.getEdgeThreshold(),
             "firstLevel": orb.getFirstLevel(),
             "WTA_K": orb.getWTA_K(),
-            "scoreType": orb.getScoreType(),
+            "scoreType": config_map["scoreType"],
             "patchSize": orb.getPatchSize(),
             "fastThreshold": orb.getFastThreshold()
         },
