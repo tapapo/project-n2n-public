@@ -8,7 +8,7 @@ import ReactFlow, {
 import 'reactflow/dist/style.css';
 
 import { nodeTypes, defaultEdgeOptions } from './lib/flowConfig';
-import type { CustomNodeData, LogEntry, NodeStatus } from './types'; 
+import type { CustomNodeData, LogEntry, NodeStatus } from './types';
 
 // ---------- Runners ----------
 import { runFeature } from './lib/runners/features';
@@ -26,7 +26,7 @@ import { runSegmentation } from './lib/runners/segmentation';
 import { useFlowHotkeys } from './hooks/useFlowHotkeys';
 import { useFlowHistory } from './hooks/useFlowHistory';
 import { useWorkflowFile } from './hooks/useWorkflowFile';
-import { validateNodeInput, validateConnection } from './lib/validation'; 
+import { validateNodeInput, validateConnection } from './lib/validation';
 import LogPanel from './components/LogPanel';
 
 export interface FlowCanvasHandle {
@@ -39,7 +39,7 @@ interface FlowCanvasProps {
   isRunning: boolean;
   onPipelineDone: () => void;
   onFlowChange?: (changes: { nodes: RFNode[]; edges: Edge[]; viewport: Viewport }) => void;
-  currentTabName: string; 
+  currentTabName: string;
 }
 
 const getId = () => `node_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
@@ -62,7 +62,7 @@ function getDownstreamNodes(sourceId: string, edges: Edge[]): Set<string> {
     const outgoers = edges
       .filter((e) => e.source === currentId)
       .map((e) => e.target);
-    
+
     outgoers.forEach((targetId) => {
       if (!downstreamIds.has(targetId)) {
         downstreamIds.add(targetId);
@@ -75,121 +75,121 @@ function getDownstreamNodes(sourceId: string, edges: Edge[]): Set<string> {
 
 const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
   ({ isRunning, onPipelineDone, onFlowChange, currentTabName }, ref) => {
-  
-  const { screenToFlowPosition, fitView, getViewport, setViewport, getNodes, getEdges } = useReactFlow(); 
 
-  const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
-  const onMouseMove = useCallback((event: React.MouseEvent) => {
+    const { screenToFlowPosition, fitView, getViewport, setViewport, getNodes, getEdges } = useReactFlow();
+
+    const lastMousePosRef = useRef<{ x: number; y: number } | null>(null);
+    const onMouseMove = useCallback((event: React.MouseEvent) => {
       const pos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
       lastMousePosRef.current = pos;
     }, [screenToFlowPosition]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<CustomNodeData>([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+    const [nodes, setNodes, onNodesChange] = useNodesState<CustomNodeData>([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [logs, setLogs] = useState<LogEntry[]>([]);
 
-  const isDraggingRef = useRef(false);
-  const isCanceledRef = useRef(false);
-  
-  const isProcessingRef = useRef(false); 
+    const isDraggingRef = useRef(false);
+    const isCanceledRef = useRef(false);
 
-  useEffect(() => {
-    if (!onFlowChange) return;
-    const timer = setTimeout(() => {
-      onFlowChange({ nodes, edges, viewport: getViewport() });
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [nodes, edges, onFlowChange, getViewport]);
+    const isProcessingRef = useRef(false);
 
-  useImperativeHandle(ref, () => ({
-    getSnapshot: () => ({ nodes, edges, viewport: getViewport() }),
-    restoreSnapshot: (newNodes, newEdges, newViewport) => {
-      if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as any) = true;
-      const nodesWithFunc = newNodes.map(n => ({
-        ...n, data: { ...n.data, onRunNode: (id: string) => runNodeById(id) }
-      }));
-      setNodes(nodesWithFunc);
-      setEdges(newEdges);
-      setTimeout(() => {
-         setViewport(newViewport);
-         if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as any) = false;
-      }, 50);
-    },
-    fitView: () => { window.requestAnimationFrame(() => fitView({ padding: 0.2, duration: 800 })); }
-  }));
+    useEffect(() => {
+      if (!onFlowChange) return;
+      const timer = setTimeout(() => {
+        onFlowChange({ nodes, edges, viewport: getViewport() });
+      }, 1000);
+      return () => clearTimeout(timer);
+    }, [nodes, edges, onFlowChange, getViewport]);
 
-  const addLog = useCallback((message: string, type: LogEntry['type'] = 'info', nodeId?: string) => {
-    setLogs((prev) => [...prev, {
-      id: Date.now().toString() + Math.random(),
-      timestamp: new Date().toLocaleTimeString(),
-      type, message, nodeId,
-    }]);
-  }, []);
+    useImperativeHandle(ref, () => ({
+      getSnapshot: () => ({ nodes, edges, viewport: getViewport() }),
+      restoreSnapshot: (newNodes, newEdges, newViewport) => {
+        if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as any) = true;
+        const nodesWithFunc = newNodes.map(n => ({
+          ...n, data: { ...n.data, onRunNode: (id: string) => runNodeById(id) }
+        }));
+        setNodes(nodesWithFunc);
+        setEdges(newEdges);
+        setTimeout(() => {
+          setViewport(newViewport);
+          if (isApplyingHistoryRef.current) (isApplyingHistoryRef.current as any) = false;
+        }, 50);
+      },
+      fitView: () => { window.requestAnimationFrame(() => fitView({ padding: 0.2, duration: 800 })); }
+    }));
 
-  const nodesRef = useRef(nodes);
-  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+    const addLog = useCallback((message: string, type: LogEntry['type'] = 'info', nodeId?: string) => {
+      setLogs((prev) => [...prev, {
+        id: Date.now().toString() + Math.random(),
+        timestamp: new Date().toLocaleTimeString(),
+        type, message, nodeId,
+      }]);
+    }, []);
 
-  const { undo, redo, isApplyingHistoryRef } = useFlowHistory({ nodes, edges, setNodes, setEdges, isDraggingRef });
-  const { saveWorkflow, triggerLoadWorkflow, fileInputRef, handleFileChange } = useWorkflowFile({
-    nodes, edges, setNodes, setEdges, isApplyingHistoryRef, flowName: currentTabName
-  });
+    const nodesRef = useRef(nodes);
+    useEffect(() => { nodesRef.current = nodes; }, [nodes]);
 
-  const handleClearWorkflow = useCallback(() => {
-    if (nodes.length === 0) return; 
-    setNodes([]); setEdges([]);
-    addLog('Workflow cleared.', 'warning');
-  }, [nodes, setNodes, setEdges, addLog]);
+    const { undo, redo, isApplyingHistoryRef } = useFlowHistory({ nodes, edges, setNodes, setEdges, isDraggingRef });
+    const { saveWorkflow, triggerLoadWorkflow, fileInputRef, handleFileChange } = useWorkflowFile({
+      nodes, edges, setNodes, setEdges, isApplyingHistoryRef, flowName: currentTabName
+    });
 
-  const setIncomingEdgesStatus = useCallback((nodeId: string, status: 'default' | 'error') => {
-      setEdges((eds) => eds.map((e) => e.target === nodeId ? { 
-          ...e, animated: status === 'error', 
-          style: { ...e.style, stroke: status === 'error' ? '#ef4444' : '#64748b', strokeWidth: status === 'error' ? 3 : 2 } 
+    const handleClearWorkflow = useCallback(() => {
+      if (nodes.length === 0) return;
+      setNodes([]); setEdges([]);
+      addLog('Workflow cleared.', 'warning');
+    }, [nodes, setNodes, setEdges, addLog]);
+
+    const setIncomingEdgesStatus = useCallback((nodeId: string, status: 'default' | 'error') => {
+      setEdges((eds) => eds.map((e) => e.target === nodeId ? {
+        ...e, animated: status === 'error',
+        style: { ...e.style, stroke: status === 'error' ? '#ef4444' : '#64748b', strokeWidth: status === 'error' ? 3 : 2 }
       } : e));
-  }, [setEdges]);
+    }, [setEdges]);
 
-  const onEdgesDelete = useCallback((deletedEdges: Edge[]) => {
-    if (deletedEdges.length === 0) return;
-    const targetNodeIds = new Set(deletedEdges.map((e) => e.target));
+    const onEdgesDelete = useCallback((deletedEdges: Edge[]) => {
+      if (deletedEdges.length === 0) return;
+      const targetNodeIds = new Set(deletedEdges.map((e) => e.target));
 
-    setNodes((nds) => nds.map((node) => {
+      setNodes((nds) => nds.map((node) => {
         if (targetNodeIds.has(node.id)) {
-            const params = node.data.payload?.params;
-            return {
-                ...node,
-                data: {
-                    ...node.data,
-                    status: 'idle',
-                    description: 'Connection removed',
-                    payload: { params }
-                }
-            };
+          const params = node.data.payload?.params;
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              status: 'idle',
+              description: 'Connection removed',
+              payload: { params }
+            }
+          };
         }
         return node;
-    }));
-    addLog('Connection removed. Target node reset.', 'info');
-  }, [setNodes, addLog]);
+      }));
+      addLog('Connection removed. Target node reset.', 'info');
+    }, [setNodes, addLog]);
 
-  const runNodeById = useCallback(async (nodeId: string) => {
-      const currentNodes = getNodes(); 
-      const currentEdges = getEdges(); 
+    const runNodeById = useCallback(async (nodeId: string) => {
+      const currentNodes = getNodes();
+      const currentEdges = getEdges();
 
       const node = currentNodes.find((n) => n.id === nodeId);
-      
+
       if (!node) {
-          throw new Error(`Node ${nodeId} missing from store`);
+        throw new Error(`Node ${nodeId} missing from store`);
       }
       if (!node.type) return;
 
       const nodeName = node.data.label || node.type.toUpperCase();
 
       setIncomingEdgesStatus(nodeId, 'default');
-      const check = validateNodeInput(nodeId, currentNodes, currentEdges); 
+      const check = validateNodeInput(nodeId, currentNodes, currentEdges);
       if (!check.isValid) {
         const cleanMsg = cleanErrorMessage(check.message || '');
         addLog(`[${nodeName}] ❌ fault: ${cleanMsg}`, 'error', nodeId);
         setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, status: 'fault' as NodeStatus } } : n)));
         setIncomingEdgesStatus(nodeId, 'error');
-        throw new Error(check.message); 
+        throw new Error(check.message);
       }
 
       addLog(`[${nodeName}] ⏳ Processing...`, 'info', nodeId);
@@ -201,12 +201,12 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
         const freshEdges = getEdges();
 
         switch (typeKey) {
-          case 'image-input': 
-             if (!node.data.payload?.url) throw new Error("No image uploaded yet.");
+          case 'image-input':
+            if (!node.data.payload?.url) throw new Error("No image uploaded yet.");
             setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, status: 'success' as NodeStatus } } : n));
-            await new Promise(r => setTimeout(r, 100)); 
-            break; 
-          
+            await new Promise(r => setTimeout(r, 100));
+            break;
+
           case 'sift': case 'surf': case 'orb': await runFeature(node, setNodes, freshNodes, freshEdges); break;
           case 'brisque': case 'psnr': case 'ssim': await runQuality(node, setNodes, freshNodes, freshEdges); break;
           case 'bfmatcher': case 'flannmatcher': await runMatcher(node, setNodes, freshNodes, freshEdges); break;
@@ -220,26 +220,26 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
           case 'save-json': await runSaveJson(node as any, setNodes as any, freshNodes, freshEdges); break;
           default: console.warn(`Unknown type: ${node.type}`);
         }
-        
+
         const downstreamIds = getDownstreamNodes(nodeId, freshEdges);
         if (downstreamIds.size > 0) {
-            setNodes((nds) => nds.map((n) => {
-                if (downstreamIds.has(n.id)) {
-                    const params = n.data.payload?.params;
-                    return {
-                        ...n,
-                        data: {
-                            ...n.data,
-                            status: 'idle', 
-                            description: 'Waiting for upstream...',
-                            payload: {
-                                params: params, 
-                            }
-                        }
-                    };
+          setNodes((nds) => nds.map((n) => {
+            if (downstreamIds.has(n.id)) {
+              const params = n.data.payload?.params;
+              return {
+                ...n,
+                data: {
+                  ...n.data,
+                  status: 'idle',
+                  description: 'Waiting for upstream...',
+                  payload: {
+                    params: params,
+                  }
                 }
-                return n;
-            }));
+              };
+            }
+            return n;
+          }));
         }
 
         addLog(`[${nodeName}] ✅ Completed`, 'success', nodeId);
@@ -251,105 +251,108 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       }
     }, [setNodes, addLog, setIncomingEdgesStatus, getNodes, getEdges]);
 
-  useFlowHotkeys({ getPastePosition: () => lastMousePosRef.current, runNodeById, undo, redo });
+    useFlowHotkeys({ getPastePosition: () => lastMousePosRef.current, runNodeById, undo, redo });
 
-  useEffect(() => {
-    setNodes((nds) => {
-      let changed = false;
-      const updated = nds.map((n) => {
-        if (n.data && typeof n.data.onRunNode === 'function') return n;
-        changed = true;
-        return { ...n, data: { ...(n.data || {}), onRunNode: (id: string) => runNodeById(id) } };
+    useEffect(() => {
+      setNodes((nds) => {
+        let changed = false;
+        const updated = nds.map((n) => {
+          if (n.data && typeof n.data.onRunNode === 'function') return n;
+          changed = true;
+          return { ...n, data: { ...(n.data || {}), onRunNode: (id: string) => runNodeById(id) } };
+        });
+        return changed ? updated : nds;
       });
-      return changed ? updated : nds;
-    });
-  }, [nodes, runNodeById, setNodes]);
+    }, [nodes, runNodeById, setNodes]);
 
 
-  useEffect(() => {
-    if (!isRunning) { 
-        isCanceledRef.current = true; 
+    useEffect(() => {
+      if (!isRunning) {
+        isCanceledRef.current = true;
         isProcessingRef.current = false;
-        return; 
-    }
-    
-    if (isProcessingRef.current) return;
-    
-    isProcessingRef.current = true;
-    isCanceledRef.current = false;
-    
-    const runAllNodes = async () => {
-      try {
+        return;
+      }
+
+      if (isProcessingRef.current) return;
+
+      isProcessingRef.current = true;
+      isCanceledRef.current = false;
+
+      const runAllNodes = async () => {
+        try {
           addLog('🚀 Pipeline Started', 'info');
-          
+
           const allNodes = getNodes();
-          
+
           if (!allNodes || allNodes.length === 0) {
-              addLog('⚠️ No nodes found to run.', 'warning');
-              return;
+            addLog('⚠️ No nodes found to run.', 'warning');
+            return;
           }
 
           const executionPriority: Record<string, number> = {
-              'image-input': 1, 
-              'clahe': 5, 'msrcr': 5, 'zero': 5, 'zerodce': 5, 'zero_dce': 5,
-              'dcnn': 10, 'dncnn': 10, 'swinir': 10, 'real': 10, 'realesrgan': 10, 
-              'sift': 20, 'surf': 20, 'orb': 20, 
-              'deep': 25, 'deeplab': 25, 'unet': 25, 'mask': 25, 'maskrcnn': 25,
-              'otsu': 30, 'snake': 30, 
-              'bfmatcher': 40, 'flannmatcher': 40, 'homography-align': 50, 'brisque': 60, 'psnr': 60, 
-              'save-image': 99
+            'image-input': 1,
+            'dcnn': 10, 'dncnn': 10, 'swinir': 10, 'real': 10, 'realesrgan': 10,
+            'clahe': 20, 'msrcr': 20, 'zero': 20, 'zerodce': 20, 'zero_dce': 20,
+            'otsu': 30, 'snake': 30,
+            'deep': 35, 'deeplab': 35, 'unet': 35, 'mask': 35, 'maskrcnn': 35,
+            'sift': 40, 'surf': 40, 'orb': 40,
+            'bfmatcher': 50, 'flannmatcher': 50,
+            'homography-align': 60, 'affine-align': 60, 
+            'brisque': 90, 'psnr': 90, 'ssim': 90,
+            'save-image': 99,
+            'save-json': 99
           };
-          
+
           const sortedNodes = allNodes.sort((a, b) => {
-              return (executionPriority[a.type?.toLowerCase() || ''] || 100) - (executionPriority[b.type?.toLowerCase() || ''] || 100);
+            return (executionPriority[a.type?.toLowerCase() || ''] || 100) - (executionPriority[b.type?.toLowerCase() || ''] || 100);
           });
 
           for (const node of sortedNodes) {
             if (isCanceledRef.current) { addLog('Pipeline stopped.', 'warning'); break; }
             if (!node?.id || !node?.type) continue;
-            
+
             if (node.type.startsWith('save-')) continue;
 
-            try { 
-                setNodes((nds) => nds.map(n => n.id === node.id ? { ...n, data: { ...n.data, status: 'running' as NodeStatus } } : n));
-                
-                await new Promise(r => setTimeout(r, 50));
+            try {
+              setNodes((nds) => nds.map(n => n.id === node.id ? { ...n, data: { ...n.data, status: 'running' as NodeStatus } } : n));
 
-                await runNodeById(node.id); 
+              await new Promise(r => setTimeout(r, 50));
 
-              
-                const isHeavyNode = ['deep', 'deeplab', 'mask', 'maskrcnn', 'unet'].includes(node.type?.toLowerCase() || '');
-                const delayTime = isHeavyNode ? 500 : 100;
+              await runNodeById(node.id);
 
-                await new Promise(r => setTimeout(r, delayTime));
-            
-            } catch (e) { 
-                console.warn(`Node ${node.id} failed.`); 
-                isCanceledRef.current = true;
-                break;
+
+              const isHeavyNode = ['deep', 'deeplab', 'mask', 'maskrcnn', 'unet'].includes(node.type?.toLowerCase() || '');
+              const delayTime = isHeavyNode ? 500 : 100;
+
+              await new Promise(r => setTimeout(r, delayTime));
+
+            } catch (e) {
+              console.warn(`Node ${node.id} failed.`);
+              isCanceledRef.current = true;
+              break;
             }
           }
-          
+
           if (!isCanceledRef.current) addLog('🏁 Pipeline Finished', 'success');
 
-      } finally {
+        } finally {
           isProcessingRef.current = false;
           onPipelineDone?.();
-      }
-    };
+        }
+      };
 
-    setTimeout(() => runAllNodes(), 0);
-    
-    return () => { isProcessingRef.current = false; };
-  }, [isRunning]);
+      setTimeout(() => runAllNodes(), 0);
 
-  const onValidateConnection = useCallback((connection: Connection) => {
+      return () => { isProcessingRef.current = false; };
+    }, [isRunning]);
+
+    const onValidateConnection = useCallback((connection: Connection) => {
       return validateConnection(connection, nodes, edges);
-  }, [nodes, edges]);
+    }, [nodes, edges]);
 
-  const onConnect = useCallback((conn: Edge | Connection) => setEdges((eds) => addEdge(conn, eds)), [setEdges]);
-  const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }, []);
-  const onDrop = useCallback((e: React.DragEvent) => {
+    const onConnect = useCallback((conn: Edge | Connection) => setEdges((eds) => addEdge(conn, eds)), [setEdges]);
+    const onDragOver = useCallback((e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }, []);
+    const onDrop = useCallback((e: React.DragEvent) => {
       e.preventDefault();
       const type = e.dataTransfer.getData('application/reactflow');
       if (!type) return;
@@ -361,50 +364,50 @@ const FlowCanvas = forwardRef<FlowCanvasHandle, FlowCanvasProps>(
       addLog(`Added ${type}`, 'info', id);
     }, [screenToFlowPosition, setNodes, runNodeById, addLog]);
 
-  return (
-    <div className="relative flex-1 h-full flex flex-col">
-      <div className="absolute z-10 top-2 right-2 flex gap-2">
-        <button onClick={saveWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">💾 SAVE</button>
-        <button onClick={triggerLoadWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">📂 LOAD</button>
-        <button onClick={handleClearWorkflow} className="px-3 py-1 rounded bg-red-900/80 hover:bg-red-700 text-xs border border-red-700 shadow-sm text-white">🗑️ CLEAR</button>
-        <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
-      </div>
+    return (
+      <div className="relative flex-1 h-full flex flex-col">
+        <div className="absolute z-10 top-2 right-2 flex gap-2">
+          <button onClick={saveWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">💾 SAVE</button>
+          <button onClick={triggerLoadWorkflow} className="px-3 py-1 rounded bg-slate-800/80 hover:bg-slate-700 text-xs border border-slate-600 shadow-sm text-white">📂 LOAD</button>
+          <button onClick={handleClearWorkflow} className="px-3 py-1 rounded bg-red-900/80 hover:bg-red-700 text-xs border border-red-700 shadow-sm text-white">🗑️ CLEAR</button>
+          <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={handleFileChange} />
+        </div>
 
-      <div className="flex-1 relative">
-        <ReactFlow
-          nodes={nodes} edges={edges}
-          onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
-          onConnect={onConnect} onDrop={onDrop} onDragOver={onDragOver} onMouseMove={onMouseMove}
-          nodeTypes={nodeTypes} defaultEdgeOptions={defaultEdgeOptions}
-          connectionLineType={ConnectionLineType.SmoothStep}
-          fitView minZoom={0.08} maxZoom={5}
-          onNodeDragStart={() => (isDraggingRef.current = true)}
-          onNodeDragStop={() => (isDraggingRef.current = false)}
-          isValidConnection={onValidateConnection}
-          onEdgesDelete={onEdgesDelete} 
-        >
-          <MiniMap 
-            position="bottom-left" 
-            style={{ 
-              background: 'rgba(15,23,42,0.9)', 
-              left: 50, 
-              bottom: -2 
-            }} 
-            maskColor="rgba(0,0,0,0.6)" 
-            nodeColor={(n) => n.data?.status === 'success' ? '#22c55e' : '#94a3b8'} 
-          />
-          
-          <Controls 
-            position="bottom-left" 
-            style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '22px' }}
-          />
-          
-          <Background variant={BackgroundVariant.Dots} gap={12} size={1} color="#334155" />
-        </ReactFlow>
+        <div className="flex-1 relative">
+          <ReactFlow
+            nodes={nodes} edges={edges}
+            onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+            onConnect={onConnect} onDrop={onDrop} onDragOver={onDragOver} onMouseMove={onMouseMove}
+            nodeTypes={nodeTypes} defaultEdgeOptions={defaultEdgeOptions}
+            connectionLineType={ConnectionLineType.SmoothStep}
+            fitView minZoom={0.08} maxZoom={5}
+            onNodeDragStart={() => (isDraggingRef.current = true)}
+            onNodeDragStop={() => (isDraggingRef.current = false)}
+            isValidConnection={onValidateConnection}
+            onEdgesDelete={onEdgesDelete}
+          >
+            <MiniMap
+              position="bottom-left"
+              style={{
+                background: 'rgba(15,23,42,0.9)',
+                left: 50,
+                bottom: -2
+              }}
+              maskColor="rgba(0,0,0,0.6)"
+              nodeColor={(n) => n.data?.status === 'success' ? '#22c55e' : '#94a3b8'}
+            />
+
+            <Controls
+              position="bottom-left"
+              style={{ display: 'flex', flexDirection: 'column', gap: '5px', marginBottom: '22px' }}
+            />
+
+            <Background variant={BackgroundVariant.Dots} gap={12} size={1} color="#334155" />
+          </ReactFlow>
+        </div>
+        <LogPanel logs={logs} onClear={() => setLogs([])} />
       </div>
-      <LogPanel logs={logs} onClear={() => setLogs([])} />
-    </div>
-  );
-});
+    );
+  });
 
 export default FlowCanvas;
